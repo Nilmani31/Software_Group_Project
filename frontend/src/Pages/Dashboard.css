@@ -1,0 +1,90 @@
+.dashboard-container {
+  flex: 1;
+  padding: 25px;
+  background-color: #f5f7fa;
+  height: 100vh;
+  box-sizing: border-box;
+}
+
+.dashboard-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 25px;
+}
+
+.dashboard-header h2 {
+  color: #4b6cb7;
+  font-size: 22px;
+}
+
+.welcome-text {
+  font-size: 16px;
+  color: #2f3640;
+}
+
+.dashboard-cards {
+  display: flex;
+  gap: 15px;
+  flex-wrap: wrap;
+  margin-bottom: 25px;
+}
+
+.card {
+  flex: 1;
+  min-width: 160px;
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
+  padding: 15px;
+  text-align: center;
+}
+
+.card h3 {
+  font-size: 14px;
+  color: #555;
+  margin-bottom: 8px;
+}
+
+.card p {
+  font-size: 22px;
+  font-weight: bold;
+  color: #4b6cb7;
+}
+
+.dashboard-content {
+  display: flex;
+  gap: 25px;
+}
+
+.chart-section,
+.list-section {
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
+  padding: 20px;
+  flex: 1;
+}
+
+.chart-placeholder {
+  height: 200px;
+  background: #eef2f9;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #4b6cb7;
+  font-weight: 600;
+}
+
+.list-section ul {
+  list-style: none;
+  padding: 0;
+}
+
+.list-section li {
+  background: #f1f4fb;
+  margin-bottom: 8px;
+  padding: 8px 10px;
+  border-radius: 6px;
+}
