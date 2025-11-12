@@ -4,6 +4,8 @@ import LoginPage from './Pages/Login';
 import Sidebar from './Components/Sidebar';
 import Navbar from './Components/Navbar';
 import Dashboard from './Pages/Dashboard';
+import Report from './Pages/Report';
+import ChatAssistant from './Components/ChatAssistant';
 
 function App() {
   return (
@@ -12,16 +14,20 @@ function App() {
         <Routes>
           <Route path="/" element={<LoginPage />} />
           <Route path="/dashboard" element={<div style={{ display: "flex", flexDirection: "column", height: "100vh" }}>
-              
               <Navbar />
-
-             
               <div style={{ display: "flex", flex: 1 }}>
                 <Sidebar />
-                <div style={{ flex: 1, padding: "20px" }}>
-                  <Dashboard />
-                </div>
+                <Dashboard />
               </div>
+              <ChatAssistant />
+            </div>} />
+          <Route path="/reports" element={<div style={{ display: "flex", flexDirection: "column", height: "100vh" }}>
+              <Navbar />
+              <div style={{ display: "flex", flex: 1 }}>
+                <Sidebar />
+                <Report />
+              </div>
+              <ChatAssistant />
             </div>} />
         </Routes>
       

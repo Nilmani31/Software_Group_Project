@@ -1,14 +1,27 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import './Login.css';
 
 const LoginPage = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const navigate = useNavigate();
 
   const handleSubmit = (e) => {
     e.preventDefault();
     
-    console.log('Login attempt:', { username, password });
+    // Simple authentication - you can replace with your actual credentials
+    if (username === 'admin' && password === 'admin123') {
+      // Store login status in localStorage
+      localStorage.setItem('isLoggedIn', 'true');
+      localStorage.setItem('username', username);
+      
+      // Navigate to dashboard
+      navigate('/dashboard');
+    } else {
+      setError('Invalid username or password');
+    }
   };
 
   return (
@@ -29,6 +42,8 @@ const LoginPage = () => {
         <div className="form-section">
           <h1 className="system-title">CBBS Inventory System</h1>
           <h2 className="school-name">Colombo Bartender & Barista School</h2>
+          
+          {error && <div className="error-message">{error}</div>}
           
           <form onSubmit={handleSubmit} className="login-form">
             <div className="form-group">

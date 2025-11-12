@@ -17,12 +17,13 @@ const Sidebar = () => {
   return (
     <div className="sidebar">
       <div className="sidebar-header">
-        <div className="sidebar-logo"></div>
-        <h2>Dashboard</h2>
+        <div className="sidebar-logo">
+          <img src="/logo.jpg" alt="CBBS Logo" className="logo-image" />
+        </div>
       </div>
 
       <nav className="sidebar-nav">
-        <NavLink to="/" className="nav-item">
+        <NavLink to="/dashboard" className="nav-item">
           <FaTachometerAlt /> Dashboard
         </NavLink>
         <NavLink to="/inventory" className="nav-item">

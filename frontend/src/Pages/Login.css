@@ -1,4 +1,4 @@
-/* LoginPage.css */
+
 .login-container {
   display: flex;
   justify-content: center;
@@ -26,7 +26,7 @@
   position: relative;
 }
 
-/* Optional: Add a subtle curve at the bottom of the logo section */
+
 .logo-section::after {
   content: '';
   position: absolute;
@@ -94,6 +94,16 @@
   width: 100%;
 }
 
+.error-message {
+  background-color: #fee;
+  color: #c33;
+  padding: 10px 15px;
+  border-radius: 6px;
+  margin-bottom: 20px;
+  font-size: 14px;
+  border-left: 3px solid #c33;
+}
+
 .form-group {
   margin-bottom: 20px;
 }
@@ -145,7 +155,7 @@
   transform: translateY(0);
 }
 
-/* Responsive design */
+
 @media (max-width: 480px) {
   .login-card {
     width: 100%;
