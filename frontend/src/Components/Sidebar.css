@@ -1,3 +1,4 @@
+/* Sidebar */
 .sidebar {
   width: 220px;
   height: 100vh;
@@ -7,8 +8,47 @@
   flex-direction: column;
   padding: 20px 10px;
   box-sizing: border-box;
+  position: relative;
+  transition: width 0.3s ease;
+  overflow: hidden;
 }
 
+/* Collapsed state */
+.sidebar.collapsed {
+  width: 70px;
+}
+
+/* Toggle Arrow Button */
+.toggle-btn {
+  position: absolute;
+  top: 20px;
+  right: 5px;           /* outside sidebar */
+  background: #4b6cb7;
+  color: white;
+  font-size: 16px;
+  font-weight: bold;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: transform 0.3s ease;
+  z-index: 1000;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+}
+
+.toggle-btn:hover {
+  background: #3a539b;
+  transform: scale(1.1);
+}
+
+.toggle-btn.rotated {
+  transform: rotate(180deg);
+}
+
+/* Sidebar header + logo */
 .sidebar-header {
   display: flex;
   flex-direction: column;
@@ -26,8 +66,14 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
   margin-bottom: 10px;
+  transition: width 0.3s, height 0.3s;
+}
+
+.sidebar-logo.collapsed-logo {
+  width: 50px;
+  height: 50px;
 }
 
 .logo-image {
@@ -36,6 +82,7 @@
   object-fit: cover;
 }
 
+/* Navigation Items */
 .sidebar-nav {
   display: flex;
   flex-direction: column;
@@ -48,7 +95,7 @@
   color: #333;
   text-decoration: none;
   border-radius: 6px;
-  transition: background 0.3s, color 0.3s;
+  transition: background 0.3s, color 0.3s, justify-content 0.3s;
   font-size: 15px;
   margin-bottom: 5px;
 }
@@ -57,6 +104,7 @@
   margin-right: 10px;
   color: #4b6cb7;
   font-size: 18px;
+  transition: margin 0.3s;
 }
 
 .nav-item:hover {
@@ -71,4 +119,17 @@
 
 .nav-item.active svg {
   color: #fff;
+}
+
+/* Collapsed sidebar nav items */
+.sidebar.collapsed .nav-item {
+  justify-content: center;
+}
+
+.sidebar.collapsed .nav-item svg {
+  margin-right: 0;
+}
+
+.sidebar.collapsed .nav-item-text {
+  display: none;
 }

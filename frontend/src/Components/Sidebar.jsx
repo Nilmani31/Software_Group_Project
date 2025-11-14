@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { NavLink } from "react-router-dom";
 import {
   FaTachometerAlt,
@@ -14,45 +14,40 @@ import {
 import "./Sidebar.css";
 
 const Sidebar = () => {
+  const [hovered, setHovered] = useState(false);
+
   return (
-    <div className="sidebar">
+    <div
+      className={`sidebar ${!hovered ? "collapsed" : ""}`}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
+      {/* Logo */}
       <div className="sidebar-header">
-        <div className="sidebar-logo">
+        <div className={`sidebar-logo ${!hovered ? "collapsed-logo" : ""}`}>
           <img src="/logo.jpg" alt="CBBS Logo" className="logo-image" />
         </div>
       </div>
 
+      {/* Navigation Items */}
       <nav className="sidebar-nav">
-        <NavLink to="/dashboard" className="nav-item">
-          <FaTachometerAlt /> Dashboard
-        </NavLink>
-        <NavLink to="/inventory" className="nav-item">
-          <FaBoxes /> Inventory
-        </NavLink>
-        <NavLink to="/purchase-order" className="nav-item">
-          <FaShoppingCart /> Purchase Order
-        </NavLink>
-        <NavLink to="/good-received" className="nav-item">
-          <FaClipboardList /> Good Received
-        </NavLink>
-        <NavLink to="/issue-note" className="nav-item">
-          <FaClipboardList /> Issue Note
-        </NavLink>
-        <NavLink to="/low-stock" className="nav-item">
-          <FaExclamationTriangle /> Low Stock
-        </NavLink>
-        <NavLink to="/branches" className="nav-item">
-          <FaBuilding /> Branches
-        </NavLink>
-        <NavLink to="/categories" className="nav-item">
-          <FaListAlt /> Categories
-        </NavLink>
-        <NavLink to="/users" className="nav-item">
-          <FaUsers /> Users
-        </NavLink>
-        <NavLink to="/reports" className="nav-item">
-          <FaChartBar /> Reports
-        </NavLink>
+        {[
+          { to: "/dashboard", icon: <FaTachometerAlt />, label: "Dashboard" },
+          { to: "/inventory", icon: <FaBoxes />, label: "Inventory" },
+          { to: "/purchase-order", icon: <FaShoppingCart />, label: "Purchase Order" },
+          { to: "/good-received", icon: <FaClipboardList />, label: "Good Received" },
+          { to: "/issue-note", icon: <FaClipboardList />, label: "Issue Note" },
+          { to: "/low-stock", icon: <FaExclamationTriangle />, label: "Low Stock" },
+          { to: "/branches", icon: <FaBuilding />, label: "Branches" },
+          { to: "/categories", icon: <FaListAlt />, label: "Categories" },
+          { to: "/users", icon: <FaUsers />, label: "Users" },
+          { to: "/reports", icon: <FaChartBar />, label: "Reports" },
+        ].map((item) => (
+          <NavLink key={item.to} to={item.to} className="nav-item">
+            {item.icon}
+            <span className="nav-item-text">{item.label}</span>
+          </NavLink>
+        ))}
       </nav>
     </div>
   );
