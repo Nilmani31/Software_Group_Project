@@ -136,20 +136,82 @@ const IssueNote = () => {
     issueDate: new Date().toISOString().split('T')[0],
     issueType: "Training Sessions",
     trainingSession: "",
+    category: "coffee-supplies", // New field
     items: []
   });
   const [selectedItemForAdd, setSelectedItemForAdd] = useState(null);
   const [itemQuantity, setItemQuantity] = useState(0);
+  const [editingItemId, setEditingItemId] = useState(null); // New state for editing
 
-  // Available items for selection
-  const [availableItems] = useState([
-    { id: 1, name: "Arabica Coffee Beans", unit: "kg", availableQty: 100 },
-    { id: 2, name: "Highball Glasses", unit: "sets", availableQty: 200 },
-    { id: 3, name: "Training Manual - Barista Level 1", unit: "copies", availableQty: 150 },
-    { id: 4, name: "Coffee Filters", unit: "boxes", availableQty: 500 },
-    { id: 5, name: "Sugar Syrup", unit: "liters", availableQty: 50 },
-    { id: 6, name: "Espresso Cups", unit: "sets", availableQty: 300 },
+  // Category data with items
+  const [categories] = useState([
+    {
+      id: "coffee-supplies",
+      name: "☕ Coffee Supplies",
+      items: [
+        { id: 1, name: "Arabica Coffee Beans", unit: "kg", availableQty: 100 },
+        { id: 2, name: "Robusta Coffee Beans", unit: "kg", availableQty: 80 },
+        { id: 3, name: "Coffee Filters", unit: "boxes", availableQty: 500 },
+        { id: 4, name: "Ground Coffee", unit: "kg", availableQty: 60 },
+      ]
+    },
+    {
+      id: "glassware",
+      name: "🥤 Glassware & Cups",
+      items: [
+        { id: 2, name: "Highball Glasses", unit: "sets", availableQty: 200 },
+        { id: 6, name: "Espresso Cups", unit: "sets", availableQty: 300 },
+        { id: 21, name: "Coffee Mugs", unit: "sets", availableQty: 250 },
+        { id: 22, name: "Glass Jars", unit: "pieces", availableQty: 150 },
+      ]
+    },
+    {
+      id: "training-materials",
+      name: "📚 Training Materials",
+      items: [
+        { id: 3, name: "Training Manual - Barista Level 1", unit: "copies", availableQty: 150 },
+        { id: 23, name: "Training Manual - Barista Level 2", unit: "copies", availableQty: 120 },
+        { id: 24, name: "Certification Certificates", unit: "pieces", availableQty: 200 },
+        { id: 25, name: "Training Videos USB", unit: "pieces", availableQty: 50 },
+      ]
+    },
+    {
+      id: "equipment",
+      name: "⚙️ Equipment & Machines",
+      items: [
+        { id: 8, name: "Espresso Machine Parts", unit: "sets", availableQty: 50 },
+        { id: 26, name: "Coffee Machine", unit: "units", availableQty: 10 },
+        { id: 27, name: "Grinder Machine", unit: "units", availableQty: 8 },
+        { id: 10, name: "Milk Frother", unit: "units", availableQty: 30 },
+      ]
+    },
+    {
+      id: "syrups-sauces",
+      name: "🍯 Syrups & Sauces",
+      items: [
+        { id: 5, name: "Sugar Syrup", unit: "liters", availableQty: 50 },
+        { id: 28, name: "Vanilla Syrup", unit: "liters", availableQty: 40 },
+        { id: 29, name: "Caramel Syrup", unit: "liters", availableQty: 45 },
+        { id: 30, name: "Chocolate Sauce", unit: "liters", availableQty: 35 },
+      ]
+    },
+    {
+      id: "other-supplies",
+      name: "📦 Other Supplies",
+      items: [
+        { id: 9, name: "Grinding Beans", unit: "kg", availableQty: 200 },
+        { id: 11, name: "Coffee Tamper", unit: "units", availableQty: 100 },
+        { id: 31, name: "Napkins", unit: "boxes", availableQty: 500 },
+        { id: 32, name: "Straws", unit: "boxes", availableQty: 1000 },
+      ]
+    }
   ]);
+
+  // Get available items based on selected category
+  const getAvailableItems = () => {
+    const selectedCategory = categories.find(c => c.id === formData.category);
+    return selectedCategory ? selectedCategory.items : [];
+  };
 
   const currentData = activeTab === "issueNotes" ? issueNotes : branchRequests;
 
@@ -686,23 +748,17 @@ const IssueNote = () => {
       issueDate: new Date().toISOString().split('T')[0],
       issueType: "Training Sessions",
       trainingSession: "",
+      category: "coffee-supplies",
       items: []
     });
     setItemQuantity(0);
     setSelectedItemForAdd(null);
+    setEditingItemId(null);
   };
 
   const closeCreateModal = () => {
     setShowCreateModal(false);
-    setFormData({
-      issueNumber: "ISS-2025-XXX",
-      issueDate: new Date().toISOString().split('T')[0],
-      issueType: "Training Sessions",
-      trainingSession: "",
-      items: []
-    });
-    setItemQuantity(0);
-    setSelectedItemForAdd(null);
+    setEditingItemId(null);
   };
 
   const handleFormChange = (field, value) => {
@@ -710,6 +766,12 @@ const IssueNote = () => {
       ...prev,
       [field]: value
     }));
+    // Only reset item selection when category changes, NOT the items already added
+    if (field === 'category') {
+      setSelectedItemForAdd(null);
+      setItemQuantity(0);
+      // Don't clear the items array - keep previously added items
+    }
   };
 
   const handleAddItemToForm = () => {
@@ -718,15 +780,24 @@ const IssueNote = () => {
       return;
     }
 
+    const availableItems = getAvailableItems();
     const item = availableItems.find(i => i.id === parseInt(selectedItemForAdd));
     if (!item) return;
+
+    // Check if item already exists to avoid duplicates
+    const itemExists = formData.items.some(i => i.id === item.id);
+    if (itemExists) {
+      alert("This item is already added. Edit it instead.");
+      return;
+    }
 
     const newItem = {
       id: item.id,
       name: item.name,
       qty: itemQuantity,
       availableQty: item.availableQty,
-      unit: item.unit
+      unit: item.unit,
+      tempId: Date.now()
     };
 
     setFormData(prev => ({
@@ -738,11 +809,29 @@ const IssueNote = () => {
     setItemQuantity(0);
   };
 
-  const handleRemoveItemFromForm = (itemId) => {
+  const handleRemoveItemFromForm = (tempId) => {
     setFormData(prev => ({
       ...prev,
-      items: prev.items.filter(i => i.id !== itemId)
+      items: prev.items.filter(i => i.tempId !== tempId)
     }));
+    setEditingItemId(null);
+  };
+
+  const handleEditItem = (tempId) => {
+    setEditingItemId(tempId);
+  };
+
+  const handleUpdateItemQty = (tempId, newQty) => {
+    setFormData(prev => ({
+      ...prev,
+      items: prev.items.map(i => 
+        i.tempId === tempId ? { ...i, qty: parseInt(newQty) || 0 } : i
+      )
+    }));
+  };
+
+  const handleSaveItemEdit = () => {
+    setEditingItemId(null);
   };
 
   const handleCreateIssueNote = () => {
@@ -1014,9 +1103,25 @@ const IssueNote = () => {
                 />
               </div>
 
+              {/* Category Selection - Dropdown */}
+              <div className="form-group full-width">
+                <label>Select Category</label>
+                <select 
+                  value={formData.category}
+                  onChange={(e) => handleFormChange('category', e.target.value)}
+                  className="form-select category-select"
+                >
+                  {categories.map(cat => (
+                    <option key={cat.id} value={cat.id}>
+                      {cat.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               {/* Issue Items Section */}
               <div className="form-group full-width">
-                <label>Issue Items</label>
+                <label>Issue Items from {categories.find(c => c.id === formData.category)?.name}</label>
                 <div className="items-input-section">
                   <div className="item-select-row">
                     <div className="item-select-group">
@@ -1027,7 +1132,7 @@ const IssueNote = () => {
                         className="form-select"
                       >
                         <option value="">Select an item......</option>
-                        {availableItems.map(item => (
+                        {getAvailableItems().map(item => (
                           <option key={item.id} value={item.id}>
                             {item.name}
                           </option>
@@ -1050,6 +1155,7 @@ const IssueNote = () => {
                           className="btn-add-item"
                           onClick={handleAddItemToForm}
                           title="Add Item"
+                          type="button"
                         >
                           +
                         </button>
@@ -1057,22 +1163,74 @@ const IssueNote = () => {
                     </div>
                   </div>
 
-                  {/* Added Items List */}
+                  {/* Added Items List with Edit Feature */}
                   {formData.items.length > 0 && (
                     <div className="added-items-list">
-                      {formData.items.map((item, idx) => (
-                        <div key={idx} className="added-item">
-                          <span className="item-info">
-                            <strong>{item.name}</strong>
-                            <span className="item-detail"> • {item.qty} {item.unit}</span>
-                          </span>
-                          <button 
-                            className="btn-remove-item"
-                            onClick={() => handleRemoveItemFromForm(item.id)}
-                            title="Remove Item"
-                          >
-                            ✕
-                          </button>
+                      {formData.items.map((item) => (
+                        <div key={item.tempId} className="added-item">
+                          {editingItemId === item.tempId ? (
+                            // Edit Mode
+                            <div className="added-item-edit">
+                              <div className="item-edit-content">
+                                <span className="item-name-edit">{item.name}</span>
+                                <div className="qty-edit-group">
+                                  <label>Edit Qty:</label>
+                                  <input
+                                    type="number"
+                                    value={item.qty}
+                                    onChange={(e) => handleUpdateItemQty(item.tempId, e.target.value)}
+                                    className="qty-edit-input"
+                                    min="0"
+                                  />
+                                  <span className="unit-edit">{item.unit}</span>
+                                </div>
+                              </div>
+                              <div className="edit-actions">
+                                <button
+                                  className="btn-save-edit"
+                                  onClick={handleSaveItemEdit}
+                                  type="button"
+                                  title="Save"
+                                >
+                                  ✓
+                                </button>
+                                <button
+                                  className="btn-cancel-edit"
+                                  onClick={() => setEditingItemId(null)}
+                                  type="button"
+                                  title="Cancel"
+                                >
+                                  ✕
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            // View Mode
+                            <>
+                              <span className="item-info">
+                                <strong>{item.name}</strong>
+                                <span className="item-detail"> • {item.qty} {item.unit}</span>
+                              </span>
+                              <div className="item-actions">
+                                <button 
+                                  className="btn-edit-item"
+                                  onClick={() => handleEditItem(item.tempId)}
+                                  title="Edit Quantity"
+                                  type="button"
+                                >
+                                  ✎
+                                </button>
+                                <button 
+                                  className="btn-remove-item"
+                                  onClick={() => handleRemoveItemFromForm(item.tempId)}
+                                  title="Remove Item"
+                                  type="button"
+                                >
+                                  ✕
+                                </button>
+                              </div>
+                            </>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -1082,10 +1240,10 @@ const IssueNote = () => {
             </div>
 
             <div className="create-modal-footer">
-              <button className="btn-cancel" onClick={closeCreateModal}>
+              <button className="btn-cancel" onClick={closeCreateModal} type="button">
                 Cancel
               </button>
-              <button className="btn-submit" onClick={handleCreateIssueNote}>
+              <button className="btn-submit" onClick={handleCreateIssueNote} type="button">
                 Add Issue Note
               </button>
             </div>
@@ -1134,7 +1292,7 @@ const IssueNote = () => {
                   <div className="info-item">
                     <label>{activeTab === "issueNotes" ? "Issued To" : "Requested From"}</label>
                     <span className="info-value">
-                      {activeTab === "issueNotes" ? selectedItem.issuedTo : selectedItem.requestFrom}
+                      {activeTab === "issueNotes" ? selectedItem.issuedTo : selectedItem.requestedFrom}
                     </span>
                   </div>
                   <div className="info-item">
