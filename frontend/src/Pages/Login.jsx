@@ -6,21 +6,48 @@ const LoginPage = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    setLoading(true);
+    setError('');
     
-    // Simple authentication - you can replace with your actual credentials
-    if (username === 'admin' && password === 'admin123') {
-      // Store login status in localStorage
-      localStorage.setItem('isLoggedIn', 'true');
-      localStorage.setItem('username', username);
-      
-      // Navigate to dashboard
-      navigate('/dashboard');
-    } else {
-      setError('Invalid username or password');
+    try {
+      // Send login request to backend
+      const response = await fetch('http://localhost:5000/api/users/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          username: username,
+          password: password
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        // Store login status and user data in localStorage
+        localStorage.setItem('isLoggedIn', 'true');
+        localStorage.setItem('username', data.user.username);
+        localStorage.setItem('userId', data.user.userId);
+        localStorage.setItem('roleId', data.user.roleId);
+        localStorage.setItem('branchId', data.user.branchId);
+        localStorage.setItem('email', data.user.email);
+        
+        // Navigate to dashboard
+        navigate('/dashboard');
+      } else {
+        setError(data.message || 'Login failed');
+      }
+    } catch (error) {
+      console.error('Login error:', error);
+      setError('Unable to connect to server. Please try again.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -68,7 +95,9 @@ const LoginPage = () => {
               />
             </div>
             
-            <button type="submit" className="login-button">Login</button>
+            <button type="submit" className="login-button" disabled={loading}>
+              {loading ? 'Logging in...' : 'Login'}
+            </button>
           </form>
         </div>
       </div>
