@@ -4,6 +4,8 @@ import LoginPage from './Pages/Login';
 import Dashboard from './Pages/Dashboard';
 import Report from './Pages/Report';
 import MainLayout from './Components/MainLayout';
+import LowStock from './Pages/LowStock';
+import IssueNote from './Pages/IssueNote';
 
 function App() {
   return (
@@ -12,6 +14,8 @@ function App() {
         <Route path="/" element={<LoginPage />} />
         <Route path="/dashboard" element={<MainLayout><Dashboard /></MainLayout>} />
         <Route path="/reports" element={<MainLayout><Report /></MainLayout>} />
+        <Route path="/lowstock" element={<LowStock />} />
+        <Route path="/issue-note" element={<IssueNote />} />
       </Routes>
     </Router>
   );

@@ -37,7 +37,7 @@ const Sidebar = () => {
           { to: "/purchase-order", icon: <FaShoppingCart />, label: "Purchase Order" },
           { to: "/good-received", icon: <FaClipboardList />, label: "Good Received" },
           { to: "/issue-note", icon: <FaClipboardList />, label: "Issue Note" },
-          { to: "/low-stock", icon: <FaExclamationTriangle />, label: "Low Stock" },
+          { to: "/lowstock", icon: <FaExclamationTriangle />, label: "Low Stock" },
           { to: "/branches", icon: <FaBuilding />, label: "Branches" },
           { to: "/categories", icon: <FaListAlt />, label: "Categories" },
           { to: "/users", icon: <FaUsers />, label: "Users" },

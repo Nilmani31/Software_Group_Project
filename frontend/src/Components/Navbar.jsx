@@ -23,7 +23,7 @@ const Navbar = () => {
         return 'Good Received';
       case '/issue-note':
         return 'Issue Note';
-      case '/low-stock':
+      case '/lowstock':
         return 'Low Stock';
       case '/branches':
         return 'Branches';
