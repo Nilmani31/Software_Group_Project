@@ -287,6 +287,41 @@
   margin-right: 8px;
 }
 
+/* Additional status classes */
+.status-high {
+  color: #059669;
+  background-color: #d1fae5;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-weight: 600;
+}
+
+.status-processing {
+  color: #d97706;
+  background-color: #fef3c7;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-weight: 600;
+}
+
+.status-completed {
+  color: #059669;
+  background-color: #d1fae5;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-weight: 600;
+}
+
+/* Export button hover effects */
+.export-buttons .btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.export-buttons .btn:active {
+  transform: translateY(0);
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
   .advanced-filters {
@@ -305,5 +340,14 @@
     flex-direction: column;
     gap: 8px;
     align-items: stretch;
+  }
+  
+  .export-buttons {
+    flex-direction: column;
+    gap: 10px;
+  }
+  
+  .export-buttons .btn {
+    width: 100%;
   }
 }
