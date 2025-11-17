@@ -1,0 +1,54 @@
+.grn-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+}
+
+.grn-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.grn-meta div {
+  margin-bottom: 8px;
+}
+
+.badge-success {
+  background-color: #d1fae5;
+  color: #065f46;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.badge-pending {
+  background-color: #fef3c7;
+  color: #92400e;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.file-drop {
+  border: 2px dashed #d1d5db;
+  border-radius: 6px;
+  padding: 1rem;
+  text-align: center;
+  background-color: #f9fafb;
+}
+
+.grn-details div {
+    margin-bottom: 8px;
+}
+
+.grn-details .input,
+.grn-details .date {
+  background-color: #f3f4f6;
+}
+
+.grn-details-table td, .grn-details-table th {
+  padding: 12px;
+}

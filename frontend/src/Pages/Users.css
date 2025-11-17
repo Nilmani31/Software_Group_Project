@@ -1,0 +1,18 @@
+.users-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+}
+
+.user-card .meta {
+  margin-left: 12px;
+}
+
+.role-pill {
+  background-color: #e0e7ff;
+  color: #3730a3;
+  padding: 4px 12px;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 600;
+}
