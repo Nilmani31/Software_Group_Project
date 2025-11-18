@@ -113,7 +113,7 @@
 }
 
 .items-table thead {
-  background-color: #1e3a8a;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
   position: sticky;
   top: 0;
@@ -124,6 +124,7 @@
   text-align: left;
   font-weight: 600;
   font-size: 13px;
+  color: white;
 }
 
 .items-table td {
@@ -246,7 +247,7 @@
 }
 
 .chat-header {
-  background-color: #1e3a8a;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
   padding: 16px;
   border-radius: 12px 12px 0 0;
@@ -520,13 +521,13 @@
 }
 
 .branches-table th {
-  background-color: #f9fafb;
-  color: #1e3a8a;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
   padding: 12px;
   text-align: left;
   font-weight: 600;
   font-size: 13px;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: none;
 }
 
 .branches-table td {
@@ -579,7 +580,7 @@
 
 .btn-order {
   padding: 10px 32px;
-  background-color: #1e3a8a;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
   border: none;
   border-radius: 6px;
@@ -590,8 +591,8 @@
 }
 
 .btn-order:hover {
-  background-color: #8b9dc3;
-  box-shadow: 0 4px 12px rgba(30, 58, 138, 0.3);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
 }
 
 .btn-order:active {
