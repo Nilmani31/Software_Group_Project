@@ -12,6 +12,9 @@ import {
   YAxis,
   CartesianGrid,
 } from "recharts";
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
+import * as XLSX from 'xlsx';
 import "./Report.css";
 
 export default function Report() {
@@ -99,14 +102,187 @@ export default function Report() {
 
   const COLORS = ["#667eea", "#764ba2", "#8b9dc3", "#5a67d8"];
 
+  // Sample data for tables
+  const stockData = [
+    { itemName: "Coffee Beans (Arabica)", category: "Ingredients", quantity: 25, status: "Normal" },
+    { itemName: "Milk Powder", category: "Ingredients", quantity: 15, status: "Low" },
+    { itemName: "Espresso Machine", category: "Equipment", quantity: 3, status: "Normal" },
+    { itemName: "Coffee Cups", category: "Supplies", quantity: 150, status: "High" },
+    { itemName: "Cleaning Supplies", category: "Maintenance", quantity: 8, status: "Low" }
+  ];
+
+  const lowStockData = [
+    { item: "Coffee Beans (Arabica)", available: 15, reorderLevel: 50, supplier: "CoffeeLanka" },
+    { item: "Milk Powder", available: 10, reorderLevel: 30, supplier: "Maliban" },
+    { item: "Cleaning Supplies", available: 8, reorderLevel: 20, supplier: "CleanCo" }
+  ];
+
+  const transactionData = [
+    { invoiceNo: "INV001", supplier: "CoffeeLanka", date: "2025-10-01", status: "Completed", total: "24,000" },
+    { invoiceNo: "INV002", supplier: "CoffeeLanka", date: "2025-10-03", status: "Pending", total: "12,000" },
+    { invoiceNo: "INV003", supplier: "Maliban", date: "2025-10-05", status: "Completed", total: "8,500" },
+    { invoiceNo: "INV004", supplier: "CleanCo", date: "2025-10-07", status: "Processing", total: "3,200" }
+  ];
+
+  // Export to PDF function
+  const exportToPDF = async () => {
+    try {
+      const element = document.querySelector('.report-content');
+      const canvas = await html2canvas(element, {
+        scale: 2,
+        useCORS: true,
+        allowTaint: false
+      });
+      
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      
+      // Add title
+      pdf.setFontSize(20);
+      pdf.text('CBBS Inventory Report', 20, 20);
+      
+      // Add date range
+      pdf.setFontSize(12);
+      pdf.text(`Date Range: ${dateRange.startDate} to ${dateRange.endDate}`, 20, 35);
+      
+      // Add selected filters info
+      if (selectedSections.length > 0) {
+        pdf.text(`Report Sections: ${selectedSections.join(', ')}`, 20, 45);
+      }
+      
+      // Calculate image dimensions to fit page
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = pdf.internal.pageSize.getHeight();
+      const imgWidth = pdfWidth - 40; // 20mm margin on each side
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      
+      let heightLeft = imgHeight;
+      let position = 55; // Start below the title
+      
+      // Add image to PDF (handle multiple pages if needed)
+      pdf.addImage(imgData, 'PNG', 20, position, imgWidth, imgHeight);
+      heightLeft -= (pdfHeight - position);
+      
+      while (heightLeft >= 0) {
+        position = heightLeft - imgHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, 'PNG', 20, position, imgWidth, imgHeight);
+        heightLeft -= pdfHeight;
+      }
+      
+      // Generate filename with timestamp
+      const timestamp = new Date().toISOString().slice(0, 10);
+      pdf.save(`CBBS_Inventory_Report_${timestamp}.pdf`);
+      
+      alert('PDF exported successfully!');
+    } catch (error) {
+      console.error('Error exporting PDF:', error);
+      alert('Error exporting PDF. Please try again.');
+    }
+  };
+
+  // Export to CSV function
+  const exportToCSV = () => {
+    try {
+      const workbook = XLSX.utils.book_new();
+      
+      // Create summary sheet
+      const summaryData = [
+        ['CBBS Inventory Report Summary'],
+        ['Generated Date:', new Date().toLocaleDateString()],
+        ['Date Range:', `${dateRange.startDate} to ${dateRange.endDate}`],
+        ['Report Sections:', selectedSections.join(', ')],
+        ['Selected Items:', selectedItems.join(', ')],
+        ['Selected Branches:', selectedBranches.join(', ')],
+        [''],
+      ];
+      
+      if (selectedSections.includes("Current Stock Balance")) {
+        summaryData.push(['Current Stock Balance']);
+        summaryData.push(['Item Name', 'Category', 'Quantity', 'Status']);
+        stockData.forEach(row => {
+          summaryData.push([row.itemName, row.category, row.quantity, row.status]);
+        });
+        summaryData.push(['']);
+      }
+      
+      if (selectedSections.includes("Low Stock Report")) {
+        summaryData.push(['Low Stock Report']);
+        summaryData.push(['Item', 'Available', 'Reorder Level', 'Supplier']);
+        lowStockData.forEach(row => {
+          summaryData.push([row.item, row.available, row.reorderLevel, row.supplier]);
+        });
+        summaryData.push(['']);
+      }
+      
+      if (selectedSections.includes("Transaction History")) {
+        summaryData.push(['Transaction History']);
+        summaryData.push(['Invoice No', 'Supplier', 'Date', 'Status', 'Total (LKR)']);
+        transactionData.forEach(row => {
+          summaryData.push([row.invoiceNo, row.supplier, row.date, row.status, row.total]);
+        });
+        summaryData.push(['']);
+      }
+      
+      if (selectedSections.includes("Pie Chart")) {
+        summaryData.push(['Equipment Distribution Data']);
+        summaryData.push(['Equipment', 'Quantity']);
+        pieData.forEach(row => {
+          summaryData.push([row.name, row.value]);
+        });
+        summaryData.push(['']);
+      }
+      
+      if (selectedSections.includes("Line Chart")) {
+        summaryData.push(['Monthly Usage Trend Data']);
+        summaryData.push(['Month', 'Usage']);
+        lineData.forEach(row => {
+          summaryData.push([row.month, row.usage]);
+        });
+      }
+      
+      const summarySheet = XLSX.utils.aoa_to_sheet(summaryData);
+      XLSX.utils.book_append_sheet(workbook, summarySheet, 'Report Summary');
+      
+      // Create separate detailed sheets if data exists
+      if (selectedSections.includes("Current Stock Balance")) {
+        const stockSheet = XLSX.utils.json_to_sheet(stockData);
+        XLSX.utils.book_append_sheet(workbook, stockSheet, 'Current Stock');
+      }
+      
+      if (selectedSections.includes("Low Stock Report")) {
+        const lowStockSheet = XLSX.utils.json_to_sheet(lowStockData);
+        XLSX.utils.book_append_sheet(workbook, lowStockSheet, 'Low Stock');
+      }
+      
+      if (selectedSections.includes("Transaction History")) {
+        const transactionSheet = XLSX.utils.json_to_sheet(transactionData);
+        XLSX.utils.book_append_sheet(workbook, transactionSheet, 'Transactions');
+      }
+      
+      // Generate filename with timestamp
+      const timestamp = new Date().toISOString().slice(0, 10);
+      XLSX.writeFile(workbook, `CBBS_Inventory_Report_${timestamp}.xlsx`);
+      
+      alert('CSV exported successfully!');
+    } catch (error) {
+      console.error('Error exporting CSV:', error);
+      alert('Error exporting CSV. Please try again.');
+    }
+  };
+
   return (
     <div className="report-page">
       {/* Header */}
       <div className="report-header">
         <h2>Comprehensive Inventory Reports and Insights</h2>
         <div className="export-buttons">
-          <button className="btn export">Export PDF</button>
-          <button className="btn export">Export CSV</button>
+          <button className="btn export" onClick={exportToPDF}>
+            📄 Export PDF
+          </button>
+          <button className="btn export" onClick={exportToCSV}>
+            📊 Export Excel
+          </button>
         </div>
       </div>
 
@@ -313,18 +489,14 @@ export default function Report() {
                 </tr>
               </thead>
               <tbody>
-                <tr>
-                  <td>Coffee Beans (Arabica)</td>
-                  <td>Ingredients</td>
-                  <td>25</td>
-                  <td className="status-normal">Normal</td>
-                </tr>
-                <tr>
-                  <td>Milk Powder</td>
-                  <td>Ingredients</td>
-                  <td>15</td>
-                  <td className="status-low">Low</td>
-                </tr>
+                {stockData.map((item, index) => (
+                  <tr key={index}>
+                    <td>{item.itemName}</td>
+                    <td>{item.category}</td>
+                    <td>{item.quantity}</td>
+                    <td className={`status-${item.status.toLowerCase()}`}>{item.status}</td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
@@ -343,18 +515,14 @@ export default function Report() {
                 </tr>
               </thead>
               <tbody>
-                <tr>
-                  <td>Coffee Beans (Arabica)</td>
-                  <td>15</td>
-                  <td>50</td>
-                  <td>CoffeeLanka</td>
-                </tr>
-                <tr>
-                  <td>Milk Powder</td>
-                  <td>10</td>
-                  <td>30</td>
-                  <td>Malibon</td>
-                </tr>
+                {lowStockData.map((item, index) => (
+                  <tr key={index}>
+                    <td>{item.item}</td>
+                    <td>{item.available}</td>
+                    <td>{item.reorderLevel}</td>
+                    <td>{item.supplier}</td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
@@ -374,20 +542,15 @@ export default function Report() {
                 </tr>
               </thead>
               <tbody>
-                <tr>
-                  <td>INV001</td>
-                  <td>CoffeeLanka</td>
-                  <td>2025-10-01</td>
-                  <td className="status-normal">Completed</td>
-                  <td>24,000</td>
-                </tr>
-                <tr>
-                  <td>INV002</td>
-                  <td>CoffeeLanka</td>
-                  <td>2025-10-03</td>
-                  <td className="status-pending">Pending</td>
-                  <td>12,000</td>
-                </tr>
+                {transactionData.map((transaction, index) => (
+                  <tr key={index}>
+                    <td>{transaction.invoiceNo}</td>
+                    <td>{transaction.supplier}</td>
+                    <td>{transaction.date}</td>
+                    <td className={`status-${transaction.status.toLowerCase()}`}>{transaction.status}</td>
+                    <td>{transaction.total}</td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
