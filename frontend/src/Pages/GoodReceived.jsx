@@ -12,6 +12,8 @@ export default function GoodReceived() {
   const [list, setList] = useState([]);
   const [openCreate, setOpenCreate] = useState(false);
   const [openView, setOpenView] = useState(false);
+  const [openDelete, setOpenDelete] = useState(false);
+  const [grnToDelete, setGrnToDelete] = useState(null);
   const [selected, setSelected] = useState(null);
   const [editableItems, setEditableItems] = useState([]);
   const [editableGrn, setEditableGrn] = useState(null);
@@ -20,26 +22,27 @@ export default function GoodReceived() {
 
   const { register, handleSubmit, control, reset, watch, setValue } = useForm({
     defaultValues: {
-      items: [{ id: '', name: '', unit: '', unitPrice: '', ordered: '' }]
+      items: [{ id: '', name: '', unit: '', unitPrice: '', ordered: '', received: '', status: 'Not Received' }]
     }
   });
-  const { fields, append, remove } = useFieldArray({ control, name: "items" });
+  const { fields, append, remove, replace } = useFieldArray({ control, name: "items" });
 
   useEffect(() => {
     const processedGrns = grns.map(grn => {
-      const isAnyIncomplete = grn.items.some(item => (item.received || 0) < (item.ordered || 0));
-      const totalReceived = grn.items.reduce((acc, item) => acc + (item.received || 0), 0);
-
-      let status;
-      if (totalReceived === 0) {
-        status = 'Pending';
-      } else if (isAnyIncomplete) {
-        status = 'Received, Incomplete';
-      } else {
-        status = 'Received';
-      }
-      
-      return { ...grn, status };
+      const itemsWithStatus = grn.items.map(item => {
+        const received = parseInt(item.received, 10) || 0;
+        const ordered = parseInt(item.ordered, 10) || 0;
+        let status;
+        if (received === 0) {
+          status = 'Not Received';
+        } else if (received < ordered) {
+          status = 'Incomplete';
+        } else {
+          status = 'Complete';
+        }
+        return { ...item, status };
+      });
+      return { ...grn, items: itemsWithStatus };
     });
     setList(processedGrns);
   }, []);
@@ -53,6 +56,27 @@ export default function GoodReceived() {
       setValue('by', '');
     }
   }, [employeeId_create, setValue]);
+
+  const poNumber_create = watch('po');
+  useEffect(() => {
+    if (poNumber_create && poNumber_create !== 'Select PO...') {
+      // Find the GRN with matching PO number to get items
+      const matchingGrn = grns.find(g => g.po === poNumber_create);
+      if (matchingGrn && matchingGrn.items) {
+        // Populate items from the matching PO
+        const itemsFromPo = matchingGrn.items.map(item => ({
+          id: item.id || '',
+          name: item.name || '',
+          unit: item.unit || '',
+          unitPrice: item.unitPrice || '',
+          ordered: item.ordered || '',
+          received: item.received || '',
+          status: item.status || 'Not Received'
+        }));
+        replace(itemsFromPo);
+      }
+    }
+  }, [poNumber_create, replace]);
 
   const handleFileChange = (e) => {
     const f = e.target.files && e.target.files[0];
@@ -68,19 +92,44 @@ export default function GoodReceived() {
     const newGrn = {
       ...data,
       id: list.length + 1,
+      grn: data.grn,
+      po: data.po,
+      supplierId: data.supplierId,
+      supplierName: data.supplierName,
+      billNumber: data.billNumber,
+      date: data.date,
+      employeeId: data.employeeId,
+      by: data.by,
       items: data.items.map(item => ({
         ...item,
+        id: item.id,
+        name: item.name,
+        unit: item.unit,
         ordered: parseInt(item.ordered, 10) || 0,
         unitPrice: parseInt(item.unitPrice, 10) || 0,
-        received: 0,
+        received: parseInt(item.received, 10) || 0,
+        status: item.status || 'Not Received'
       })),
-      status: 'Pending',
       bill: imagePreview
     };
     setList(prevList => [newGrn, ...prevList]);
     reset();
     setImagePreview(null);
     setOpenCreate(false);
+  };
+
+  const handleDeleteGrn = (grn) => {
+    setGrnToDelete(grn);
+    setOpenDelete(true);
+  };
+
+  const confirmDelete = () => {
+    if (grnToDelete) {
+      setList(prevList => prevList.filter(grn => grn.id !== grnToDelete.id));
+      setOpenDelete(false);
+      setGrnToDelete(null);
+      setOpenView(false);
+    }
   };
 
   const handleItemChange = (index, field, value) => {
@@ -104,19 +153,11 @@ export default function GoodReceived() {
         const updatedItems = editableItems.map(item => ({
           ...item,
           ordered: parseInt(item.ordered, 10) || 0,
-          received: parseInt(item.received, 10) || 0
+          received: parseInt(item.received, 10) || 0,
+          unitPrice: parseInt(item.unitPrice, 10) || 0
         }));
 
-        const updatedGrn = { ...editableGrn, items: updatedItems };
-
-        const isAnyIncomplete = updatedItems.some(item => item.received < item.ordered);
-        const totalReceived = updatedItems.reduce((acc, item) => acc + item.received, 0);
-
-        if (totalReceived === 0) updatedGrn.status = 'Pending';
-        else if (isAnyIncomplete) updatedGrn.status = 'Received, Incomplete';
-        else updatedGrn.status = 'Received';
-
-        return updatedGrn;
+        return { ...editableGrn, items: updatedItems };
       }
       return grn;
     });
@@ -131,11 +172,17 @@ export default function GoodReceived() {
     return (g.grn && g.grn.toLowerCase().includes(q)) || (g.po && g.po.toLowerCase().includes(q));
   });
 
-  const getStatusClass = (status) => {
-    if (status.startsWith('Received, Incomplete')) return 'badge-low';
-    if (status === 'Received') return 'badge-normal';
-    return 'badge-out';
+  const getItemStatusClass = (status) => {
+    if (status === 'Incomplete') return 'badge-blue-light';
+    if (status === 'Complete') return 'badge-blue-dark';
+    return 'badge-blue-outline';
   };
+
+  const statusOptions = [
+    { value: 'Not Received', label: 'Not Received' },
+    { value: 'Incomplete', label: 'Incomplete' },
+    { value: 'Complete', label: 'Complete' }
+  ];
 
   return (
     <div className="app-wrapper">
@@ -163,56 +210,70 @@ export default function GoodReceived() {
                     </div>
                     <div className="inventory-actions">
                       <button className="btn btn-add" onClick={() => {
-                        reset({ items: [{ id: '', name: '', unit: '', unitPrice: '', ordered: '' }] });
+                        reset({ items: [{ id: '', name: '', unit: '', unitPrice: '', ordered: '', received: '', status: 'Not Received' }] });
+                        setImagePreview(null);
                         setOpenCreate(true);
                       }}>+ New GRN</button>
                     </div>
                   </div>
                 </header>
 
-                <div className="inventory-main">
+                <div className="inventory-main" style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column', height: '100%' }}>
                   {filteredGrns.length === 0 ? (
                     <div className="no-results">No GRNs found.</div>
                   ) : (
-                    <div className="list-wrap">
+                    <div className="list-wrap" style={{ flex: 1, overflow: 'auto' }}>
                       <table className="inventory-table">
                         <thead>
                           <tr>
                             <th scope="col">GRN</th>
                             <th scope="col">PO</th>
-                            <th scope="col">Received Date</th>
-                            <th scope="col">Received By</th>
-                            <th scope="col" style={{ textAlign: 'center' }}>Status</th>
+                            <th scope="col">Item ID</th>
+                            <th scope="col">Item Name</th>
+                            <th scope="col">Ordered</th>
+                            <th scope="col">Received</th>
+                            <th scope="col">Status</th>
                             <th scope="col" style={{ textAlign: 'center' }}>Actions</th>
                           </tr>
                         </thead>
                         <tbody>
                           {filteredGrns.map(g => (
-                            <tr key={g.id} className="inventory-row">
-                              <td style={{ paddingLeft: '16px' }}>{g.grn}</td>
-                              <td>{g.po}</td>
-                              <td>{g.date}</td>
-                              <td>{g.by}</td>
-                              <td style={{ textAlign: 'center' }}>
-                                <span className={`badge ${getStatusClass(g.status)}`}>
-                                  {g.status}
-                                </span>
-                              </td>
-                              <td style={{ textAlign: 'center' }}>
-                                <button
-                                  className="btn-view-details"
-                                  onClick={() => {
-                                    const user = users.find(u => u.name === g.by);
-                                    setSelected(g);
-                                    setEditableItems(g.items.map(item => ({ ...item })));
-                                    setEditableGrn({ ...g, employeeId: user ? user.id : '' });
-                                    setOpenView(true);
-                                  }}
-                                >
-                                  View Details
-                                </button>
-                              </td>
-                            </tr>
+                            g.items.map((item, itemIndex) => (
+                              <tr key={`${g.id}-${item.id}-${itemIndex}`} className="inventory-row">
+                                {itemIndex === 0 && (
+                                  <>
+                                    <td rowSpan={g.items.length} style={{ paddingLeft: '16px', verticalAlign: 'middle' }}>{g.grn}</td>
+                                    <td rowSpan={g.items.length} style={{ verticalAlign: 'middle' }}>{g.po}</td>
+                                  </>
+                                )}
+                                <td>{item.id}</td>
+                                <td>{item.name}</td>
+                                <td>{item.ordered}</td>
+                                <td>{item.received}</td>
+                                <td>
+                                  <span className={`badge ${getItemStatusClass(item.status)}`}>
+                                    {item.status}
+                                  </span>
+                                </td>
+                                {itemIndex === 0 && (
+                                  <td rowSpan={g.items.length} style={{ textAlign: 'center', verticalAlign: 'middle' }}>
+                                    <button
+                                      className="btn-view-details"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        const user = users.find(u => u.name === g.by);
+                                        setSelected(g);
+                                        setEditableItems(g.items.map(item => ({ ...item })));
+                                        setEditableGrn({ ...g, employeeId: user ? user.id : '' });
+                                        setOpenView(true);
+                                      }}
+                                    >
+                                      View Details
+                                    </button>
+                                  </td>
+                                )}
+                              </tr>
+                            ))
                           ))}
                         </tbody>
                       </table>
@@ -226,7 +287,7 @@ export default function GoodReceived() {
       </div>
 
       <Modal title="Create GRN" open={openCreate} onClose={() => setOpenCreate(false)}>
-        <form onSubmit={handleSubmit(onCreate)} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <form onSubmit={handleSubmit(onCreate)} style={{ display: 'flex', flexDirection: 'column', gap: 12, maxHeight: '70vh', overflow: 'auto' }}>
           <div style={{ display: 'flex', gap: 12 }}>
             <div style={{ flex: 1 }}>
               <label className="text-sm">GRN Number</label>
@@ -236,7 +297,9 @@ export default function GoodReceived() {
               <label className="text-sm">Purchase Order</label>
               <select {...register('po')} className="select">
                 <option>Select PO...</option>
-                <option>PO-2025-001</option>
+                {[...new Set(grns.map(g => g.po))].map(po => (
+                  <option key={po} value={po}>{po}</option>
+                ))}
               </select>
             </div>
           </div>
@@ -276,6 +339,18 @@ export default function GoodReceived() {
 
           <div>
             <label className="text-sm">Items</label>
+            
+            {/* Table headers for items */}
+            <div style={{ display: 'flex', gap: 8, marginBottom: 8, fontWeight: 'bold', fontSize: '14px' }}>
+              <div style={{ flex: 1 }}>Item ID</div>
+              <div style={{ flex: 2 }}>Item Name</div>
+              <div style={{ flex: 1 }}>Unit</div>
+              <div style={{ flex: 1 }}>Unit Price</div>
+              <div style={{ flex: 1 }}>Ordered Qty</div>
+              <div style={{ flex: 1 }}>Received Qty</div>
+              <div style={{ flex: 1.5 }}>Status</div>
+              <div style={{ flex: 0.5 }}>Action</div>
+            </div>
 
             {fields.map((field, index) => (
               <div key={field.id} style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
@@ -284,14 +359,23 @@ export default function GoodReceived() {
                 <input {...register(`items.${index}.unit`)} placeholder="Unit" className="input" style={{ flex: 1 }} />
                 <input {...register(`items.${index}.unitPrice`)} placeholder="Unit Price" type="number" className="input" style={{ flex: 1 }} />
                 <input {...register(`items.${index}.ordered`)} placeholder="Ordered Qty" type="number" className="input" style={{ flex: 1 }} />
+                <input {...register(`items.${index}.received`)} placeholder="Received Qty" type="number" className="input" style={{ flex: 1 }} />
+                
+                <select {...register(`items.${index}.status`)} className="select" style={{ flex: 1.5 }}>
+                  {statusOptions.map(option => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
 
-                <button type="button" className="btn-danger" onClick={() => remove(index)}>
+                <button type="button" className="btn-danger" onClick={() => remove(index)} style={{ flex: 0.5 }}>
                   &times;
                 </button>
               </div>
             ))}
 
-            <button type="button" className="btn-white" onClick={() => append({ id: '', name: '', unit: '', unitPrice: '', ordered: '' })}>
+            <button type="button" className="btn-white" onClick={() => append({ id: '', name: '', unit: '', unitPrice: '', ordered: '', received: '', status: 'Not Received' })}>
               + Add Item
             </button>
           </div>
@@ -309,7 +393,7 @@ export default function GoodReceived() {
             </label>
           </div>
 
-          <div className="modal-actions" style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+          <div className="modal-actions" style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 'auto', paddingTop: 16 }}>
             <button type="button" className="btn-white" onClick={() => setOpenCreate(false)}>
               Cancel
             </button>
@@ -322,65 +406,58 @@ export default function GoodReceived() {
 
       <Modal title="GRN Details" open={openView} onClose={() => setOpenView(false)}>
         {selected && editableGrn && (
-          <div>
-            <div style={{ marginBottom: 8 }}>
-              <strong>{selected.grn}</strong>
+          <div style={{ maxHeight: '70vh', overflow: 'auto' }}>
+            <div style={{ marginBottom: 16 }}>
+              <strong style={{ fontSize: '18px' }}>{selected.grn}</strong>
             </div>
 
-            <div className="grn-details">
-              <div>
-                PO Number:
+            <div className="grn-details" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <label className="text-sm">GRN Number</label>
+                <input 
+                  value={editableGrn.grn} 
+                  onChange={e => handleGrnChange('grn', e.target.value)} 
+                  className="input" 
+                />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <label className="text-sm">PO Number</label>
                 <input value={editableGrn.po} onChange={e => handleGrnChange('po', e.target.value)} className="input" />
               </div>
 
-              <div>
-                Status:
-                {editableGrn.status ? (
-                  editableGrn.status.startsWith('Received, Incomplete') ? (
-                    <span className="badge-pending">{editableGrn.status}</span>
-                  ) : editableGrn.status === 'Received' ? (
-                    <span className="badge-success">{editableGrn.status}</span>
-                  ) : (
-                    <span className="badge-pending">{editableGrn.status}</span>
-                  )
-                ) : (
-                  editableGrn.supplier
-                )}
-              </div>
-
-              <div>
-                Supplier ID:
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <label className="text-sm">Supplier ID</label>
                 <input value={editableGrn.supplierId || ''} onChange={e => handleGrnChange('supplierId', e.target.value)} className="input" />
               </div>
 
-              <div>
-                Supplier Name:
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <label className="text-sm">Supplier Name</label>
                 <input value={editableGrn.supplierName || ''} onChange={e => handleGrnChange('supplierName', e.target.value)} className="input" />
               </div>
 
-              <div>
-                Bill Number:
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <label className="text-sm">Bill Number</label>
                 <input value={editableGrn.billNumber || ''} onChange={e => handleGrnChange('billNumber', e.target.value)} className="input" />
               </div>
 
-              <div>
-                Received Date:
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <label className="text-sm">Received Date</label>
                 <input type="date" value={editableGrn.date} onChange={e => handleGrnChange('date', e.target.value)} className="date" />
               </div>
 
-              <div>
-                Employee ID:
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <label className="text-sm">Employee ID</label>
                 <input value={editableGrn.employeeId} onChange={e => handleGrnChange('employeeId', e.target.value)} className="input" />
               </div>
 
-              <div>
-                Received By:
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <label className="text-sm">Received By</label>
                 <input value={editableGrn.by} className="input" readOnly style={{ backgroundColor: '#f3f4f6' }} />
               </div>
             </div>
 
             {editableGrn.bill && (
-              <div style={{ marginTop: 12 }}>
+              <div style={{ marginTop: 12, marginBottom: 16 }}>
                 <label className="text-sm">Bill Image</label>
                 <img src={editableGrn.bill} alt="bill" style={{ maxWidth: '100%', borderRadius: 6, marginTop: 4 }} />
               </div>
@@ -401,67 +478,115 @@ export default function GoodReceived() {
                 </thead>
 
                 <tbody>
-                  {editableItems.map((item, index) => {
-                    let statusText;
-                    let statusClass;
-                    const received = parseInt(item.received, 10) || 0;
-                    const ordered = parseInt(item.ordered, 10) || 0;
-
-                    if (received === 0) {
-                      statusText = 'Pending';
-                      statusClass = 'badge-pending';
-                    } else if (received < ordered) {
-                      statusText = 'Received, Incomplete';
-                      statusClass = 'badge-pending';
-                    } else {
-                      statusText = 'Received, Complete';
-                      statusClass = 'badge-success';
-                    }
-
-                    return (
-                      <tr key={item.id || index}>
-                        <td>{item.id}</td>
-                        <td>{item.name}</td>
-                        <td>{item.unit}</td>
-                        <td>{item.unitPrice}</td>
-
-                        <td>
-                          <input
-                            type="number"
-                            value={item.ordered}
-                            onChange={e => handleItemChange(index, 'ordered', e.target.value)}
-                            className="input"
-                            style={{ width: 80 }}
-                          />
-                        </td>
-
-                        <td>
-                          <input
-                            type="number"
-                            value={item.received}
-                            onChange={e => handleItemChange(index, 'received', e.target.value)}
-                            className="input"
-                            style={{ width: 80 }}
-                          />
-                        </td>
-
-                        <td>
-                          <span className={statusClass}>{statusText}</span>
-                        </td>
-                      </tr>
-                    )
-                  })}
+                  {editableItems.map((item, index) => (
+                    <tr key={item.id || index}>
+                      <td>
+                        <input
+                          type="text"
+                          value={item.id}
+                          onChange={e => handleItemChange(index, 'id', e.target.value)}
+                          className="input"
+                          style={{ width: 80 }}
+                        />
+                      </td>
+                      <td>
+                        <input
+                          type="text"
+                          value={item.name}
+                          onChange={e => handleItemChange(index, 'name', e.target.value)}
+                          className="input"
+                        />
+                      </td>
+                      <td>
+                        <input
+                          type="text"
+                          value={item.unit}
+                          onChange={e => handleItemChange(index, 'unit', e.target.value)}
+                          className="input"
+                          style={{ width: 60 }}
+                        />
+                      </td>
+                      <td>
+                        <input
+                          type="number"
+                          value={item.unitPrice}
+                          onChange={e => handleItemChange(index, 'unitPrice', e.target.value)}
+                          className="input"
+                          style={{ width: 80 }}
+                        />
+                      </td>
+                      <td>
+                        <input
+                          type="number"
+                          value={item.ordered}
+                          onChange={e => handleItemChange(index, 'ordered', e.target.value)}
+                          className="input"
+                          style={{ width: 80 }}
+                        />
+                      </td>
+                      <td>
+                        <input
+                          type="number"
+                          value={item.received}
+                          onChange={e => handleItemChange(index, 'received', e.target.value)}
+                          className="input"
+                          style={{ width: 80 }}
+                        />
+                      </td>
+                      <td>
+                        <select
+                          value={item.status}
+                          onChange={e => handleItemChange(index, 'status', e.target.value)}
+                          className="select"
+                          style={{ width: 120 }}
+                        >
+                          {statusOptions.map(option => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 12 }}>
-              <button className="btn-white" onClick={() => setOpenView(false)}>Cancel</button>
-              <button className="btn-primary" onClick={handleSave}>Save</button>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginTop: 16 }}>
+              <button 
+                className="btn-danger" 
+                onClick={() => handleDeleteGrn(selected)}
+              >
+                Delete GRN
+              </button>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button className="btn-white" onClick={() => setOpenView(false)}>Cancel</button>
+                <button className="btn-primary" onClick={handleSave}>Save</button>
+              </div>
             </div>
           </div>
         )}
       </Modal>
+
+      {/* Delete Confirmation Modal */}
+      <Modal title="Delete GRN" open={openDelete} onClose={() => setOpenDelete(false)}>
+        <div style={{ padding: '16px 0' }}>
+          <p>Are you sure you want to delete GRN <strong>"{grnToDelete?.grn}"</strong>?</p>
+          <p style={{ color: '#666', fontSize: '14px', marginTop: '8px' }}>
+            This action cannot be undone and all associated data will be permanently removed.
+          </p>
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
+          <button className="btn-white" onClick={() => setOpenDelete(false)}>
+            Cancel
+          </button>
+          <button className="btn-danger" onClick={confirmDelete}>
+            Delete
+          </button>
+        </div>
+      </Modal>
+
       <ChatAssistant />
     </div>
   );
