@@ -1,149 +1,138 @@
-.grid-3 {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 16px;
-}
-
-.page-container {
-  background-color: white;
-  padding: 24px;
-  border-radius: 12px;
-}
-
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 24px;
-}
-
-.tab-container {
-  /* Styles for the tab area if needed */
-}
-
-.cat-icons {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.tab-row {
+.category-tabs {
   display: flex;
   gap: 8px;
-  border-bottom: 1px solid #e5e7eb;
+  margin-top: 16px;
+  border-bottom: 1px solid var(--border);
 }
 
-.tab-row button {
-  padding: 8px 12px;
+.tab-btn {
+  padding: 10px 16px;
+  background: transparent;
   border: none;
-  background: none;
-  cursor: pointer;
   border-bottom: 2px solid transparent;
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--muted);
+  transition: all var(--transition);
 }
 
-.tab-row button.active {
-  border-bottom-color: #3B4DB8;
-  font-weight: 600;
+.tab-btn.active {
+  color: var(--accent-1);
+  border-bottom-color: var(--accent-1);
+}
+
+.tab-btn:hover {
+  background: #f9fafb;
+  color: var(--accent-1);
+}
+
+.category-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+  padding-top: 16px;
+}
+
+.category-card {
+  background: white;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  transition: all var(--transition);
+}
+
+.category-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-lg);
+  border-color: var(--accent-1);
 }
 
 .category-card-header {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
 }
 
-.category-card-actions {
+.category-icon {
+  color: var(--accent-1);
+}
+
+.category-actions {
   display: flex;
   gap: 8px;
 }
 
-.category-card-actions button {
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: #6b7280;
-}
-
-.category-card-actions button[aria-label="Delete category"] {
-  color: #ef4444;
-}
-
-.category-card-actions button[aria-label="Edit role"] {
-  color: #3B4DB8;
-}
-
-.category-card-actions button[aria-label="Delete role"] {
-  color: #ef4444;
-}
-
-.category-card-actions button:hover {
-  opacity: 0.8;
-}
-
-.link-button {
-  background: none;
-  border: none;
-  color: #3B4DB8;
-  cursor: pointer;
-  padding: 0;
-  font-size: 14px;
-}
-
-.category-items-list {
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: 1px solid #e5e7eb;
-}
-
-.category-item {
-  padding: 4px 0;
-  font-size: 14px;
-  color: #374151;
-}
-
-.category-item-examples {
-  font-size: 13px;
-  color: #6b7280;
-  margin-top: 4px;
-  font-style: italic;
-}
-
-.category-card-top {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12px;
-}
-
-.category-icon {
-  color: #3B4DB8;
-}
-
 .category-card-body {
-  margin-bottom: 12px;
+  padding: 16px;
+  flex-grow: 1;
 }
 
 .category-name {
   font-weight: 700;
-  font-size: 18px;
-  margin-bottom: 4px;
+  font-size: 16px;
+  color: var(--text);
+  margin-bottom: 8px;
 }
 
-.category-desc {
+.category-description {
   font-size: 14px;
-  color: #6b7280;
-  line-height: 1.4;
+  color: var(--muted);
+  line-height: 1.6;
 }
 
-.category-separator {
-  border: none;
-  border-top: 1px solid #e5e7eb;
-  margin: 0;
-}
-
-.category-item-count {
-  margin-top: 12px;
-  font-size: 14px;
+.category-card-footer {
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+  background: #f9fafb;
+  font-size: 13px;
   font-weight: 600;
-  color: #374151;
+  color: var(--muted-2);
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
 }
+
+.text-sm {
+  font-size: 14px;
+  margin-bottom: 4px;
+  display: block;
+}
+
+.input {
+  padding: 10px 12px;
+  background: white;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  width: 100%;
+}
+
+.input:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25);
+  outline: none;
+}
+
+.modal-actions {
+  margin-top: 16px;
+}
+
+.btn-white, .btn-black {
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-weight: 500;
+  border: 1px solid transparent;
+  cursor: pointer;
+}
+
+.btn-white {
+  background: white;
+  border-color: #d1d5db;
+}
+
+.btn-black {
+  background: #111827;
+  color: white;
+}
+
