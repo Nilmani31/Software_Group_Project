@@ -27,9 +27,9 @@ function App() {
         <Route path="/inventory" element={<Inventory />} />
         <Route path="/purchase-order" element={<PurchaseOrder/>} />
         <Route path="/branches" element={<Branches />} />
-        <Route path="/users" element={<MainLayout><Users /></MainLayout>} />
-        <Route path="/categories" element={<MainLayout><Categories /></MainLayout>} />
-        <Route path="/good-received" element={<MainLayout><GoodReceived /></MainLayout>} />
+        <Route path="/users" element={<Users />} />
+        <Route path="/categories" element={<Categories />} />
+        <Route path="/good-received" element={<GoodReceived />} />
       </Routes>
     </Router>
   );
