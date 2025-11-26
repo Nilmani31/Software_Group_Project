@@ -121,3 +121,31 @@
   color: white;
 }
 
+.grn-item-details-row td {
+    padding: 0 !important;
+    border: 0;
+}
+
+.grn-item-details {
+    padding: 16px;
+    background-color: #f9fafb;
+}
+
+.grn-item-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.grn-item-table th,
+.grn-item-table td {
+    padding: 8px 12px;
+    text-align: left;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.grn-item-table th {
+    font-weight: 600;
+    font-size: 0.875rem;
+    color: #374151;
+}
+
