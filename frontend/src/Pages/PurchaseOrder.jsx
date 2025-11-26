@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import Navbar from '../Components/Navbar'
 import Sidebar from '../Components/Sidebar'
 import ChatAssistant from '../Components/ChatAssistant'
-
+// Modal component replaced for Create PO to match Inventory design
 import './PurchaseOrder.css'
 
 const samplePOs = [
@@ -656,35 +656,28 @@ export default function PurchaseOrder () {
             </div>
             <form onSubmit={(e) => {
               e.preventDefault()
-              console.log('=== CANCEL FORM SUBMITTED ===')
-              console.log('Form data:', cancelForm)
-              console.log('Selected PO:', selected)
               
-              // TEMPORARILY SKIP ALL VALIDATION FOR TESTING
-              console.log('Skipping validation, directly updating status...')
+              // Update the PO status to Cancelled and store deletion details
+              const updated = { 
+                ...selected, 
+                status: 'Cancelled',
+                deleted: {
+                  by: cancelForm.deletedBy,
+                  contact: cancelForm.contactNumber,
+                  date: cancelForm.deletedDate,
+                  branchName: cancelForm.branchName,
+                  reason: cancelForm.reason
+                }
+              }
               
-              const updated = { ...selected, status: 'Cancelled' }
-              console.log('Updated PO object:', updated)
+              // Update the PO list
+              setPos(prev => prev.map(p => p.id === selected.id ? updated : p))
               
-              // Update list and selected reference
-              setPos(prev => {
-                const newList = prev.map(p => {
-                  console.log(`Checking PO ${p.id} against selected ${selected.id}`)
-                  return p.id === selected.id ? updated : p
-                })
-                console.log('New PO list:', newList)
-                return newList
-              })
-              
+              // Update selected reference
               setSelected(updated)
-              console.log('Selected updated to:', updated)
               
-              // Close modal
+              // Close the cancel modal
               setOpenCancel(false)
-              console.log('Modal closed')
-              
-              // Show success in console
-              alert('PO status changed to Cancelled - check the list!')
             }} className="modal-form-inventory">
               <div className="form-layout-inventory">
                 <div className="form-group-inventory">
