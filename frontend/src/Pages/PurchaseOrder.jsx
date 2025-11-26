@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import Navbar from '../Components/Navbar'
 import Sidebar from '../Components/Sidebar'
 import ChatAssistant from '../Components/ChatAssistant'
-// Modal component replaced for Create PO to match Inventory design
+
 import './PurchaseOrder.css'
 
 const samplePOs = [
