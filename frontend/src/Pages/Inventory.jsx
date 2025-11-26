@@ -6,9 +6,13 @@ import './Inventory.css';
 import { FaTimes, FaEdit, FaTrash } from 'react-icons/fa';
 
 const sampleItems = [
-  { id: 1, name: 'Flour', qty: 20, status: 'normal', category: 'Raw Materials', unit: 'kg', minStock: 5, maxStock: 50 },
-  { id: 2, name: 'Sugar', qty: 5, status: 'low', category: 'Raw Materials', unit: 'kg', minStock: 10, maxStock: 100 },
-  { id: 3, name: 'Vanilla', qty: 0, status: 'out', category: 'Raw Materials', unit: 'ltr', minStock: 2, maxStock: 20 },
+  { id: 1, name: 'Flour', qty: 20, status: 'normal', category: 'Raw Materials', unit: 'kg', minStock: 5, maxStock: 50, branch: 'Colombo' },
+  { id: 2, name: 'Sugar', qty: 5, status: 'low', category: 'Raw Materials', unit: 'kg', minStock: 10, maxStock: 100, branch: 'Colombo' },
+  { id: 3, name: 'Vanilla', qty: 0, status: 'out', category: 'Raw Materials', unit: 'ltr', minStock: 2, maxStock: 20, branch: 'Kandy' },
+  { id: 4, name: 'Butter', qty: 15, status: 'normal', category: 'Supplies', unit: 'kg', minStock: 5, maxStock: 50, branch: 'Galle' },
+  { id: 5, name: 'Eggs', qty: 8, status: 'low', category: 'Supplies', unit: 'pcs', minStock: 10, maxStock: 100, branch: 'Colombo' },
+  { id: 6, name: 'Milk', qty: 25, status: 'normal', category: 'Raw Materials', unit: 'ltr', minStock: 5, maxStock: 50, branch: 'Kandy' },
+  { id: 7, name: 'Baking Powder', qty: 3, status: 'low', category: 'Supplies', unit: 'kg', minStock: 5, maxStock: 30, branch: 'Galle' },
 ];
 
 // Helper function to generate SKU
@@ -46,6 +50,7 @@ const Inventory = () => {
     sku: '',
     minStock: '',
     maxStock: '',
+    branch: 'Colombo',
     image: null
   });
   const [showItemDetailModal, setShowItemDetailModal] = useState(false);
@@ -58,20 +63,39 @@ const Inventory = () => {
     sku: 'Auto create',
     minStock: '',
     maxStock: '',
+    branch: 'Colombo',
     image: null
   });
   const [editImagePreview, setEditImagePreview] = useState(null);
   const [showChatAssistant, setShowChatAssistant] = useState(false);
 
-  const categories = useMemo(() => ['All Categories', ...Array.from(new Set(items.map(i => i.category)))], [items]);
-  const branches = ['All Branch', 'Colombo', 'Kandy'];
+  // Generate categories from items
+  const categories = useMemo(() => {
+    const uniqueCategories = Array.from(new Set(items.map(i => i.category)));
+    return ['All Categories', ...uniqueCategories];
+  }, [items]);
 
-  const filtered = items.filter(item => {
-    const q = query.trim().toLowerCase();
-    const matchesQuery = !q || item.name.toLowerCase().includes(q) || item.category.toLowerCase().includes(q);
-    const matchesCategory = categoryFilter === 'All Categories' || item.category === categoryFilter;
-    return matchesQuery && matchesCategory;
-  });
+  // Generate branches from items
+  const branches = useMemo(() => {
+    const uniqueBranches = Array.from(new Set(items.map(i => i.branch)));
+    return ['All Branch', ...uniqueBranches.sort()];
+  }, [items]);
+
+  // Filter items based on search query, category, and branch
+  const filtered = useMemo(() => {
+    return items.filter(item => {
+      const q = query.trim().toLowerCase();
+      const matchesQuery = !q || 
+        item.name.toLowerCase().includes(q) || 
+        item.category.toLowerCase().includes(q) ||
+        item.unit.toLowerCase().includes(q);
+      
+      const matchesCategory = categoryFilter === 'All Categories' || item.category === categoryFilter;
+      const matchesBranch = branchFilter === 'All Branch' || item.branch === branchFilter;
+      
+      return matchesQuery && matchesCategory && matchesBranch;
+    });
+  }, [items, query, categoryFilter, branchFilter]);
 
   const handleOpenModal = () => {
     setShowModal(true);
@@ -91,6 +115,7 @@ const Inventory = () => {
       sku: '',
       minStock: '',
       maxStock: '',
+      branch: 'Colombo',
       image: null
     });
   };
@@ -141,7 +166,22 @@ const Inventory = () => {
       alert('Please fill required fields');
       return;
     }
-    console.log('Form submitted:', formData);
+    
+    // Add new item to inventory
+    const newItem = {
+      id: Math.max(...items.map(i => i.id), 0) + 1,
+      name: formData.itemName,
+      category: formData.category,
+      unit: formData.unit,
+      qty: 0,
+      status: 'out',
+      minStock: parseInt(formData.minStock) || 0,
+      maxStock: parseInt(formData.maxStock) || 0,
+      branch: formData.branch
+    };
+    
+    setItems([...items, newItem]);
+    alert('Item added successfully!');
     handleCloseModal();
   };
 
@@ -164,6 +204,7 @@ const Inventory = () => {
         sku: 'Auto create',
         minStock: selectedItem.minStock || '',
         maxStock: selectedItem.maxStock || '',
+        branch: selectedItem.branch,
         image: null
       });
       setEditImagePreview(null);
@@ -182,13 +223,15 @@ const Inventory = () => {
       sku: 'Auto create',
       minStock: '',
       maxStock: '',
+      branch: 'Colombo',
       image: null
     });
   };
 
   const handleDeleteItem = () => {
     if (window.confirm(`Are you sure you want to delete ${selectedItem.name}?`)) {
-      console.log('Delete item:', selectedItem);
+      setItems(items.filter(item => item.id !== selectedItem.id));
+      alert('Item deleted successfully!');
       handleCloseItemDetailModal();
     }
   };
@@ -217,9 +260,25 @@ const Inventory = () => {
 
   const handleEditSubmit = (e) => {
     e.preventDefault();
-    console.log('Edit form submitted:', editFormData);
+    
+    // Update item in inventory
+    setItems(items.map(item => 
+      item.id === selectedItem.id 
+        ? {
+            ...item,
+            name: editFormData.itemName,
+            category: editFormData.category,
+            unit: editFormData.unit,
+            minStock: parseInt(editFormData.minStock) || 0,
+            maxStock: parseInt(editFormData.maxStock) || 0,
+            branch: editFormData.branch
+          }
+        : item
+    ));
+    
     alert('Item updated successfully!');
     handleCloseEditModal();
+    handleCloseItemDetailModal();
   };
 
   return (
@@ -258,15 +317,27 @@ const Inventory = () => {
                   <div className="inventory-filters-row">
                     <div className="filter">
                       <label>Categories</label>
-                      <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}>
-                        {categories.map(c => <option key={c} value={c}>{c}</option>)}
+                      <select 
+                        value={categoryFilter} 
+                        onChange={(e) => setCategoryFilter(e.target.value)}
+                        className="filter-select"
+                      >
+                        {categories.map(c => (
+                          <option key={c} value={c}>{c}</option>
+                        ))}
                       </select>
                     </div>
 
                     <div className="filter">
                       <label>Branch</label>
-                      <select value={branchFilter} onChange={(e) => setBranchFilter(e.target.value)}>
-                        {branches.map(b => <option key={b} value={b}>{b}</option>)}
+                      <select 
+                        value={branchFilter} 
+                        onChange={(e) => setBranchFilter(e.target.value)}
+                        className="filter-select"
+                      >
+                        {branches.map(b => (
+                          <option key={b} value={b}>{b}</option>
+                        ))}
                       </select>
                     </div>
                   </div>
@@ -280,11 +351,12 @@ const Inventory = () => {
                       <table className="inventory-table" role="table" aria-label="Inventory list">
                         <thead>
                           <tr>
-                            <th scope="col" style={{ width: '25%' }}>Name</th>
-                            <th scope="col" style={{ width: '20%' }}>Category</th>
+                            <th scope="col" style={{ width: '20%' }}>Name</th>
+                            <th scope="col" style={{ width: '18%' }}>Category</th>
                             <th scope="col" style={{ width: '15%', textAlign: 'center' }}>Quantity</th>
-                            <th scope="col" style={{ width: '15%', textAlign: 'center' }}>Unit</th>
-                            <th scope="col" style={{ width: '25%', textAlign: 'center' }}>Status</th>
+                            <th scope="col" style={{ width: '12%', textAlign: 'center' }}>Unit</th>
+                            <th scope="col" style={{ width: '15%', textAlign: 'center' }}>Branch</th>
+                            <th scope="col" style={{ width: '20%', textAlign: 'center' }}>Status</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -295,11 +367,14 @@ const Inventory = () => {
                               onClick={() => handleRowClick(item)}
                               style={{ cursor: 'pointer' }}
                             >
-                              <td style={{ width: '25%', paddingLeft: '16px' }}>{item.name}</td>
-                              <td style={{ width: '20%' }}>{item.category}</td>
+                              <td style={{ width: '20%', paddingLeft: '16px' }}>{item.name}</td>
+                              <td style={{ width: '18%' }}>{item.category}</td>
                               <td style={{ width: '15%', textAlign: 'center' }}>{item.qty}</td>
-                              <td style={{ width: '15%', textAlign: 'center' }}>{item.unit || '-'}</td>
-                              <td style={{ width: '25%', textAlign: 'center' }}>
+                              <td style={{ width: '12%', textAlign: 'center' }}>{item.unit || '-'}</td>
+                              <td style={{ width: '15%', textAlign: 'center' }}>
+                                <span className="branch-badge">{item.branch}</span>
+                              </td>
+                              <td style={{ width: '20%', textAlign: 'center' }}>
                                 <span className={`badge ${getStatusClass(item.status)}`}>
                                   {item.status === 'normal' ? '✅ Normal' : item.status === 'low' ? '⚠️ Low' : '❌ Out'}
                                 </span>
@@ -367,6 +442,8 @@ const Inventory = () => {
                         {categories.filter(c => c !== 'All Categories').map(c => (
                           <option key={c} value={c}>{c}</option>
                         ))}
+                        <option value="Supplies">Supplies</option>
+                        <option value="Tools & Equipment">Tools & Equipment</option>
                       </select>
                     </div>
 
@@ -384,6 +461,22 @@ const Inventory = () => {
                         <option value="kg">kg</option>
                         <option value="ltr">ltr</option>
                         <option value="pcs">pcs</option>
+                      </select>
+                    </div>
+
+                    {/* Branch */}
+                    <div className="form-group-inventory">
+                      <label className="form-label-inventory">Branch</label>
+                      <select
+                        name="branch"
+                        value={formData.branch}
+                        onChange={handleInputChange}
+                        className="form-input-inventory"
+                        required
+                      >
+                        <option value="Colombo">Colombo</option>
+                        <option value="Kandy">Kandy</option>
+                        <option value="Galle">Galle</option>
                       </select>
                     </div>
 
@@ -627,6 +720,10 @@ const Inventory = () => {
                 <span className="item-info-label">Unit :</span>
                 <span className="item-info-value">{selectedItem.unit || '-'}</span>
               </div>
+              <div className="item-info-row">
+                <span className="item-info-label">Branch :</span>
+                <span className="item-info-value">{selectedItem.branch}</span>
+              </div>
             </div>
 
             {/* Stock Section */}
@@ -709,6 +806,7 @@ const Inventory = () => {
                         <option value="Raw Materials">Raw Materials</option>
                         <option value="Tools & Equipment">Tools & Equipment</option>
                         <option value="Packaging">Packaging</option>
+                        <option value="Supplies">Supplies</option>
                       </select>
                     </div>
 
@@ -722,10 +820,26 @@ const Inventory = () => {
                         className="edit-form-input"
                         required
                       >
-                        <option value="">Kg</option>
+                        <option value="">Select Unit</option>
                         <option value="kg">kg</option>
                         <option value="ltr">ltr</option>
                         <option value="pcs">pcs</option>
+                      </select>
+                    </div>
+
+                    {/* Branch */}
+                    <div className="edit-form-group">
+                      <label className="edit-form-label">Branch</label>
+                      <select
+                        name="branch"
+                        value={editFormData.branch}
+                        onChange={handleEditInputChange}
+                        className="edit-form-input"
+                        required
+                      >
+                        <option value="Colombo">Colombo</option>
+                        <option value="Kandy">Kandy</option>
+                        <option value="Galle">Galle</option>
                       </select>
                     </div>
 
