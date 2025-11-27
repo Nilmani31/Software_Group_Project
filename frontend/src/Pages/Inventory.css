@@ -48,7 +48,7 @@ html, body {
   color: var(--text);
   line-height: 1.5;
   overflow-x: hidden;
-  overflow-y: hidden;
+  overflow-y: auto;
 }
 
 /* App Wrapper - Main container */
@@ -332,6 +332,7 @@ html, body {
 .inventory-main {
   flex: 1;
   overflow-y: auto;
+  overflow-x: hidden;
   background: var(--panel);
   border-radius: var(--radius-lg);
   padding: 24px;
@@ -340,6 +341,7 @@ html, body {
   scroll-behavior: smooth;
   scrollbar-width: thin;
   scrollbar-color: #d1d5db #f3f4f6;
+  max-height: calc(100vh - 70px - 24px - 100px);
 }
 
 .inventory-main::-webkit-scrollbar {
