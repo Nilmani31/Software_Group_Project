@@ -2,7 +2,9 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 require('dotenv').config();
+
 const Userrouter = require('./routes/users');
+const itemsRouter = require('./routes/items');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -15,10 +17,7 @@ app.use(express.urlencoded({ extended: true }));
 // MongoDB Connection
 const connectDB = async () => {
   try {
-    const conn = await mongoose.connect(process.env.MONGODB_URI, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-    });
+    const conn = await mongoose.connect(process.env.MONGODB_URI);
     
     console.log(`✅ MongoDB Connected: ${conn.connection.host}`);
     console.log(`📊 Database Name: ${conn.connection.name}`);
@@ -77,11 +76,12 @@ app.listen(PORT, () => {
   console.log(`🚀 Server is running on port ${PORT}`);
   console.log(`📱 Frontend URL: http://localhost:3000`);
   console.log(`🔗 Backend URL: http://localhost:${PORT}`);
-  
 });
 // Routes
 
+
 app.use('/api/users', Userrouter);
+app.use('/api/items', itemsRouter);
 
 
 

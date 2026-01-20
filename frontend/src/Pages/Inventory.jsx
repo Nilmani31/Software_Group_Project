@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import Navbar from '../Components/Navbar';
 import Sidebar from '../Components/Sidebar';
 import ChatAssistant from '../Components/ChatAssistant';
@@ -68,6 +68,14 @@ const Inventory = () => {
   });
   const [editImagePreview, setEditImagePreview] = useState(null);
   const [showChatAssistant, setShowChatAssistant] = useState(false);
+
+  // Fetch items from server
+  useEffect(() => {
+    fetch('http://localhost:5000/api/items')
+      .then(res => res.json())
+      .then(data => setItems(data))
+      .catch(err => console.error('Error fetching items:', err));
+  }, []);
 
   // Generate categories from items
   const categories = useMemo(() => {
@@ -180,7 +188,14 @@ const Inventory = () => {
       branch: formData.branch
     };
     
-    setItems([...items, newItem]);
+    fetch('http://localhost:5000/api/items', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newItem)
+    })
+      .then(res => res.json())
+      .then(addedItem => setItems([...items, addedItem]));
+    
     alert('Item added successfully!');
     handleCloseModal();
   };
@@ -230,7 +245,10 @@ const Inventory = () => {
 
   const handleDeleteItem = () => {
     if (window.confirm(`Are you sure you want to delete ${selectedItem.name}?`)) {
-      setItems(items.filter(item => item.id !== selectedItem.id));
+      fetch(`http://localhost:5000/api/items/${selectedItem._id}`, {
+        method: 'DELETE'
+      })
+        .then(() => setItems(items.filter(item => item._id !== selectedItem._id)));
       alert('Item deleted successfully!');
       handleCloseItemDetailModal();
     }
@@ -262,19 +280,23 @@ const Inventory = () => {
     e.preventDefault();
     
     // Update item in inventory
-    setItems(items.map(item => 
-      item.id === selectedItem.id 
-        ? {
-            ...item,
-            name: editFormData.itemName,
-            category: editFormData.category,
-            unit: editFormData.unit,
-            minStock: parseInt(editFormData.minStock) || 0,
-            maxStock: parseInt(editFormData.maxStock) || 0,
-            branch: editFormData.branch
-          }
-        : item
-    ));
+    const updatedItem = {
+      id: selectedItem.id,
+      name: editFormData.itemName,
+      category: editFormData.category,
+      unit: editFormData.unit,
+      minStock: parseInt(editFormData.minStock) || 0,
+      maxStock: parseInt(editFormData.maxStock) || 0,
+      branch: editFormData.branch
+    };
+    
+    fetch(`http://localhost:5000/api/items/${selectedItem._id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updatedItem)
+    })
+      .then(res => res.json())
+      .then(updated => setItems(items.map(item => item._id === updated._id ? updated : item)));
     
     alert('Item updated successfully!');
     handleCloseEditModal();
@@ -351,29 +373,27 @@ const Inventory = () => {
                       <table className="inventory-table" role="table" aria-label="Inventory list">
                         <thead>
                           <tr>
+                            <th scope="col" style={{ width: '12%' }}>Item ID</th>
                             <th scope="col" style={{ width: '20%' }}>Name</th>
                             <th scope="col" style={{ width: '18%' }}>Category</th>
                             <th scope="col" style={{ width: '15%', textAlign: 'center' }}>Quantity</th>
-                            <th scope="col" style={{ width: '12%', textAlign: 'center' }}>Unit</th>
-                            <th scope="col" style={{ width: '15%', textAlign: 'center' }}>Branch</th>
+                            <th scope="col" style={{ width: '15%', textAlign: 'center' }}>Unit</th>
                             <th scope="col" style={{ width: '20%', textAlign: 'center' }}>Status</th>
                           </tr>
                         </thead>
                         <tbody>
                           {filtered.map(item => (
                             <tr 
-                              key={item.id} 
+                              key={item._id || item.id} 
                               className="inventory-row"
                               onClick={() => handleRowClick(item)}
                               style={{ cursor: 'pointer' }}
                             >
-                              <td style={{ width: '20%', paddingLeft: '16px' }}>{item.name}</td>
+                              <td style={{ width: '12%', paddingLeft: '16px' }}>{item.itemId || item.id}</td>
+                              <td style={{ width: '20%' }}>{item.name}</td>
                               <td style={{ width: '18%' }}>{item.category}</td>
-                              <td style={{ width: '15%', textAlign: 'center' }}>{item.qty}</td>
-                              <td style={{ width: '12%', textAlign: 'center' }}>{item.unit || '-'}</td>
-                              <td style={{ width: '15%', textAlign: 'center' }}>
-                                <span className="branch-badge">{item.branch}</span>
-                              </td>
+                              <td style={{ width: '15%', textAlign: 'center' }}>{item.quantity || item.qty || 0}</td>
+                              <td style={{ width: '15%', textAlign: 'center' }}>{item.unit || '-'}</td>
                               <td style={{ width: '20%', textAlign: 'center' }}>
                                 <span className={`badge ${getStatusClass(item.status)}`}>
                                   {item.status === 'normal' ? '✅ Normal' : item.status === 'low' ? '⚠️ Low' : '❌ Out'}
@@ -929,7 +949,7 @@ const Inventory = () => {
                 Cancel
               </button>
               <button type="submit" className="edit-btn-submit" onClick={handleEditSubmit}>
-                Edit Item
+                Save Changes
               </button>
             </div>
           </div>
@@ -937,7 +957,7 @@ const Inventory = () => {
       )}
 
       {/* Chat Assistant */}
-      <ChatAssistant />
+      {showChatAssistant && <ChatAssistant onClose={() => setShowChatAssistant(false)} />}
     </div>
   );
 };
