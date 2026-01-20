@@ -6,6 +6,7 @@ require('dotenv').config();
 const Userrouter = require('./routes/users');
 const rolesRouter = require('./routes/roles');
 const itemsRouter = require('./routes/items');
+const categoriesRouter = require('./routes/categories');
 const BranchRouter = require('./routes/branches');
 
 
@@ -85,6 +86,7 @@ app.listen(PORT, () => {
 app.use('/api/users', Userrouter);
 app.use('/api/roles', rolesRouter);
 app.use('/api/items', itemsRouter);
+app.use('/api/categories', categoriesRouter);
 app.use('/api/branches', BranchRouter);
 
 
