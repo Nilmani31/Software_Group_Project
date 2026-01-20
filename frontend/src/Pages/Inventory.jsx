@@ -436,7 +436,7 @@ const Inventory = () => {
                   {filtered.length === 0 ? (
                     <div className="no-results">No items found.</div>
                   ) : (
-                    <div className="list-wrap">
+                    <div className="list-wrap" style={{ maxHeight: '400px', overflowY: 'auto' }}>
                       <table className="inventory-table" role="table" aria-label="Inventory list">
                         <thead>
                           <tr>
@@ -448,36 +448,38 @@ const Inventory = () => {
                             <th scope="col" style={{ width: '20%', textAlign: 'center' }}>Status</th>
                           </tr>
                         </thead>
-                        <tbody>
-                          {filtered.map(item => {
-                            // Safely extract category name if it's an object
-                            let categoryDisplay = item.category;
-                            if (typeof item.category === 'object' && item.category !== null) {
-                              categoryDisplay = item.category.name || item.category.categoryName || 'N/A';
-                            }
-                            
-                            return (
-                              <tr 
-                                key={item._id || item.id} 
-                                className="inventory-row"
-                                onClick={() => handleRowClick(item)}
-                                style={{ cursor: 'pointer' }}
-                              >
-                                <td style={{ width: '12%', paddingLeft: '16px' }}>{item.itemId || item.id}</td>
-                                <td style={{ width: '20%' }}>{item.name}</td>
-                                <td style={{ width: '18%' }}>{categoryDisplay}</td>
-                                <td style={{ width: '15%', textAlign: 'center' }}>{item.quantity || item.qty || 0}</td>
-                                <td style={{ width: '15%', textAlign: 'center' }}>{item.unit || '-'}</td>
-                                <td style={{ width: '20%', textAlign: 'center' }}>
-                                  <span className={`badge ${getStatusClass(item.status)}`}>
-                                    {item.status === 'normal' ? '✅ Normal' : item.status === 'low' ? '⚠️ Low' : '❌ Out'}
-                                  </span>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
                       </table>
+                      <div style={{ maxHeight: '340px', overflowY: 'auto' }}>
+                        <table className="inventory-table" style={{ borderTop: 'none' }}>
+                          <tbody>
+                            {filtered.map(item => {
+                              let categoryDisplay = item.category;
+                              if (typeof item.category === 'object' && item.category !== null) {
+                                categoryDisplay = item.category.name || item.category.categoryName || 'N/A';
+                              }
+                              return (
+                                <tr 
+                                  key={item._id || item.id} 
+                                  className="inventory-row"
+                                  onClick={() => handleRowClick(item)}
+                                  style={{ cursor: 'pointer' }}
+                                >
+                                  <td style={{ width: '12%', paddingLeft: '16px' }}>{item.itemId || item.id}</td>
+                                  <td style={{ width: '20%' }}>{item.name}</td>
+                                  <td style={{ width: '18%' }}>{categoryDisplay}</td>
+                                  <td style={{ width: '15%', textAlign: 'center' }}>{item.quantity || item.qty || 0}</td>
+                                  <td style={{ width: '15%', textAlign: 'center' }}>{item.unit || '-'}</td>
+                                  <td style={{ width: '20%', textAlign: 'center' }}>
+                                    <span className={`badge ${getStatusClass(item.status)}`}>
+                                      {item.status === 'normal' ? '✅ Normal' : item.status === 'low' ? '⚠️ Low' : '❌ Out'}
+                                    </span>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
                   )}
                 </div>
