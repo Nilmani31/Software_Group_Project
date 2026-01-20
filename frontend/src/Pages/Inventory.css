@@ -364,7 +364,12 @@ html, body {
 
 /* Table styles - IMPROVED */
 .list-wrap {
-  overflow: visible;
+  max-height: 400px;
+  overflow-y: auto;
+  overflow-x: auto;
+  background: white;
+  border-radius: 8px;
+  box-shadow: var(--shadow);
 }
 
 .inventory-table {
@@ -373,6 +378,7 @@ html, body {
   border-spacing: 0;
   font-size: 14px;
   background: white;
+  table-layout: fixed;
 }
 
 .inventory-table thead {
@@ -380,7 +386,7 @@ html, body {
   border-bottom: none;
   position: sticky;
   top: 0;
-  z-index: 10;
+  z-index: 2;
 }
 
 .inventory-table th {

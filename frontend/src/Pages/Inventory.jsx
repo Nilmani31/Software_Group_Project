@@ -443,26 +443,24 @@ const Inventory = () => {
                   {filtered.length === 0 ? (
                     <div className="no-results">No items found.</div>
                   ) : (
-                    <div className="list-wrap">
-                      <table className="inventory-table" role="table" aria-label="Inventory list">
-                        <thead>
+                    <div className="list-wrap" style={{ maxHeight: '400px', overflowY: 'auto' }}>
+                      <table className="inventory-table" role="table" aria-label="Inventory list" style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0 }}>
+                        <thead style={{ position: 'sticky', top: 0, zIndex: 2 }}>
                           <tr>
-                            <th scope="col" style={{ width: '12%' }}>Item ID</th>
-                            <th scope="col" style={{ width: '20%' }}>Name</th>
-                            <th scope="col" style={{ width: '18%' }}>Category</th>
-                            <th scope="col" style={{ width: '15%', textAlign: 'center' }}>Quantity</th>
-                            <th scope="col" style={{ width: '15%', textAlign: 'center' }}>Unit</th>
-                            <th scope="col" style={{ width: '20%', textAlign: 'center' }}>Status</th>
+                            <th style={{ width: '12%', left: 0, background: 'inherit' }}>Item ID</th>
+                            <th style={{ width: '20%' }}>Name</th>
+                            <th style={{ width: '18%' }}>Category</th>
+                            <th style={{ width: '15%', textAlign: 'center' }}>Quantity</th>
+                            <th style={{ width: '15%', textAlign: 'center' }}>Unit</th>
+                            <th style={{ width: '20%', textAlign: 'center' }}>Status</th>
                           </tr>
                         </thead>
                         <tbody>
                           {filtered.map(item => {
-                            // Safely extract category name if it's an object
                             let categoryDisplay = item.category;
                             if (typeof item.category === 'object' && item.category !== null) {
                               categoryDisplay = item.category.name || item.category.categoryName || 'N/A';
                             }
-                            
                             return (
                               <tr 
                                 key={item._id || item.id} 
