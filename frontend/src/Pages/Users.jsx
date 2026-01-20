@@ -1,7 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Navbar from '../Components/Navbar';
 import Sidebar from '../Components/Sidebar';
-import { users } from '../data/sample';
 import { Edit2, Trash2 } from 'lucide-react';
 import Modal from '../Components/Modal';
 import ChatAssistant from '../Components/ChatAssistant';
@@ -9,11 +8,145 @@ import './Users.css';
 import './Inventory.css';
 
 export default function Users() {
-  const [list, setList] = useState(users);
+  const [list, setList] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [openAdd, setOpenAdd] = useState(false);
   const [openEdit, setOpenEdit] = useState(false);
   const [editing, setEditing] = useState(null);
   const [query, setQuery] = useState('');
+  
+  // Add user form state
+  const [addForm, setAddForm] = useState({ username: '', email: '', phoneNumber: '', roleId: 'STAFF', branchId: 'MAIN_BRANCH' });
+  const [addLoading, setAddLoading] = useState(false);
+
+  // Edit user form state
+  const [editForm, setEditForm] = useState({ username: '', email: '', phoneNumber: '', roleId: '', branchId: '' });
+  const [editLoading, setEditLoading] = useState(false);
+
+  // Fetch users from backend
+  useEffect(() => {
+    fetchUsers();
+  }, []);
+
+  const fetchUsers = async () => {
+    try {
+      const response = await fetch('http://localhost:5000/api/users');
+      const data = await response.json();
+      if (data.success && data.data) {
+        // Transform database users to match display format
+        const formattedUsers = data.data.map(user => ({
+          id: user._id,
+          name: user.username,
+          email: user.email,
+          phoneNumber: user.phoneNumber,
+          branch: user.branchId,
+          role: user.roleId
+        }));
+        setList(formattedUsers);
+      }
+    } catch (err) {
+      console.error('Error fetching users:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Handle Add User
+  const handleAddUser = async (e) => {
+    e.preventDefault();
+    setAddLoading(true);
+    try {
+      const response = await fetch('http://localhost:5000/api/users/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: addForm.username,
+          email: addForm.email,
+          phoneNumber: addForm.phoneNumber,
+          roleId: addForm.roleId,
+          branchId: addForm.branchId,
+          createdBy: localStorage.getItem('username') || 'System'
+        })
+      });
+      const data = await response.json();
+      if (data.message) {
+        alert('User created successfully! Password: ' + data.password);
+        setAddForm({ username: '', email: '', phoneNumber: '', roleId: 'STAFF', branchId: 'MAIN_BRANCH' });
+        setOpenAdd(false);
+        fetchUsers(); // Refresh list
+      } else {
+        alert('Error: ' + (data.error || 'Failed to create user'));
+      }
+    } catch (err) {
+      alert('Error creating user: ' + err.message);
+    } finally {
+      setAddLoading(false);
+    }
+  };
+
+  // Handle Delete User
+  const handleDeleteUser = async (userId) => {
+    if (!window.confirm('Delete this user?')) return;
+    try {
+      const response = await fetch(`http://localhost:5000/api/users/${userId}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      const data = await response.json();
+      if (data.success || data.message) {
+        alert('User deleted successfully');
+        fetchUsers(); // Refresh list
+      } else {
+        alert('Error: ' + (data.error || 'Failed to delete user'));
+      }
+    } catch (err) {
+      alert('Error deleting user: ' + err.message);
+    }
+  };
+
+  // Handle Edit User - Open Modal and set form
+  const handleOpenEdit = (user) => {
+    setEditForm({
+      username: user.name,
+      email: user.email,
+      phoneNumber: user.phoneNumber || '0000000000',
+      roleId: user.role,
+      branchId: user.branch
+    });
+    setEditing(user);
+    setOpenEdit(true);
+  };
+
+  // Handle Update User
+  const handleUpdateUser = async (e) => {
+    e.preventDefault();
+    setEditLoading(true);
+    try {
+      const response = await fetch(`http://localhost:5000/api/users/${editing.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: editForm.username,
+          email: editForm.email,
+          phoneNumber: editForm.phoneNumber,
+          roleId: editForm.roleId,
+          branchId: editForm.branchId
+        })
+      });
+      const data = await response.json();
+      if (data.success || data.message) {
+        alert('User updated successfully');
+        setOpenEdit(false);
+        fetchUsers(); // Refresh list
+      } else {
+        alert('Error: ' + (data.error || 'Failed to update user'));
+      }
+    } catch (err) {
+      alert('Error updating user: ' + err.message);
+    } finally {
+      setEditLoading(false);
+    }
+  };
 
   const filteredUsers = list.filter(user =>
     user.name.toLowerCase().includes(query.toLowerCase()) ||
@@ -52,7 +185,9 @@ export default function Users() {
                 </header>
 
                 <div className="inventory-main">
-                  {filteredUsers.length === 0 ? (
+                  {loading ? (
+                    <div className="no-results">Loading users...</div>
+                  ) : filteredUsers.length === 0 ? (
                     <div className="no-results">No users found.</div>
                   ) : (
                     <div className="list-wrap">
@@ -81,10 +216,10 @@ export default function Users() {
                               <td>{u.branch}</td>
                               <td><span className="role-pill">{u.role}</span></td>
                               <td style={{ textAlign: 'center' }}>
-                                <button onClick={() => { setEditing(u); setOpenEdit(true) }} className="icon-btn" aria-label="Edit user">
+                                <button onClick={() => handleOpenEdit(u)} className="icon-btn" aria-label="Edit user">
                                   <Edit2 size={16} />
                                 </button>
-                                <button onClick={() => { if (window.confirm('Delete this user?')) setList(prev => prev.filter(x => x.id !== u.id)) }} className="icon-btn danger" aria-label="Delete user">
+                                <button onClick={() => handleDeleteUser(u.id)} className="icon-btn danger" aria-label="Delete user">
                                   <Trash2 size={16} />
                                 </button>
                               </td>
@@ -102,33 +237,32 @@ export default function Users() {
       </div>
 
       <Modal title="Add New User" open={openAdd} onClose={() => setOpenAdd(false)}>
-        <form style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <div><label className="text-sm">Full Name</label><input className="input" placeholder="e.g. Chamsha Nilmani" /></div>
-          <div><label className="text-sm">Email</label><input className="input" placeholder="e.g. Example@gamil.com" /></div>
-          <div><label className="text-sm">Phone Number</label><input className="input" placeholder="e.g. +94714556527" /></div>
-          <div><label className="text-sm">Password</label><input className="input" placeholder="e.g.DEXXXXX" /></div>
-          <div><label className="text-sm">Role</label><select className="input"><option>Director</option></select></div>
-          <div><label className="text-sm">Branch</label><input className="input" placeholder="e.g. Galle" /></div>
+        <form style={{ display: 'flex', flexDirection: 'column', gap: 10 }} onSubmit={handleAddUser}>
+          <div><label className="text-sm">Username</label><input className="input" placeholder="e.g. john_doe" value={addForm.username} onChange={(e) => setAddForm({...addForm, username: e.target.value})} required /></div>
+          <div><label className="text-sm">Email</label><input className="input" type="email" placeholder="e.g. john@company.com" value={addForm.email} onChange={(e) => setAddForm({...addForm, email: e.target.value})} required /></div>
+          <div><label className="text-sm">Phone Number</label><input className="input" placeholder="e.g. 0712345678" value={addForm.phoneNumber} onChange={(e) => setAddForm({...addForm, phoneNumber: e.target.value})} required /></div>
+          <div><label className="text-sm">Role</label><select className="input" value={addForm.roleId} onChange={(e) => setAddForm({...addForm, roleId: e.target.value})}><option value="STAFF">STAFF</option><option value="MANAGER">MANAGER</option><option value="BRANCH_MANAGER">BRANCH_MANAGER</option><option value="DIRECTOR">DIRECTOR</option><option value="ADMIN">ADMIN</option></select></div>
+          <div><label className="text-sm">Branch</label><input className="input" placeholder="e.g. MAIN_BRANCH" value={addForm.branchId} onChange={(e) => setAddForm({...addForm, branchId: e.target.value})} required /></div>
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }} className="modal-actions">
             <button className="btn-white" onClick={() => setOpenAdd(false)} type="button">Cancel</button>
-            <button className="btn-black">Add user</button>
+            <button className="btn-black" type="submit" disabled={addLoading}>{addLoading ? 'Adding...' : 'Add user'}</button>
           </div>
         </form>
       </Modal>
 
       <Modal title="Edit User" open={openEdit} onClose={() => setOpenEdit(false)}>
         {editing && (
-          <form style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <div><label className="text-sm">Full Name</label><input className="input" defaultValue={editing.name} /></div>
-            <div><label className="text-sm">Email</label><input className="input" defaultValue={editing.email} /></div>
-            <div><label className="text-sm">Phone Number</label><input className="input" defaultValue="+94714556527" /></div>
-            <div><label className="text-sm">Role</label><select className="input"><option>Staff</option></select></div>
-            <div><label className="text-sm">Branch</label><input className="input" defaultValue={editing.branch} /></div>
+          <form style={{ display: 'flex', flexDirection: 'column', gap: 10 }} onSubmit={handleUpdateUser}>
+            <div><label className="text-sm">Username</label><input className="input" value={editForm.username} onChange={(e) => setEditForm({...editForm, username: e.target.value})} required /></div>
+            <div><label className="text-sm">Email</label><input className="input" type="email" value={editForm.email} onChange={(e) => setEditForm({...editForm, email: e.target.value})} required /></div>
+            <div><label className="text-sm">Phone Number</label><input className="input" value={editForm.phoneNumber} onChange={(e) => setEditForm({...editForm, phoneNumber: e.target.value})} /></div>
+            <div><label className="text-sm">Role</label><select className="input" value={editForm.roleId} onChange={(e) => setEditForm({...editForm, roleId: e.target.value})}><option value="STAFF">STAFF</option><option value="MANAGER">MANAGER</option><option value="BRANCH_MANAGER">BRANCH_MANAGER</option><option value="DIRECTOR">DIRECTOR</option><option value="ADMIN">ADMIN</option></select></div>
+            <div><label className="text-sm">Branch</label><input className="input" value={editForm.branchId} onChange={(e) => setEditForm({...editForm, branchId: e.target.value})} required /></div>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }} className="modal-actions">
               <button className="btn-white" onClick={() => setOpenEdit(false)} type="button">Cancel</button>
-              <button className="btn-black">Update User</button>
+              <button className="btn-black" type="submit" disabled={editLoading}>{editLoading ? 'Updating...' : 'Update User'}</button>
             </div>
           </form>
         )}

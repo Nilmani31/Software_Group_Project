@@ -12,24 +12,25 @@ import Branches from './Pages/Branches';
 import Users from './Pages/Users';
 import Categories from './Pages/Categories';
 import GoodReceived from './Pages/GoodReceived';
-
-
+import ProtectedRoute from './Components/ProtectedRoute';
 
 function App() {
   return (
     <Router>
       <Routes>
         <Route path="/" element={<LoginPage />} />
-        <Route path="/dashboard" element={<MainLayout><Dashboard /></MainLayout>} />
-        <Route path="/reports" element={<MainLayout><Report /></MainLayout>} />
-        <Route path="/lowstock" element={<LowStock />} />
-        <Route path="/issue-note" element={<IssueNote />} />
-        <Route path="/inventory" element={<Inventory />} />
-        <Route path="/purchase-order" element={<PurchaseOrder/>} />
-        <Route path="/branches" element={<Branches />} />
-        <Route path="/users" element={<Users />} />
-        <Route path="/categories" element={<Categories />} />
-        <Route path="/good-received" element={<GoodReceived />} />
+        <Route path="/login" element={<LoginPage />} />
+        
+        <Route path="/dashboard" element={<ProtectedRoute path="/dashboard"><MainLayout><Dashboard /></MainLayout></ProtectedRoute>} />
+        <Route path="/reports" element={<ProtectedRoute path="/report"><MainLayout><Report /></MainLayout></ProtectedRoute>} />
+        <Route path="/lowstock" element={<ProtectedRoute path="/low-stock"><LowStock /></ProtectedRoute>} />
+        <Route path="/issue-note" element={<ProtectedRoute path="/issue-note"><IssueNote /></ProtectedRoute>} />
+        <Route path="/inventory" element={<ProtectedRoute path="/inventory"><Inventory /></ProtectedRoute>} />
+        <Route path="/purchase-order" element={<ProtectedRoute path="/purchase-order"><PurchaseOrder/></ProtectedRoute>} />
+        <Route path="/branches" element={<ProtectedRoute path="/branches"><Branches /></ProtectedRoute>} />
+        <Route path="/users" element={<ProtectedRoute path="/users"><Users /></ProtectedRoute>} />
+        <Route path="/categories" element={<ProtectedRoute path="/categories"><Categories /></ProtectedRoute>} />
+        <Route path="/good-received" element={<ProtectedRoute path="/good-received"><GoodReceived /></ProtectedRoute>} />
       </Routes>
     </Router>
   );

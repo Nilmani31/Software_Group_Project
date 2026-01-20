@@ -1,6 +1,24 @@
 
 const User = require("../models/users");
 const bcrypt = require("bcrypt");
+const { generatePasswordByRole } = require("../utils/passwordGenerator");
+
+// GET ALL USERS
+exports.getAllUsers = async (req, res) => {
+  try {
+    const users = await User.find().select('-password');
+    res.json({
+      success: true,
+      count: users.length,
+      data: users
+    });
+  } catch (err) {
+    res.status(500).json({ 
+      success: false,
+      error: err.message 
+    });
+  }
+};
 
 // CREATE USER
 exports.createUser = async (req, res) => {
@@ -15,7 +33,7 @@ exports.createUser = async (req, res) => {
     const newUser = await User.create({
       username,
       password: hashedPassword,
-      role,
+      role: roleId,
       roleId,
       branchId,
       phoneNumber,
@@ -140,14 +158,3 @@ exports.login = async (req, res) => {
     });
   }
 };
-
-// Helper function to generate password by role
-function generatePasswordByRole(roleId) {
-  const passwords = {
-    'ADMIN': 'admin123',
-    'MANAGER': 'manager123', 
-    'USER': 'user123',
-    'VIEWER': 'viewer123'
-  };
-  return passwords[roleId] || 'default123';
-}
