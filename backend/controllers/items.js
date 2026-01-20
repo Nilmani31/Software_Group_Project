@@ -13,10 +13,19 @@ exports.getAllItems = async (req, res) => {
     // Transform to include category name as string for frontend
     const itemsWithCategoryNames = items.map(item => {
       const itemObj = item.toObject();
+      // Convert category object to just the name string
       if (itemObj.category && typeof itemObj.category === 'object') {
         itemObj.categoryName = itemObj.category.name;
         itemObj.category = itemObj.category.name;
       }
+      // Ensure branch is a string
+      if (itemObj.branch && typeof itemObj.branch === 'object') {
+        itemObj.branch = itemObj.branch.branchName || itemObj.branch.name || String(itemObj.branch._id);
+      }
+      // Ensure these are proper values
+      itemObj.quantity = itemObj.quantity || 0;
+      itemObj.status = itemObj.status || 'normal';
+      itemObj.unit = itemObj.unit || 'kg';
       return itemObj;
     });
     res.json(itemsWithCategoryNames);
@@ -30,7 +39,19 @@ exports.createItem = async (req, res) => {
   try {
     const item = new Item(req.body);
     await item.save();
-    res.status(201).json(item);
+    
+    // Populate and transform for consistent response
+    await item.populate('category', 'name');
+    const itemObj = item.toObject();
+    if (itemObj.category && typeof itemObj.category === 'object') {
+      itemObj.categoryName = itemObj.category.name;
+      itemObj.category = itemObj.category.name;
+    }
+    if (itemObj.branch && typeof itemObj.branch === 'object') {
+      itemObj.branch = itemObj.branch.branchName || itemObj.branch.branch_name || itemObj.branch.name || String(itemObj.branch._id);
+    }
+    
+    res.status(201).json(itemObj);
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
@@ -39,9 +60,21 @@ exports.createItem = async (req, res) => {
 // Update an item
 exports.updateItem = async (req, res) => {
   try {
-    const item = await Item.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    const item = await Item.findByIdAndUpdate(req.params.id, req.body, { new: true })
+      .populate('category', 'name');
     if (!item) return res.status(404).json({ error: 'Item not found' });
-    res.json(item);
+    
+    // Transform to ensure consistent format
+    const itemObj = item.toObject();
+    if (itemObj.category && typeof itemObj.category === 'object') {
+      itemObj.categoryName = itemObj.category.name;
+      itemObj.category = itemObj.category.name;
+    }
+    if (itemObj.branch && typeof itemObj.branch === 'object') {
+      itemObj.branch = itemObj.branch.branchName || itemObj.branch.branch_name || itemObj.branch.name || String(itemObj.branch._id);
+    }
+    
+    res.json(itemObj);
   } catch (err) {
     res.status(400).json({ error: err.message });
   }

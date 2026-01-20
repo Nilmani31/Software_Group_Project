@@ -32,6 +32,27 @@ const itemSchema = new mongoose.Schema({
 		ref: 'Category',
 		required: true,
 	},
+	unit: {
+		type: String,
+		required: false,
+		default: 'kg',
+	},
+	quantity: {
+		type: Number,
+		required: false,
+		default: 0,
+	},
+	branch: {
+		type: String,
+		required: false,
+		default: 'Colombo',
+	},
+	status: {
+		type: String,
+		required: false,
+		default: 'normal',
+		enum: ['normal', 'low', 'out'],
+	},
 
 	minStock: {
 		type: Number,

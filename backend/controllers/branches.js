@@ -35,7 +35,16 @@ exports.createBranch = async (req, res) => {
       return res.status(400).json({ success: false, message: 'branch_name is required' });
     }
 
-    const newBranch = await Branch.create({ branch_name, location, contact_person, phone });
+    const newBranch = await Branch.create({ 
+      branchName: branch_name,
+      location: location,
+      city: location, // Use location as city if not provided
+      state: location, // Use location as state if not provided
+      address: location, // Use location as address if not provided
+      phoneNumber: phone,
+      email: 'branch@company.com', // Default email
+      branchCode: branch_name.substring(0, 3).toUpperCase() + Date.now().toString().slice(-4) // Generate code
+    });
 
     res.status(201).json({ success: true, data: newBranch });
   } catch (error) {
@@ -51,17 +60,25 @@ exports.createBranch = async (req, res) => {
 exports.updateBranch = async (req, res) => {
   try {
     const branchId = Number(req.params.branchId);
-    const update = { ...req.body };
-
-    if (update.branch_id !== undefined) {
-      delete update.branch_id;
+    const { branch_name, location, contact_person, phone } = req.body;
+    
+    // Map incoming field names to schema field names
+    const update = {};
+    if (branch_name !== undefined) update.branchName = branch_name;
+    if (location !== undefined) {
+      update.location = location;
+      update.city = location;
+      update.state = location;
+      update.address = location;
     }
-    if (update.created_at !== undefined) {
-      delete update.created_at;
+    if (phone !== undefined) update.phoneNumber = phone;
+
+    if (Object.keys(update).length === 0) {
+      return res.status(400).json({ success: false, message: 'No valid fields to update' });
     }
 
     const updated = await Branch.findOneAndUpdate(
-      { branch_id: branchId },
+      { branchId },
       update,
       { new: true, runValidators: true }
     );

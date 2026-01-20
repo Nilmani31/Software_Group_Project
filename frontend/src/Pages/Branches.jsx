@@ -25,12 +25,12 @@ export default function Branches() {
 
                 const mapped = Array.isArray(body.data)
                     ? body.data.map(item => ({
-                        id: item.branch_id,
-                        name: item.branch_name,
+                        id: item.branch_id || item._id,
+                        name: item.branch_name || item.branchName || item.name || "",
                         location: item.location || "",
-                        contact: item.contact_person || "",
+                        contact: item.contact_person || item.contactPerson || "",
                         phone: item.phone || "",
-                        createdAt: item.created_at,
+                        createdAt: item.created_at || item.createdAt,
                     }))
                     : [];
 
@@ -128,7 +128,9 @@ export default function Branches() {
         }
     }
 
-    const filtered = branches.filter(b => b.name.toLowerCase().includes(query.toLowerCase()));
+    const filtered = branches.filter(b => 
+        (b.name || "").toLowerCase().includes(query.toLowerCase())
+    );
 
     return (
         <div className="app-wrapper">

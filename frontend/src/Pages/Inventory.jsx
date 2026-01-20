@@ -107,12 +107,17 @@ const Inventory = () => {
       // Handle both array and { success, data } response formats
       const branchesArray = Array.isArray(data) ? data : (data.data ? data.data : []);
       if (Array.isArray(branchesArray)) {
-        const branchNames = branchesArray.map(b => b.branchName || b.name || b);
+        const branchNames = branchesArray
+          .map(b => b.branchName || b.branch_name || b.name || '')
+          .filter(name => name); // Filter out empty strings
         setBranches(branchNames);
         // Create map of branch name to ID
         const map = {};
         branchesArray.forEach(b => {
-          map[b.branchName || b.name] = b._id;
+          const name = b.branchName || b.branch_name || b.name;
+          if (name) {
+            map[name] = b._id;
+          }
         });
         setBranchMap(map);
       }
@@ -236,13 +241,25 @@ const Inventory = () => {
 
   const handleEditItem = () => {
     if (selectedItem) {
+      // Safely extract branch name if it's an object
+      let branchValue = selectedItem.branch;
+      if (typeof branchValue === 'object' && branchValue !== null) {
+        branchValue = branchValue.branch_name || branchValue.branchName || branchValue.name || 'Colombo';
+      }
+      
+      // Safely extract category name if it's an object
+      let categoryValue = selectedItem.category;
+      if (typeof categoryValue === 'object' && categoryValue !== null) {
+        categoryValue = categoryValue.name || categoryValue.categoryName || '';
+      }
+      
       setEditFormData({
         name: selectedItem.name,
-        category: selectedItem.category,
+        category: categoryValue,
         unit: selectedItem.unit,
         minStock: selectedItem.minStock || '',
         maxStock: selectedItem.maxStock || '',
-        branch: selectedItem.branch || 'Colombo',
+        branch: branchValue || 'Colombo',
         image: null
       });
       setEditImagePreview(null);
@@ -432,25 +449,33 @@ const Inventory = () => {
                           </tr>
                         </thead>
                         <tbody>
-                          {filtered.map(item => (
-                            <tr 
-                              key={item._id || item.id} 
-                              className="inventory-row"
-                              onClick={() => handleRowClick(item)}
-                              style={{ cursor: 'pointer' }}
-                            >
-                              <td style={{ width: '12%', paddingLeft: '16px' }}>{item.itemId || item.id}</td>
-                              <td style={{ width: '20%' }}>{item.name}</td>
-                              <td style={{ width: '18%' }}>{item.category}</td>
-                              <td style={{ width: '15%', textAlign: 'center' }}>{item.quantity || item.qty || 0}</td>
-                              <td style={{ width: '15%', textAlign: 'center' }}>{item.unit || '-'}</td>
-                              <td style={{ width: '20%', textAlign: 'center' }}>
-                                <span className={`badge ${getStatusClass(item.status)}`}>
-                                  {item.status === 'normal' ? '✅ Normal' : item.status === 'low' ? '⚠️ Low' : '❌ Out'}
-                                </span>
-                              </td>
-                            </tr>
-                          ))}
+                          {filtered.map(item => {
+                            // Safely extract category name if it's an object
+                            let categoryDisplay = item.category;
+                            if (typeof item.category === 'object' && item.category !== null) {
+                              categoryDisplay = item.category.name || item.category.categoryName || 'N/A';
+                            }
+                            
+                            return (
+                              <tr 
+                                key={item._id || item.id} 
+                                className="inventory-row"
+                                onClick={() => handleRowClick(item)}
+                                style={{ cursor: 'pointer' }}
+                              >
+                                <td style={{ width: '12%', paddingLeft: '16px' }}>{item.itemId || item.id}</td>
+                                <td style={{ width: '20%' }}>{item.name}</td>
+                                <td style={{ width: '18%' }}>{categoryDisplay}</td>
+                                <td style={{ width: '15%', textAlign: 'center' }}>{item.quantity || item.qty || 0}</td>
+                                <td style={{ width: '15%', textAlign: 'center' }}>{item.unit || '-'}</td>
+                                <td style={{ width: '20%', textAlign: 'center' }}>
+                                  <span className={`badge ${getStatusClass(item.status)}`}>
+                                    {item.status === 'normal' ? '✅ Normal' : item.status === 'low' ? '⚠️ Low' : '❌ Out'}
+                                  </span>
+                                </td>
+                              </tr>
+                            );
+                          })}
                         </tbody>
                       </table>
                     </div>
@@ -708,7 +733,12 @@ const Inventory = () => {
               </div>
               <div className="item-info-row">
                 <span className="item-info-label">Category :</span>
-                <span className="item-info-value">{selectedItem.category}</span>
+                <span className="item-info-value">
+                  {typeof selectedItem.category === 'object' 
+                    ? (selectedItem.category.name || selectedItem.category.categoryName || 'N/A')
+                    : (selectedItem.category || 'N/A')
+                  }
+                </span>
               </div>
               <div className="item-info-row">
                 <span className="item-info-label">Unit :</span>
@@ -716,7 +746,12 @@ const Inventory = () => {
               </div>
               <div className="item-info-row">
                 <span className="item-info-label">Branch :</span>
-                <span className="item-info-value">{selectedItem.branch}</span>
+                <span className="item-info-value">
+                  {typeof selectedItem.branch === 'object' 
+                    ? (selectedItem.branch.branch_name || selectedItem.branch.branchName || selectedItem.branch.name || 'N/A')
+                    : (selectedItem.branch || 'N/A')
+                  }
+                </span>
               </div>
             </div>
 
@@ -791,7 +826,10 @@ const Inventory = () => {
                       <label className="edit-form-label">Category</label>
                       <select
                         name="category"
-                        value={editFormData.category}
+                        value={typeof editFormData.category === 'object' 
+                          ? (editFormData.category?.name || editFormData.category?.categoryName || '')
+                          : (editFormData.category || '')
+                        }
                         onChange={handleEditInputChange}
                         className="edit-form-input"
                         required
@@ -826,7 +864,10 @@ const Inventory = () => {
                       <label className="edit-form-label">Branch</label>
                       <select
                         name="branch"
-                        value={editFormData.branch}
+                        value={typeof editFormData.branch === 'object' 
+                          ? (editFormData.branch?.branch_name || editFormData.branch?.branchName || editFormData.branch?.name || '')
+                          : (editFormData.branch || '')
+                        }
                         onChange={handleEditInputChange}
                         className="edit-form-input"
                         required
