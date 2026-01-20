@@ -4,7 +4,12 @@ const cors = require('cors');
 require('dotenv').config();
 
 const Userrouter = require('./routes/users');
+
 const itemsRouter = require('./routes/items');
+
+const BranchRouter = require('./routes/branches');
+
+
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -82,6 +87,8 @@ app.listen(PORT, () => {
 
 app.use('/api/users', Userrouter);
 app.use('/api/items', itemsRouter);
+app.use('/api/branches', BranchRouter);
+
 
 
 
