@@ -1,43 +1,16 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Sidebar from "../Components/Sidebar";
 import Navbar from "../Components/Navbar";
 import ChatAssistant from "../Components/ChatAssistant";
 import "./LowStock.css";
 
 const LowStock = () => {
-  const [lowStockItems] = useState([
-    {
-      id: 1,
-      sku: "RAW-SYR-001",
-      name: "Sugar Syrup",
-      currentStock: 0,
-      minimumStock: 15,
-      shortage: 15,
-      category: "Raw Materials",
-      status: "Critical"
-    },
-    {
-      id: 2,
-      sku: "GLAS-WIN-001",
-      name: "Wine Glasses",
-      currentStock: 12,
-      minimumStock: 24,
-      shortage: 12,
-      category: "Glassware",
-      status: "Low"
-    }
-  ]);
-
-  const [branches] = useState([
-    { id: 1, name: "Galle", quantity: 10 },
-    { id: 2, name: "Kandy", quantity: 5 },
-    { id: 3, name: "Colombo", quantity: 5 }
-  ]);
-
-  const [suppliers] = useState([
-    { id: 1, name: "ABC Supplies", contact: "0712345678" },
-    { id: 2, name: "XYZ Traders", contact: "0787654321" }
-  ]);
+  const [lowStockItems, setLowStockItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [branches, setBranches] = useState([]);
+  const [loadingBranches, setLoadingBranches] = useState(false);
+  const [suppliers, setSuppliers] = useState([]);
+  const [loadingSuppliers, setLoadingSuppliers] = useState(true);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
@@ -45,6 +18,58 @@ const LowStock = () => {
   const [selectedBranches, setSelectedBranches] = useState([]);
   const [selectedSuppliers, setSelectedSuppliers] = useState([]);
   const [orderQuantities, setOrderQuantities] = useState({});
+
+  // Fetch low stock items from backend
+  useEffect(() => {
+    fetch('http://localhost:5000/api/items/low-stock')
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data)) {
+          // Transform backend data to match frontend structure
+          const transformedItems = data.map(item => ({
+            id: item._id,
+            sku: item.itemId || item.barcode || 'N/A',
+            name: item.name,
+            currentStock: item.quantity || 0,
+            minimumStock: item.minStock || 0,
+            shortage: Math.max(0, (item.minStock || 0) - (item.quantity || 0)),
+            category: item.category || 'N/A',
+            unit: item.unit || 'units',
+            status: item.quantity === 0 ? 'Critical' : 'Low'
+          }));
+          setLowStockItems(transformedItems);
+        }
+        setLoading(false);
+      })
+      .catch(err => {
+        console.error('Error fetching low stock items:', err);
+        setLoading(false);
+      });
+  }, []);
+
+  // Fetch supplier list from backend
+  useEffect(() => {
+    fetch('http://localhost:5000/api/suppliers')
+      .then(res => res.json())
+      .then(result => {
+        if (result && result.success && Array.isArray(result.data)) {
+          setSuppliers(result.data.map(supplier => ({
+            id: supplier._id,
+            name: supplier.name,
+            contactPerson: supplier.contactPerson || '',
+            phone: supplier.phone || '',
+            email: supplier.email || ''
+          })));
+        } else if (Array.isArray(result)) {
+          setSuppliers(result);
+        }
+        setLoadingSuppliers(false);
+      })
+      .catch(err => {
+        console.error('Error fetching suppliers:', err);
+        setLoadingSuppliers(false);
+      });
+  }, []);
 
   const handleOrderClick = (item) => {
     setSelectedItem(item);
@@ -108,7 +133,7 @@ const LowStock = () => {
                   <div className="stat-icon">📦</div>
                   <div className="stat-content">
                     <h3>Low Stock Items</h3>
-                    <p className="stat-number">6</p>
+                    <p className="stat-number">{lowStockItems.length}</p>
                     <span className="stat-label">Below minimum</span>
                   </div>
                 </div>
@@ -116,7 +141,7 @@ const LowStock = () => {
                   <div className="stat-icon">⚠️</div>
                   <div className="stat-content">
                     <h3>Critical Items</h3>
-                    <p className="stat-number">1</p>
+                    <p className="stat-number">{lowStockItems.filter(item => item.status === 'Critical').length}</p>
                     <span className="stat-label">Urgent attention</span>
                   </div>
                 </div>
@@ -124,14 +149,19 @@ const LowStock = () => {
                   <div className="stat-icon">📋</div>
                   <div className="stat-content">
                     <h3>Total Shortage</h3>
-                    <p className="stat-number">36</p>
+                    <p className="stat-number">{lowStockItems.reduce((sum, item) => sum + item.shortage, 0)}</p>
                     <span className="stat-label">Units needed</span>
                   </div>
                 </div>
               </div>
 
               <div className="items-table">
-                <table>
+                {loading ? (
+                  <div style={{ textAlign: 'center', padding: '40px' }}>Loading low stock items...</div>
+                ) : lowStockItems.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '40px' }}>No low stock items found.</div>
+                ) : (
+                  <table>
                   <thead>
                     <tr>
                       <th>SKU</th>
@@ -150,9 +180,9 @@ const LowStock = () => {
                           <span className="sku">{item.sku}</span>
                           <span className={`badge ${item.status.toLowerCase()}`}>{item.status}</span>
                         </td>
-                        <td>{item.currentStock} liters</td>
-                        <td>{item.minimumStock} liters</td>
-                        <td>{item.shortage} liters</td>
+                        <td>{item.currentStock} {item.unit}</td>
+                        <td>{item.minimumStock} {item.unit}</td>
+                        <td>{item.shortage} {item.unit}</td>
                         <td>{item.category}</td>
                         <td>
                           <button 
@@ -166,6 +196,7 @@ const LowStock = () => {
                     ))}
                   </tbody>
                 </table>
+                )}
               </div>
             </div>
           </div>
@@ -197,11 +228,11 @@ const LowStock = () => {
                 </div>
                 <div className="detail-row">
                   <span className="detail-label">Current Stock:</span>
-                  <span className="detail-value">{selectedItem.currentStock} liters</span>
+                  <span className="detail-value">{selectedItem.currentStock} {selectedItem.unit}</span>
                 </div>
                 <div className="detail-row">
                   <span className="detail-label">Shortage:</span>
-                  <span className="detail-value shortage">{selectedItem.shortage} liters</span>
+                  <span className="detail-value shortage">{selectedItem.shortage} {selectedItem.unit}</span>
                 </div>
               </div>
 
@@ -224,40 +255,46 @@ const LowStock = () => {
               {orderType === "Branches" && (
                 <div className="form-group">
                   <label className="form-label">Select Branch</label>
-                  <div className="selection-list">
-                    {branches.map((branch) => (
-                      <div key={branch.id} className="selection-item">
-                        <div className="selection-checkbox">
-                          <input
-                            type="checkbox"
-                            id={`branch-${branch.id}`}
-                            checked={selectedBranches.includes(branch.id)}
-                            onChange={() => handleBranchToggle(branch.id)}
-                            className="checkbox-input"
-                          />
-                        </div>
-                        <div className="selection-info">
-                          <label htmlFor={`branch-${branch.id}`} className="selection-name">
-                            {branch.name}
-                          </label>
-                          <span className="selection-details">Available: {branch.quantity} units</span>
-                        </div>
-                        {selectedBranches.includes(branch.id) && (
-                          <div className="quantity-input-group">
+                  {loadingBranches ? (
+                    <div style={{ padding: '20px', textAlign: 'center' }}>Loading branches...</div>
+                  ) : branches.length === 0 ? (
+                    <div style={{ padding: '20px', textAlign: 'center', color: '#777' }}>No branch stock data available.</div>
+                  ) : (
+                    <div className="selection-list">
+                      {branches.map((branch) => (
+                        <div key={branch.id} className="selection-item">
+                          <div className="selection-checkbox">
                             <input
-                              type="number"
-                              min="0"
-                              max={branch.quantity}
-                              placeholder="Qty"
-                              className="quantity-input"
-                              value={orderQuantities[branch.id] || ''}
-                              onChange={(e) => handleQuantityChange(branch.id, e.target.value)}
+                              type="checkbox"
+                              id={`branch-${branch.id}`}
+                              checked={selectedBranches.includes(branch.id)}
+                              onChange={() => handleBranchToggle(branch.id)}
+                              className="checkbox-input"
                             />
                           </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
+                          <div className="selection-info">
+                            <label htmlFor={`branch-${branch.id}`} className="selection-name">
+                              {branch.name}
+                            </label>
+                            <span className="selection-details">Available: {branch.quantity} units</span>
+                          </div>
+                          {selectedBranches.includes(branch.id) && (
+                            <div className="quantity-input-group">
+                              <input
+                                type="number"
+                                min="0"
+                                max={branch.quantity}
+                                placeholder="Qty"
+                                className="quantity-input"
+                                value={orderQuantities[branch.id] || ''}
+                                onChange={(e) => handleQuantityChange(branch.id, e.target.value)}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -265,39 +302,48 @@ const LowStock = () => {
               {orderType === "Supplier" && (
                 <div className="form-group">
                   <label className="form-label">Select Supplier</label>
-                  <div className="selection-list">
-                    {suppliers.map((supplier) => (
-                      <div key={supplier.id} className="selection-item">
-                        <div className="selection-checkbox">
-                          <input
-                            type="checkbox"
-                            id={`supplier-${supplier.id}`}
-                            checked={selectedSuppliers.includes(supplier.id)}
-                            onChange={() => handleSupplierToggle(supplier.id)}
-                            className="checkbox-input"
-                          />
-                        </div>
-                        <div className="selection-info">
-                          <label htmlFor={`supplier-${supplier.id}`} className="selection-name">
-                            {supplier.name}
-                          </label>
-                          <span className="selection-details">Contact: {supplier.contact}</span>
-                        </div>
-                        {selectedSuppliers.includes(supplier.id) && (
-                          <div className="quantity-input-group">
+                  {loadingSuppliers ? (
+                    <div style={{ padding: '20px', textAlign: 'center' }}>Loading suppliers...</div>
+                  ) : suppliers.length === 0 ? (
+                    <div style={{ padding: '20px', textAlign: 'center', color: '#777' }}>No suppliers found.</div>
+                  ) : (
+                    <div className="selection-list">
+                      {suppliers.map((supplier) => (
+                        <div key={supplier.id} className="selection-item">
+                          <div className="selection-checkbox">
                             <input
-                              type="number"
-                              min="1"
-                              placeholder="Qty"
-                              className="quantity-input"
-                              value={orderQuantities[supplier.id] || ''}
-                              onChange={(e) => handleQuantityChange(supplier.id, e.target.value)}
+                              type="checkbox"
+                              id={`supplier-${supplier.id}`}
+                              checked={selectedSuppliers.includes(supplier.id)}
+                              onChange={() => handleSupplierToggle(supplier.id)}
+                              className="checkbox-input"
                             />
                           </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
+                          <div className="selection-info">
+                            <label htmlFor={`supplier-${supplier.id}`} className="selection-name">
+                              {supplier.name}
+                            </label>
+                            <span className="selection-details">
+                              {supplier.contactPerson ? `${supplier.contactPerson} - ` : ''}
+                              {supplier.phone || supplier.email || 'No contact details'}
+                            </span>
+                          </div>
+                          {selectedSuppliers.includes(supplier.id) && (
+                            <div className="quantity-input-group">
+                              <input
+                                type="number"
+                                min="1"
+                                placeholder="Qty"
+                                className="quantity-input"
+                                value={orderQuantities[supplier.id] || ''}
+                                onChange={(e) => handleQuantityChange(supplier.id, e.target.value)}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
