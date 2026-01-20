@@ -9,6 +9,7 @@ import './Inventory.css';
 
 export default function Users() {
   const [list, setList] = useState([]);
+  const [roles, setRoles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [openAdd, setOpenAdd] = useState(false);
   const [openEdit, setOpenEdit] = useState(false);
@@ -23,10 +24,24 @@ export default function Users() {
   const [editForm, setEditForm] = useState({ username: '', email: '', phoneNumber: '', roleId: '', branchId: '' });
   const [editLoading, setEditLoading] = useState(false);
 
-  // Fetch users from backend
+  // Fetch users and roles from backend
   useEffect(() => {
+    fetchRoles();
     fetchUsers();
   }, []);
+
+  // Fetch roles from database
+  const fetchRoles = async () => {
+    try {
+      const response = await fetch('http://localhost:5000/api/roles');
+      const data = await response.json();
+      if (data.success && data.data) {
+        setRoles(data.data);
+      }
+    } catch (err) {
+      console.error('Error fetching roles:', err);
+    }
+  };
 
   const fetchUsers = async () => {
     try {
@@ -241,7 +256,7 @@ export default function Users() {
           <div><label className="text-sm">Username</label><input className="input" placeholder="e.g. john_doe" value={addForm.username} onChange={(e) => setAddForm({...addForm, username: e.target.value})} required /></div>
           <div><label className="text-sm">Email</label><input className="input" type="email" placeholder="e.g. john@company.com" value={addForm.email} onChange={(e) => setAddForm({...addForm, email: e.target.value})} required /></div>
           <div><label className="text-sm">Phone Number</label><input className="input" placeholder="e.g. 0712345678" value={addForm.phoneNumber} onChange={(e) => setAddForm({...addForm, phoneNumber: e.target.value})} required /></div>
-          <div><label className="text-sm">Role</label><select className="input" value={addForm.roleId} onChange={(e) => setAddForm({...addForm, roleId: e.target.value})}><option value="STAFF">STAFF</option><option value="MANAGER">MANAGER</option><option value="BRANCH_MANAGER">BRANCH_MANAGER</option><option value="DIRECTOR">DIRECTOR</option><option value="ADMIN">ADMIN</option></select></div>
+          <div><label className="text-sm">Role</label><select className="input" value={addForm.roleId} onChange={(e) => setAddForm({...addForm, roleId: e.target.value})} required><option value="">Select Role</option>{roles.map(r => <option key={r._id} value={r.roleId}>{r.roleName}</option>)}</select></div>
           <div><label className="text-sm">Branch</label><input className="input" placeholder="e.g. MAIN_BRANCH" value={addForm.branchId} onChange={(e) => setAddForm({...addForm, branchId: e.target.value})} required /></div>
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }} className="modal-actions">
@@ -257,7 +272,7 @@ export default function Users() {
             <div><label className="text-sm">Username</label><input className="input" value={editForm.username} onChange={(e) => setEditForm({...editForm, username: e.target.value})} required /></div>
             <div><label className="text-sm">Email</label><input className="input" type="email" value={editForm.email} onChange={(e) => setEditForm({...editForm, email: e.target.value})} required /></div>
             <div><label className="text-sm">Phone Number</label><input className="input" value={editForm.phoneNumber} onChange={(e) => setEditForm({...editForm, phoneNumber: e.target.value})} /></div>
-            <div><label className="text-sm">Role</label><select className="input" value={editForm.roleId} onChange={(e) => setEditForm({...editForm, roleId: e.target.value})}><option value="STAFF">STAFF</option><option value="MANAGER">MANAGER</option><option value="BRANCH_MANAGER">BRANCH_MANAGER</option><option value="DIRECTOR">DIRECTOR</option><option value="ADMIN">ADMIN</option></select></div>
+            <div><label className="text-sm">Role</label><select className="input" value={editForm.roleId} onChange={(e) => setEditForm({...editForm, roleId: e.target.value})} required><option value="">Select Role</option>{roles.map(r => <option key={r._id} value={r.roleId}>{r.roleName}</option>)}</select></div>
             <div><label className="text-sm">Branch</label><input className="input" value={editForm.branchId} onChange={(e) => setEditForm({...editForm, branchId: e.target.value})} required /></div>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }} className="modal-actions">

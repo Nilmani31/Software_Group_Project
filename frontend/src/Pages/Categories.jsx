@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Navbar from '../Components/Navbar';
 import Sidebar from '../Components/Sidebar';
-import { categories, roles } from '../data/sample';
+import { categories } from '../data/sample';
 import { Edit2, Trash2, Archive } from 'lucide-react';
 import Modal from '../Components/Modal';
 import ChatAssistant from '../Components/ChatAssistant';
@@ -11,11 +11,128 @@ import './Inventory.css';
 export default function Categories() {
   const [tab, setTab] = useState('inventory');
   const [list, setList] = useState(categories);
-  const [roleList, setRoleList] = useState(roles);
+  const [roleList, setRoleList] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [openAdd, setOpenAdd] = useState(false);
   const [openEdit, setOpenEdit] = useState(false);
   const [editing, setEditing] = useState(null);
   const [query, setQuery] = useState('');
+  
+  // Add role form
+  const [addForm, setAddForm] = useState({ name: '', desc: '' });
+  const [editForm, setEditForm] = useState({ name: '', desc: '' });
+  const [formLoading, setFormLoading] = useState(false);
+
+  useEffect(() => {
+    fetchRoles();
+  }, []);
+
+  // Fetch roles from database
+  const fetchRoles = async () => {
+    try {
+      const response = await fetch('http://localhost:5000/api/roles');
+      const data = await response.json();
+      if (data.success && data.data) {
+        const formattedRoles = data.data.map(role => ({
+          id: role._id,
+          name: role.roleId,
+          desc: role.description || `${role.roleId} role`
+        }));
+        setRoleList(formattedRoles);
+      }
+    } catch (err) {
+      console.error('Error fetching roles:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Handle Add Role
+  const handleAddRole = async (e) => {
+    e.preventDefault();
+    if (!addForm.name) {
+      alert('Please enter role name');
+      return;
+    }
+    setFormLoading(true);
+    try {
+      const response = await fetch('http://localhost:5000/api/roles', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          roleId: addForm.name.toUpperCase(),
+          roleName: addForm.name,
+          description: addForm.desc
+        })
+      });
+      const data = await response.json();
+      if (data.success) {
+        setAddForm({ name: '', desc: '' });
+        setOpenAdd(false);
+        fetchRoles();
+        alert('Role added successfully!');
+      } else {
+        alert('Error: ' + (data.message || 'Failed to add role'));
+      }
+    } catch (err) {
+      alert('Error adding role: ' + err.message);
+    } finally {
+      setFormLoading(false);
+    }
+  };
+
+  // Handle Update Role
+  const handleUpdateRole = async (e) => {
+    e.preventDefault();
+    if (!editForm.name) {
+      alert('Please enter role name');
+      return;
+    }
+    setFormLoading(true);
+    try {
+      const response = await fetch(`http://localhost:5000/api/roles/${editing.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          roleName: editForm.name,
+          description: editForm.desc
+        })
+      });
+      const data = await response.json();
+      if (data.success) {
+        setOpenEdit(false);
+        setEditing(null);
+        fetchRoles();
+        alert('Role updated successfully!');
+      } else {
+        alert('Error: ' + (data.message || 'Failed to update role'));
+      }
+    } catch (err) {
+      alert('Error updating role: ' + err.message);
+    } finally {
+      setFormLoading(false);
+    }
+  };
+
+  // Handle Delete Role
+  const handleDeleteRole = async (id) => {
+    if (window.confirm('Are you sure you want to delete this role?')) {
+      try {
+        const response = await fetch(`http://localhost:5000/api/roles/${id}`, {
+          method: 'DELETE'
+        });
+        const data = await response.json();
+        if (data.success) {
+          fetchRoles();
+          alert('Role deleted successfully!');
+        } else {
+          alert('Error: ' + (data.message || 'Failed to delete role'));
+        }
+      } catch (err) {
+        alert('Error deleting role: ' + err.message);
+      }
+    }
+  };
 
   const filteredCategories = list.filter(c => c.name.toLowerCase().includes(query.toLowerCase()));
   const filteredRoles = roleList.filter(r => r.name.toLowerCase().includes(query.toLowerCase()));
@@ -45,7 +162,12 @@ export default function Categories() {
                       </div>
                     </div>
                     <div className="inventory-actions">
-                      <button className="btn btn-add" onClick={() => setOpenAdd(true)}>+ Add New</button>
+                      <button className="btn btn-add" onClick={() => {
+                        if (tab === 'user') {
+                          setAddForm({ name: '', desc: '' });
+                        }
+                        setOpenAdd(true);
+                      }}>+ Add New</button>
                     </div>
                   </div>
                   <div className="category-tabs">
@@ -61,10 +183,22 @@ export default function Categories() {
                         <div className="category-card-header">
                           <Archive size={20} className="category-icon" />
                           <div className="category-actions">
-                            <button onClick={() => { setEditing(item); setOpenEdit(true); }} className="icon-btn" aria-label="Edit">
+                            <button onClick={() => { 
+                              if (tab === 'user') {
+                                setEditForm({ name: item.name, desc: item.desc });
+                              }
+                              setEditing(item); 
+                              setOpenEdit(true); 
+                            }} className="icon-btn" aria-label="Edit">
                               <Edit2 size={16} />
                             </button>
-                            <button onClick={() => { if (window.confirm('Are you sure?')) { tab === 'inventory' ? setList(l => l.filter(i => i.id !== item.id)) : setRoleList(l => l.filter(i => i.id !== item.id)) } }} className="icon-btn danger" aria-label="Delete">
+                            <button onClick={() => { 
+                              if (tab === 'inventory') {
+                                if (window.confirm('Are you sure?')) setList(l => l.filter(i => i.id !== item.id));
+                              } else {
+                                handleDeleteRole(item.id);
+                              }
+                            }} className="icon-btn danger" aria-label="Delete">
                               <Trash2 size={16} />
                             </button>
                           </div>
@@ -90,38 +224,72 @@ export default function Categories() {
       </div>
 
       <Modal title={`Add New ${tab === 'inventory' ? 'Category' : 'Role'}`} open={openAdd} onClose={() => setOpenAdd(false)}>
-        <form style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <div>
-            <label className="text-sm">Name</label>
-            <input className="input" placeholder="Enter name" />
-          </div>
-          <div>
-            <label className="text-sm">Description</label>
-            <textarea className="input" style={{ height: 80 }} placeholder="Enter description" />
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }} className="modal-actions">
-            <button className="btn-white" onClick={() => setOpenAdd(false)} type="button">Cancel</button>
-            <button className="btn-black">Create</button>
-          </div>
-        </form>
+        {tab === 'inventory' ? (
+          <form style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div>
+              <label className="text-sm">Name</label>
+              <input className="input" placeholder="Enter name" />
+            </div>
+            <div>
+              <label className="text-sm">Description</label>
+              <textarea className="input" style={{ height: 80 }} placeholder="Enter description" />
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }} className="modal-actions">
+              <button className="btn-white" onClick={() => setOpenAdd(false)} type="button">Cancel</button>
+              <button className="btn-black">Create</button>
+            </div>
+          </form>
+        ) : (
+          <form style={{ display: 'flex', flexDirection: 'column', gap: 10 }} onSubmit={handleAddRole}>
+            <div>
+              <label className="text-sm">Role Name</label>
+              <input className="input" placeholder="e.g. ADMIN, MANAGER" value={addForm.name} onChange={(e) => setAddForm({...addForm, name: e.target.value})} required />
+            </div>
+            <div>
+              <label className="text-sm">Description</label>
+              <textarea className="input" style={{ height: 80 }} placeholder="Enter role description" value={addForm.desc} onChange={(e) => setAddForm({...addForm, desc: e.target.value})} />
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }} className="modal-actions">
+              <button className="btn-white" onClick={() => setOpenAdd(false)} type="button">Cancel</button>
+              <button className="btn-black" type="submit" disabled={formLoading}>{formLoading ? 'Adding...' : 'Add Role'}</button>
+            </div>
+          </form>
+        )}
       </Modal>
 
       <Modal title={`Edit ${tab === 'inventory' ? 'Category' : 'Role'}`} open={openEdit} onClose={() => setOpenEdit(false)}>
         {editing && (
-          <form style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <div>
-              <label className="text-sm">Name</label>
-              <input className="input" defaultValue={editing.name} />
-            </div>
-            <div>
-              <label className="text-sm">Description</label>
-              <textarea className="input" defaultValue={editing.desc} style={{ height: 80 }} />
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }} className="modal-actions">
-              <button className="btn-white" onClick={() => setOpenEdit(false)} type="button">Cancel</button>
-              <button className="btn-black">Update</button>
-            </div>
-          </form>
+          tab === 'inventory' ? (
+            <form style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div>
+                <label className="text-sm">Name</label>
+                <input className="input" defaultValue={editing.name} />
+              </div>
+              <div>
+                <label className="text-sm">Description</label>
+                <textarea className="input" defaultValue={editing.desc} style={{ height: 80 }} />
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }} className="modal-actions">
+                <button className="btn-white" onClick={() => setOpenEdit(false)} type="button">Cancel</button>
+                <button className="btn-black">Update</button>
+              </div>
+            </form>
+          ) : (
+            <form style={{ display: 'flex', flexDirection: 'column', gap: 10 }} onSubmit={handleUpdateRole}>
+              <div>
+                <label className="text-sm">Role Name</label>
+                <input className="input" value={editForm.name} onChange={(e) => setEditForm({...editForm, name: e.target.value})} required />
+              </div>
+              <div>
+                <label className="text-sm">Description</label>
+                <textarea className="input" style={{ height: 80 }} value={editForm.desc} onChange={(e) => setEditForm({...editForm, desc: e.target.value})} />
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }} className="modal-actions">
+                <button className="btn-white" onClick={() => setOpenEdit(false)} type="button">Cancel</button>
+                <button className="btn-black" type="submit" disabled={formLoading}>{formLoading ? 'Updating...' : 'Update Role'}</button>
+              </div>
+            </form>
+          )
         )}
       </Modal>
       <ChatAssistant />

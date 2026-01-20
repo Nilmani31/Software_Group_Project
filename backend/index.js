@@ -4,9 +4,8 @@ const cors = require('cors');
 require('dotenv').config();
 
 const Userrouter = require('./routes/users');
-
+const rolesRouter = require('./routes/roles');
 const itemsRouter = require('./routes/items');
-
 const BranchRouter = require('./routes/branches');
 
 
@@ -83,9 +82,8 @@ app.listen(PORT, () => {
   console.log(`🔗 Backend URL: http://localhost:${PORT}`);
 });
 // Routes
-
-
 app.use('/api/users', Userrouter);
+app.use('/api/roles', rolesRouter);
 app.use('/api/items', itemsRouter);
 app.use('/api/branches', BranchRouter);
 
