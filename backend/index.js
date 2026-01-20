@@ -3,9 +3,19 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 require('dotenv').config();
 
+// Import models to register schemas
+require('./models/users');
+require('./models/roles');
+require('./models/categories');
+require('./models/branches');
+require('./models/items');
+require('./models/itemUnits');
+require('./models/stock');
+
 const Userrouter = require('./routes/users');
 const rolesRouter = require('./routes/roles');
 const itemsRouter = require('./routes/items');
+const categoriesRouter = require('./routes/categories');
 const BranchRouter = require('./routes/branches');
 
 
@@ -85,6 +95,7 @@ app.listen(PORT, () => {
 app.use('/api/users', Userrouter);
 app.use('/api/roles', rolesRouter);
 app.use('/api/items', itemsRouter);
+app.use('/api/categories', categoriesRouter);
 app.use('/api/branches', BranchRouter);
 
 

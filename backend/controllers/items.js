@@ -8,10 +8,18 @@ const Stock = require('../models/stock');
 exports.getAllItems = async (req, res) => {
   try {
     const items = await Item.find()
-      .populate('category')
-      .populate('unit')
-      .populate('branch');
-    res.json(items);
+      .populate('category', 'name')
+      .select('-__v');
+    // Transform to include category name as string for frontend
+    const itemsWithCategoryNames = items.map(item => {
+      const itemObj = item.toObject();
+      if (itemObj.category && typeof itemObj.category === 'object') {
+        itemObj.categoryName = itemObj.category.name;
+        itemObj.category = itemObj.category.name;
+      }
+      return itemObj;
+    });
+    res.json(itemsWithCategoryNames);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

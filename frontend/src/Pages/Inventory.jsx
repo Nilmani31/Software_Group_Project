@@ -5,16 +5,6 @@ import ChatAssistant from '../Components/ChatAssistant';
 import './Inventory.css';
 import { FaTimes, FaEdit, FaTrash } from 'react-icons/fa';
 
-const sampleItems = [
-  { id: 1, name: 'Flour', qty: 20, status: 'normal', category: 'Raw Materials', unit: 'kg', minStock: 5, maxStock: 50, branch: 'Colombo' },
-  { id: 2, name: 'Sugar', qty: 5, status: 'low', category: 'Raw Materials', unit: 'kg', minStock: 10, maxStock: 100, branch: 'Colombo' },
-  { id: 3, name: 'Vanilla', qty: 0, status: 'out', category: 'Raw Materials', unit: 'ltr', minStock: 2, maxStock: 20, branch: 'Kandy' },
-  { id: 4, name: 'Butter', qty: 15, status: 'normal', category: 'Supplies', unit: 'kg', minStock: 5, maxStock: 50, branch: 'Galle' },
-  { id: 5, name: 'Eggs', qty: 8, status: 'low', category: 'Supplies', unit: 'pcs', minStock: 10, maxStock: 100, branch: 'Colombo' },
-  { id: 6, name: 'Milk', qty: 25, status: 'normal', category: 'Raw Materials', unit: 'ltr', minStock: 5, maxStock: 50, branch: 'Kandy' },
-  { id: 7, name: 'Baking Powder', qty: 3, status: 'low', category: 'Supplies', unit: 'kg', minStock: 5, maxStock: 30, branch: 'Galle' },
-];
-
 // Helper function to generate SKU
 const generateSKU = () => {
   return 'SKU-' + Math.random().toString(36).substr(2, 9).toUpperCase();
@@ -35,19 +25,21 @@ const getStatusClass = (status) => {
 };
 
 const Inventory = () => {
-  const [items, setItems] = useState(sampleItems);
+  const [items, setItems] = useState([]);
+  const [categories, setCategories] = useState([]); // Store full category objects
+  const [categoryMap, setCategoryMap] = useState({}); // Map category name to ID
+  const [branches, setBranches] = useState([]);
+  const [branchMap, setBranchMap] = useState({}); // Map branch name to ID
+  const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('All Categories');
   const [branchFilter, setBranchFilter] = useState('All Branch');
   const [showModal, setShowModal] = useState(false);
-  const [showFindModal, setShowFindModal] = useState(false);
   const [imagePreview, setImagePreview] = useState(null);
-  const [findImagePreview, setFindImagePreview] = useState(null);
   const [formData, setFormData] = useState({
-    itemName: '',
+    name: '',
     category: '',
-    unit: '',
-    sku: '',
+    unit: 'kg',
     minStock: '',
     maxStock: '',
     branch: 'Colombo',
@@ -57,37 +49,75 @@ const Inventory = () => {
   const [selectedItem, setSelectedItem] = useState(null);
   const [showEditItemModal, setShowEditItemModal] = useState(false);
   const [editFormData, setEditFormData] = useState({
-    itemName: '',
+    name: '',
     category: '',
-    unit: '',
-    sku: 'Auto create',
+    unit: 'kg',
     minStock: '',
     maxStock: '',
     branch: 'Colombo',
     image: null
   });
   const [editImagePreview, setEditImagePreview] = useState(null);
-  const [showChatAssistant, setShowChatAssistant] = useState(false);
+  const [submitLoading, setSubmitLoading] = useState(false);
 
-  // Fetch items from server
+  // Fetch items and related data from server
   useEffect(() => {
-    fetch('http://localhost:5000/api/items')
-      .then(res => res.json())
-      .then(data => setItems(data))
-      .catch(err => console.error('Error fetching items:', err));
+    fetchItems();
+    fetchCategories();
+    fetchBranches();
   }, []);
 
-  // Generate categories from items
-  const categories = useMemo(() => {
-    const uniqueCategories = Array.from(new Set(items.map(i => i.category)));
-    return ['All Categories', ...uniqueCategories];
-  }, [items]);
+  // Fetch items from database
+  const fetchItems = async () => {
+    try {
+      const response = await fetch('http://localhost:5000/api/items');
+      const data = await response.json();
+      setItems(Array.isArray(data) ? data : []);
+      setLoading(false);
+    } catch (err) {
+      console.error('Error fetching items:', err);
+      setLoading(false);
+    }
+  };
 
-  // Generate branches from items
-  const branches = useMemo(() => {
-    const uniqueBranches = Array.from(new Set(items.map(i => i.branch)));
-    return ['All Branch', ...uniqueBranches.sort()];
-  }, [items]);
+  // Fetch categories from database
+  const fetchCategories = async () => {
+    try {
+      const response = await fetch('http://localhost:5000/api/categories');
+      const data = await response.json();
+      if (Array.isArray(data)) {
+        setCategories(data); // Store full objects
+        // Create map of category name to ID
+        const map = {};
+        data.forEach(c => {
+          map[c.name] = c._id;
+        });
+        setCategoryMap(map);
+      }
+    } catch (err) {
+      console.error('Error fetching categories:', err);
+    }
+  };
+
+  // Fetch branches from database
+  const fetchBranches = async () => {
+    try {
+      const response = await fetch('http://localhost:5000/api/branches');
+      const data = await response.json();
+      if (Array.isArray(data)) {
+        const branchNames = data.map(b => b.name || b.branchName || b);
+        setBranches(branchNames);
+        // Create map of branch name to ID
+        const map = {};
+        data.forEach(b => {
+          map[b.name || b.branchName] = b._id;
+        });
+        setBranchMap(map);
+      }
+    } catch (err) {
+      console.error('Error fetching branches:', err);
+    }
+  };;;
 
   // Filter items based on search query, category, and branch
   const filtered = useMemo(() => {
@@ -107,34 +137,20 @@ const Inventory = () => {
 
   const handleOpenModal = () => {
     setShowModal(true);
-    setFormData(prev => ({
-      ...prev,
-      sku: generateSKU()
-    }));
   };
   
   const handleCloseModal = () => {
     setShowModal(false);
     setImagePreview(null);
     setFormData({
-      itemName: '',
+      name: '',
       category: '',
-      unit: '',
-      sku: '',
+      unit: 'kg',
       minStock: '',
       maxStock: '',
       branch: 'Colombo',
       image: null
     });
-  };
-
-  const handleOpenFindModal = () => {
-    setShowFindModal(true);
-  };
-
-  const handleCloseFindModal = () => {
-    setShowFindModal(false);
-    setFindImagePreview(null);
   };
 
   const handleInputChange = (e) => {
@@ -152,14 +168,6 @@ const Inventory = () => {
     }
   };
 
-  const handleFindImageUpload = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = () => setFindImagePreview(reader.result);
-      reader.readAsDataURL(file);
-    }
-  };
 
   const handleSpinner = (field, direction) => {
     setFormData(prev => ({
@@ -168,36 +176,50 @@ const Inventory = () => {
     }));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!formData.itemName || !formData.category || !formData.unit) {
+    if (!formData.name || !formData.category || !formData.unit) {
       alert('Please fill required fields');
       return;
     }
     
-    // Add new item to inventory
-    const newItem = {
-      id: Math.max(...items.map(i => i.id), 0) + 1,
-      name: formData.itemName,
-      category: formData.category,
-      unit: formData.unit,
-      qty: 0,
-      status: 'out',
-      minStock: parseInt(formData.minStock) || 0,
-      maxStock: parseInt(formData.maxStock) || 0,
-      branch: formData.branch
-    };
+    // Get category ObjectId from map
+    const categoryId = categoryMap[formData.category];
+    if (!categoryId) {
+      alert('Invalid category selected');
+      return;
+    }
     
-    fetch('http://localhost:5000/api/items', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(newItem)
-    })
-      .then(res => res.json())
-      .then(addedItem => setItems([...items, addedItem]));
-    
-    alert('Item added successfully!');
-    handleCloseModal();
+    setSubmitLoading(true);
+    try {
+      const response = await fetch('http://localhost:5000/api/items', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: formData.name,
+          category: categoryId,
+          unit: formData.unit,
+          minStock: parseInt(formData.minStock) || 0,
+          maxStock: parseInt(formData.maxStock) || 0,
+          branch: formData.branch,
+          quantity: 0,
+          status: 'normal'
+        })
+      });
+      
+      const result = await response.json();
+      if (result._id || result.id) {
+        alert('Item added successfully!');
+        fetchItems();
+        handleCloseModal();
+      } else {
+        alert('Error: ' + (result.error || 'Failed to add item'));
+      }
+    } catch (err) {
+      alert('Error adding item: ' + err.message);
+    } finally {
+      setSubmitLoading(false);
+    }
   };
 
   const handleRowClick = (item) => {
@@ -213,13 +235,12 @@ const Inventory = () => {
   const handleEditItem = () => {
     if (selectedItem) {
       setEditFormData({
-        itemName: selectedItem.name,
+        name: selectedItem.name,
         category: selectedItem.category,
         unit: selectedItem.unit,
-        sku: 'Auto create',
         minStock: selectedItem.minStock || '',
         maxStock: selectedItem.maxStock || '',
-        branch: selectedItem.branch,
+        branch: selectedItem.branch || 'Colombo',
         image: null
       });
       setEditImagePreview(null);
@@ -232,10 +253,9 @@ const Inventory = () => {
     setShowEditItemModal(false);
     setEditImagePreview(null);
     setEditFormData({
-      itemName: '',
+      name: '',
       category: '',
-      unit: '',
-      sku: 'Auto create',
+      unit: 'kg',
       minStock: '',
       maxStock: '',
       branch: 'Colombo',
@@ -243,14 +263,23 @@ const Inventory = () => {
     });
   };
 
-  const handleDeleteItem = () => {
+  const handleDeleteItem = async () => {
     if (window.confirm(`Are you sure you want to delete ${selectedItem.name}?`)) {
-      fetch(`http://localhost:5000/api/items/${selectedItem._id}`, {
-        method: 'DELETE'
-      })
-        .then(() => setItems(items.filter(item => item._id !== selectedItem._id)));
-      alert('Item deleted successfully!');
-      handleCloseItemDetailModal();
+      try {
+        const response = await fetch(`http://localhost:5000/api/items/${selectedItem._id}`, {
+          method: 'DELETE'
+        });
+        const result = await response.json();
+        if (result.message || response.ok) {
+          alert('Item deleted successfully');
+          fetchItems();
+          setShowItemDetailModal(false);
+        } else {
+          alert('Error deleting item');
+        }
+      } catch (err) {
+        alert('Error: ' + err.message);
+      }
     }
   };
 
@@ -276,31 +305,49 @@ const Inventory = () => {
     }));
   };
 
-  const handleEditSubmit = (e) => {
+  const handleEditSubmit = async (e) => {
     e.preventDefault();
+    if (!editFormData.name || !editFormData.category || !editFormData.unit) {
+      alert('Please fill required fields');
+      return;
+    }
     
-    // Update item in inventory
-    const updatedItem = {
-      id: selectedItem.id,
-      name: editFormData.itemName,
-      category: editFormData.category,
-      unit: editFormData.unit,
-      minStock: parseInt(editFormData.minStock) || 0,
-      maxStock: parseInt(editFormData.maxStock) || 0,
-      branch: editFormData.branch
-    };
+    // Get category ObjectId from map
+    const categoryId = categoryMap[editFormData.category];
+    if (!categoryId) {
+      alert('Invalid category selected');
+      return;
+    }
     
-    fetch(`http://localhost:5000/api/items/${selectedItem._id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(updatedItem)
-    })
-      .then(res => res.json())
-      .then(updated => setItems(items.map(item => item._id === updated._id ? updated : item)));
-    
-    alert('Item updated successfully!');
-    handleCloseEditModal();
-    handleCloseItemDetailModal();
+    setSubmitLoading(true);
+    try {
+      const response = await fetch(`http://localhost:5000/api/items/${selectedItem._id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: editFormData.name,
+          category: categoryId,
+          unit: editFormData.unit,
+          minStock: parseInt(editFormData.minStock) || 0,
+          maxStock: parseInt(editFormData.maxStock) || 0,
+          branch: editFormData.branch
+        })
+      });
+      
+      const result = await response.json();
+      if (result._id || result.id) {
+        alert('Item updated successfully!');
+        fetchItems();
+        handleCloseEditModal();
+        handleCloseItemDetailModal();
+      } else {
+        alert('Error: ' + (result.error || 'Failed to update item'));
+      }
+    } catch (err) {
+      alert('Error updating item: ' + err.message);
+    } finally {
+      setSubmitLoading(false);
+    }
   };
 
   return (
@@ -331,7 +378,6 @@ const Inventory = () => {
                     </div>
 
                     <div className="inventory-actions">
-                      <button className="btn btn-find" onClick={handleOpenFindModal}>Find item by image</button>
                       <button className="btn btn-add" onClick={handleOpenModal}>+ Add new Item</button>
                     </div>
                   </div>
@@ -344,8 +390,9 @@ const Inventory = () => {
                         onChange={(e) => setCategoryFilter(e.target.value)}
                         className="filter-select"
                       >
+                        <option value="All Categories">All Categories</option>
                         {categories.map(c => (
-                          <option key={c} value={c}>{c}</option>
+                          <option key={c._id} value={c.name}>{c.name}</option>
                         ))}
                       </select>
                     </div>
@@ -357,6 +404,7 @@ const Inventory = () => {
                         onChange={(e) => setBranchFilter(e.target.value)}
                         className="filter-select"
                       >
+                        <option value="All Branch">All Branch</option>
                         {branches.map(b => (
                           <option key={b} value={b}>{b}</option>
                         ))}
@@ -439,9 +487,9 @@ const Inventory = () => {
                       <label className="form-label-inventory">Item Name</label>
                       <input
                         type="text"
-                        name="itemName"
+                        name="name"
                         placeholder="Enter item name"
-                        value={formData.itemName}
+                        value={formData.name}
                         onChange={handleInputChange}
                         className="form-input-inventory"
                         required
@@ -459,11 +507,9 @@ const Inventory = () => {
                         required
                       >
                         <option value="">Select category</option>
-                        {categories.filter(c => c !== 'All Categories').map(c => (
-                          <option key={c} value={c}>{c}</option>
+                        {categories.map(c => (
+                          <option key={c._id} value={c.name}>{c.name}</option>
                         ))}
-                        <option value="Supplies">Supplies</option>
-                        <option value="Tools & Equipment">Tools & Equipment</option>
                       </select>
                     </div>
 
@@ -585,84 +631,9 @@ const Inventory = () => {
               <button type="button" className="modal-btn-inventory cancel" onClick={handleCloseModal}>
                 Cancel
               </button>
-              <button type="submit" className="modal-btn-inventory submit" onClick={handleSubmit}>
-                Add Item
+              <button type="submit" className="modal-btn-inventory submit" onClick={handleSubmit} disabled={submitLoading}>
+                {submitLoading ? 'Adding...' : 'Add Item'}
               </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Find Item by Image Modal */}
-      {showFindModal && (
-        <div className="find-item-overlay" onClick={handleCloseFindModal}>
-          <div className="find-item-modal" onClick={(e) => e.stopPropagation()}>
-            {/* Modal Header */}
-            <div className="find-item-header">
-              <h2 className="find-item-title">Find Item Name</h2>
-              <button className="find-item-close" onClick={handleCloseFindModal}>
-                <FaTimes />
-              </button>
-            </div>
-
-            {/* Modal Body */}
-            <div className="find-item-body">
-              {/* Item Details */}
-              <div className="find-item-details">
-                <p><strong>Category :</strong> Row Material</p>
-              </div>
-
-              {/* Image Upload */}
-              <div className="find-item-image-box">
-                {findImagePreview ? (
-                  <img src={findImagePreview} alt="Search preview" className="find-item-image-preview" />
-                ) : (
-                  <div className="find-item-upload-placeholder">
-                    <span>+ Upload image</span>
-                  </div>
-                )}
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleFindImageUpload}
-                  style={{ display: 'none' }}
-                  id="find-image-input"
-                />
-                <label htmlFor="find-image-input" className="find-item-upload-label"></label>
-              </div>
-
-              {/* Item Info */}
-              <div className="find-item-info">
-                <p><strong>Quantity :</strong> 20</p>
-                <p><strong>Unit :</strong> kg</p>
-              </div>
-
-              {/* Stock Table */}
-              <div className="find-item-stock-section">
-                <h3 className="stock-title">Stock</h3>
-                <table className="stock-table">
-                  <thead>
-                    <tr>
-                      <th>Branch Name</th>
-                      <th>Quantity</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td>Galle</td>
-                      <td>10</td>
-                    </tr>
-                    <tr>
-                      <td>Kandy</td>
-                      <td>5</td>
-                    </tr>
-                    <tr>
-                      <td>Colombo</td>
-                      <td>5</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
             </div>
           </div>
         </div>
@@ -955,9 +926,6 @@ const Inventory = () => {
           </div>
         </div>
       )}
-
-      {/* Chat Assistant */}
-      {showChatAssistant && <ChatAssistant onClose={() => setShowChatAssistant(false)} />}
     </div>
   );
 };
