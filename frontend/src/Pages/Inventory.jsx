@@ -104,20 +104,22 @@ const Inventory = () => {
     try {
       const response = await fetch('http://localhost:5000/api/branches');
       const data = await response.json();
-      if (Array.isArray(data)) {
-        const branchNames = data.map(b => b.name || b.branchName || b);
+      // Handle both array and { success, data } response formats
+      const branchesArray = Array.isArray(data) ? data : (data.data ? data.data : []);
+      if (Array.isArray(branchesArray)) {
+        const branchNames = branchesArray.map(b => b.branchName || b.name || b);
         setBranches(branchNames);
         // Create map of branch name to ID
         const map = {};
-        data.forEach(b => {
-          map[b.name || b.branchName] = b._id;
+        branchesArray.forEach(b => {
+          map[b.branchName || b.name] = b._id;
         });
         setBranchMap(map);
       }
     } catch (err) {
       console.error('Error fetching branches:', err);
     }
-  };;;
+  };
 
   // Filter items based on search query, category, and branch
   const filtered = useMemo(() => {
@@ -540,9 +542,10 @@ const Inventory = () => {
                         className="form-input-inventory"
                         required
                       >
-                        <option value="Colombo">Colombo</option>
-                        <option value="Kandy">Kandy</option>
-                        <option value="Galle">Galle</option>
+                        <option value="">Select branch</option>
+                        {branches.map(b => (
+                          <option key={b} value={b}>{b}</option>
+                        ))}
                       </select>
                     </div>
 
