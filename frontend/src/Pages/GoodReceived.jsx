@@ -27,6 +27,35 @@ export default function GoodReceived() {
   });
   const { fields, append, remove, replace } = useFieldArray({ control, name: "items" });
 
+  // Function to generate the next GRN number
+  const generateNextGRN = () => {
+    const currentYear = new Date().getFullYear();
+    
+    // Find the highest GRN number for the current year
+    const currentYearGRNs = list.filter(grn => {
+      const grnYear = grn.grn ? parseInt(grn.grn.split('-')[1]) : null;
+      return grnYear === currentYear;
+    });
+
+    let nextNumber = 1;
+    
+    if (currentYearGRNs.length > 0) {
+      // Extract numbers and find the maximum
+      const numbers = currentYearGRNs.map(grn => {
+        const parts = grn.grn.split('-');
+        return parts.length === 3 ? parseInt(parts[2]) : 0;
+      }).filter(num => !isNaN(num));
+      
+      if (numbers.length > 0) {
+        nextNumber = Math.max(...numbers) + 1;
+      }
+    }
+
+    // Format the number with leading zeros (001, 002, etc.)
+    const formattedNumber = nextNumber.toString().padStart(3, '0');
+    return `GRN-${currentYear}-${formattedNumber}`;
+  };
+
   useEffect(() => {
     const processedGrns = grns.map(grn => {
       const itemsWithStatus = grn.items.map(item => {
@@ -77,6 +106,14 @@ export default function GoodReceived() {
       }
     }
   }, [poNumber_create, replace]);
+
+  // Auto-generate GRN when modal opens
+  useEffect(() => {
+    if (openCreate) {
+      const nextGRN = generateNextGRN();
+      setValue('grn', nextGRN);
+    }
+  }, [openCreate, setValue, list]); // Added list as dependency to ensure latest data
 
   const handleFileChange = (e) => {
     const f = e.target.files && e.target.files[0];
@@ -291,7 +328,14 @@ export default function GoodReceived() {
           <div style={{ display: 'flex', gap: 12 }}>
             <div style={{ flex: 1 }}>
               <label className="text-sm">GRN Number</label>
-              <input {...register('grn')} placeholder="GRN-2025-XXX" className="input" />
+              <input 
+                {...register('grn')} 
+                placeholder="GRN-2025-XXX" 
+                className="input" 
+                readOnly 
+                style={{ backgroundColor: '#f3f4f6', color: '#666' }}
+              />
+              <small style={{ color: '#666', fontSize: '12px' }}>Auto-generated</small>
             </div>
             <div style={{ flex: 1 }}>
               <label className="text-sm">Purchase Order</label>
@@ -418,6 +462,8 @@ export default function GoodReceived() {
                   value={editableGrn.grn} 
                   onChange={e => handleGrnChange('grn', e.target.value)} 
                   className="input" 
+                  readOnly
+                  style={{ backgroundColor: '#f3f4f6' }}
                 />
               </div>
               <div style={{ display: 'flex', flexDirection: 'column' }}>
