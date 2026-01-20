@@ -3,6 +3,8 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 require('dotenv').config();
 const Userrouter = require('./routes/users');
+const BranchRouter = require('./routes/branches');
+
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -82,6 +84,8 @@ app.listen(PORT, () => {
 // Routes
 
 app.use('/api/users', Userrouter);
+app.use('/api/branches', BranchRouter);
+
 
 
 

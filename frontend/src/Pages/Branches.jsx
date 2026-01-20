@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Navbar from "../Components/Navbar";
 import Sidebar from "../Components/Sidebar";
 import ChatAssistant from "../Components/ChatAssistant";
@@ -6,15 +6,42 @@ import "./Branches.css";
 import { FaTimes, FaEdit, FaTrash } from "react-icons/fa";
 
 export default function Branches() {
-    const [branches, setBranches] = useState([
-        { id: 1, name: "CBBS Main Branch", location: "Colombo 07", contact: "Nethmi Perera", phone: "+94 77 123 4567" },
-        { id: 2, name: "CBBS West", location: "Colombo 05", contact: "Saman Silva", phone: "+94 71 987 6543" },
-        { id: 3, name: "CBBS North", location: "Kandy 10", contact: "Kumari Perera", phone: "+94 76 111 2222" },
-    ]);
+    const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || "http://localhost:5000";
+    const [branches, setBranches] = useState([]);
     const [query, setQuery] = useState("");
     const [showAdd, setShowAdd] = useState(false);
     const [editing, setEditing] = useState(null);
     const [form, setForm] = useState({ name: "", location: "", contact: "", phone: "" });
+
+    useEffect(() => {
+        async function fetchBranches() {
+            try {
+                const res = await fetch(`${API_BASE_URL}/api/branches`);
+                const body = await res.json();
+
+                if (!res.ok || body.success === false) {
+                    throw new Error(body.message || "Failed to load branches");
+                }
+
+                const mapped = Array.isArray(body.data)
+                    ? body.data.map(item => ({
+                        id: item.branch_id,
+                        name: item.branch_name,
+                        location: item.location || "",
+                        contact: item.contact_person || "",
+                        phone: item.phone || "",
+                        createdAt: item.created_at,
+                    }))
+                    : [];
+
+                setBranches(mapped);
+            } catch (error) {
+                console.error("Branches fetch error", error);
+            }
+        }
+
+        fetchBranches();
+    }, [API_BASE_URL]);
 
     function openAdd() {
         setForm({ name: "", location: "", contact: "", phone: "" });
@@ -28,22 +55,77 @@ export default function Branches() {
         setShowAdd(true);
     }
 
-    function save() {
+    async function save() {
         if (!form.name || !form.location || !form.contact || !form.phone) {
             alert("Please fill in all fields");
             return;
         }
-        if (editing) {
-            setBranches(bs => bs.map(b => (b.id === editing.id ? { ...b, ...form } : b)));
-        } else {
-            setBranches(bs => [...bs, { id: Date.now(), ...form }]);
+        const payload = {
+            branch_name: form.name.trim(),
+            location: form.location.trim(),
+            contact_person: form.contact.trim(),
+            phone: form.phone.trim(),
+        };
+
+        const requestUrl = editing
+            ? `${API_BASE_URL}/api/branches/${editing.id}`
+            : `${API_BASE_URL}/api/branches`;
+        const method = editing ? "PUT" : "POST";
+
+        try {
+            const res = await fetch(requestUrl, {
+                method,
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload),
+            });
+
+            const body = await res.json().catch(() => ({}));
+
+            if (!res.ok || body.success === false) {
+                throw new Error(body.message || "Unable to save branch");
+            }
+
+            const saved = body.data || {};
+            const normalized = {
+                id: saved.branch_id,
+                name: saved.branch_name,
+                location: saved.location || payload.location,
+                contact: saved.contact_person || payload.contact_person,
+                phone: saved.phone || payload.phone,
+                createdAt: saved.created_at,
+            };
+
+            setBranches(bs => {
+                if (editing) {
+                    return bs.map(b => (b.id === editing.id ? normalized : b));
+                }
+                return [...bs, normalized];
+            });
+
+            setShowAdd(false);
+        } catch (error) {
+            console.error("Branch save error", error);
+            alert(error.message || "Unable to save branch");
         }
-        setShowAdd(false);
     }
 
-    function remove(id) {
+    async function remove(id) {
         if (!window.confirm("Are you sure you want to delete this branch?")) return;
-        setBranches(bs => bs.filter(b => b.id !== id));
+        try {
+            const res = await fetch(`${API_BASE_URL}/api/branches/${id}`, {
+                method: "DELETE",
+            });
+            const body = await res.json().catch(() => ({}));
+
+            if (!res.ok || body.success === false) {
+                throw new Error(body.message || "Unable to delete branch");
+            }
+
+            setBranches(bs => bs.filter(b => b.id !== id));
+        } catch (error) {
+            console.error("Branch delete error", error);
+            alert(error.message || "Unable to delete branch");
+        }
     }
 
     const filtered = branches.filter(b => b.name.toLowerCase().includes(query.toLowerCase()));
