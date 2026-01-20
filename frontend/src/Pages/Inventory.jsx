@@ -437,49 +437,45 @@ const Inventory = () => {
                     <div className="no-results">No items found.</div>
                   ) : (
                     <div className="list-wrap" style={{ maxHeight: '400px', overflowY: 'auto' }}>
-                      <table className="inventory-table" role="table" aria-label="Inventory list">
-                        <thead>
+                      <table className="inventory-table" role="table" aria-label="Inventory list" style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0 }}>
+                        <thead style={{ position: 'sticky', top: 0, zIndex: 2 }}>
                           <tr>
-                            <th scope="col" style={{ width: '12%' }}>Item ID</th>
-                            <th scope="col" style={{ width: '20%' }}>Name</th>
-                            <th scope="col" style={{ width: '18%' }}>Category</th>
-                            <th scope="col" style={{ width: '15%', textAlign: 'center' }}>Quantity</th>
-                            <th scope="col" style={{ width: '15%', textAlign: 'center' }}>Unit</th>
-                            <th scope="col" style={{ width: '20%', textAlign: 'center' }}>Status</th>
+                            <th style={{ width: '12%', left: 0, background: 'inherit' }}>Item ID</th>
+                            <th style={{ width: '20%' }}>Name</th>
+                            <th style={{ width: '18%' }}>Category</th>
+                            <th style={{ width: '15%', textAlign: 'center' }}>Quantity</th>
+                            <th style={{ width: '15%', textAlign: 'center' }}>Unit</th>
+                            <th style={{ width: '20%', textAlign: 'center' }}>Status</th>
                           </tr>
                         </thead>
+                        <tbody>
+                          {filtered.map(item => {
+                            let categoryDisplay = item.category;
+                            if (typeof item.category === 'object' && item.category !== null) {
+                              categoryDisplay = item.category.name || item.category.categoryName || 'N/A';
+                            }
+                            return (
+                              <tr 
+                                key={item._id || item.id} 
+                                className="inventory-row"
+                                onClick={() => handleRowClick(item)}
+                                style={{ cursor: 'pointer' }}
+                              >
+                                <td style={{ width: '12%', paddingLeft: '16px' }}>{item.itemId || item.id}</td>
+                                <td style={{ width: '20%' }}>{item.name}</td>
+                                <td style={{ width: '18%' }}>{categoryDisplay}</td>
+                                <td style={{ width: '15%', textAlign: 'center' }}>{item.quantity || item.qty || 0}</td>
+                                <td style={{ width: '15%', textAlign: 'center' }}>{item.unit || '-'}</td>
+                                <td style={{ width: '20%', textAlign: 'center' }}>
+                                  <span className={`badge ${getStatusClass(item.status)}`}>
+                                    {item.status === 'normal' ? '✅ Normal' : item.status === 'low' ? '⚠️ Low' : '❌ Out'}
+                                  </span>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
                       </table>
-                      <div style={{ maxHeight: '340px', overflowY: 'auto' }}>
-                        <table className="inventory-table" style={{ borderTop: 'none' }}>
-                          <tbody>
-                            {filtered.map(item => {
-                              let categoryDisplay = item.category;
-                              if (typeof item.category === 'object' && item.category !== null) {
-                                categoryDisplay = item.category.name || item.category.categoryName || 'N/A';
-                              }
-                              return (
-                                <tr 
-                                  key={item._id || item.id} 
-                                  className="inventory-row"
-                                  onClick={() => handleRowClick(item)}
-                                  style={{ cursor: 'pointer' }}
-                                >
-                                  <td style={{ width: '12%', paddingLeft: '16px' }}>{item.itemId || item.id}</td>
-                                  <td style={{ width: '20%' }}>{item.name}</td>
-                                  <td style={{ width: '18%' }}>{categoryDisplay}</td>
-                                  <td style={{ width: '15%', textAlign: 'center' }}>{item.quantity || item.qty || 0}</td>
-                                  <td style={{ width: '15%', textAlign: 'center' }}>{item.unit || '-'}</td>
-                                  <td style={{ width: '20%', textAlign: 'center' }}>
-                                    <span className={`badge ${getStatusClass(item.status)}`}>
-                                      {item.status === 'normal' ? '✅ Normal' : item.status === 'low' ? '⚠️ Low' : '❌ Out'}
-                                    </span>
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
                     </div>
                   )}
                 </div>
