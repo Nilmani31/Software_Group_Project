@@ -21,11 +21,123 @@ export default function Categories() {
   // Add role form
   const [addForm, setAddForm] = useState({ name: '', desc: '' });
   const [editForm, setEditForm] = useState({ name: '', desc: '' });
+  
+  // Add category form
+  const [catAddForm, setCatAddForm] = useState({ name: '', desc: '' });
+  const [catEditForm, setCatEditForm] = useState({ name: '', desc: '' });
+
   const [formLoading, setFormLoading] = useState(false);
 
   useEffect(() => {
     fetchRoles();
+    fetchCategories();
   }, []);
+
+  // Fetch categories from database
+  const fetchCategories = async () => {
+    try {
+      const response = await fetch('http://localhost:5000/api/categories');
+      const data = await response.json(); // Backend returns array directly or { success: true, data: [] }? 
+      // Based on my backend code: res.status(200).json(categories); -> It returns an array directly.
+      if (Array.isArray(data)) {
+         const formattedData = data.map(item => ({
+             id: item._id, // Mongo ID
+             name: item.name,
+             desc: item.description,
+             items: 0 // Backend doesn't return count yet, defaulting to 0
+         }));
+         setList(formattedData);
+      }
+    } catch (err) {
+      console.error('Error fetching categories:', err);
+    }
+  };
+
+  // Handle Add Category
+  const handleAddCategory = async (e) => {
+    e.preventDefault();
+    if (!catAddForm.name) {
+      alert('Please enter category name');
+      return;
+    }
+    setFormLoading(true);
+    try {
+      const response = await fetch('http://localhost:5000/api/categories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: catAddForm.name,
+          description: catAddForm.desc
+        })
+      });
+      const data = await response.json();
+      
+      if (response.ok) {
+        setCatAddForm({ name: '', desc: '' });
+        setOpenAdd(false);
+        fetchCategories(); // Refresh list
+        alert('Category added successfully!');
+      } else {
+        alert('Error: ' + (data.error || 'Failed to add category'));
+      }
+    } catch (err) {
+      alert('Error adding category: ' + err.message);
+    } finally {
+      setFormLoading(false);
+    }
+  };
+
+  // Handle Update Category
+  const handleUpdateCategory = async (e) => {
+    e.preventDefault();
+    if (!catEditForm.name) {
+      alert('Please enter category name');
+      return;
+    }
+    setFormLoading(true);
+    try {
+      const response = await fetch(`http://localhost:5000/api/categories/${editing.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: catEditForm.name,
+          description: catEditForm.desc
+        })
+      });
+      const data = await response.json();
+      
+      if (response.ok) {
+        setOpenEdit(false);
+        setEditing(null);
+        fetchCategories();
+        alert('Category updated successfully!');
+      } else {
+        alert('Error: ' + (data.error || 'Failed to update category'));
+      }
+    } catch (err) {
+      alert('Error updating category: ' + err.message);
+    } finally {
+      setFormLoading(false);
+    }
+  };
+
+  // Handle Delete Category
+  const handleDeleteCategory = async (id) => {
+      try {
+        const response = await fetch(`http://localhost:5000/api/categories/${id}`, {
+          method: 'DELETE'
+        });
+        if (response.ok) {
+          fetchCategories();
+          alert('Category deleted successfully!');
+        } else {
+             const data = await response.json();
+             alert('Error: ' + (data.error || 'Failed to delete category'));
+        }
+      } catch (err) {
+        alert('Error deleting category: ' + err.message);
+      }
+  };
 
   // Fetch roles from database
   const fetchRoles = async () => {
@@ -165,6 +277,8 @@ export default function Categories() {
                       <button className="btn btn-add" onClick={() => {
                         if (tab === 'user') {
                           setAddForm({ name: '', desc: '' });
+                        } else {
+                          setCatAddForm({ name: '', desc: '' });
                         }
                         setOpenAdd(true);
                       }}>+ Add New</button>
@@ -186,6 +300,8 @@ export default function Categories() {
                             <button onClick={() => { 
                               if (tab === 'user') {
                                 setEditForm({ name: item.name, desc: item.desc });
+                              } else {
+                                setCatEditForm({ name: item.name, desc: item.desc });
                               }
                               setEditing(item); 
                               setOpenEdit(true); 
@@ -194,7 +310,9 @@ export default function Categories() {
                             </button>
                             <button onClick={() => { 
                               if (tab === 'inventory') {
-                                if (window.confirm('Are you sure?')) setList(l => l.filter(i => i.id !== item.id));
+                                if (window.confirm('Are you sure you want to delete this category?')) {
+                                   handleDeleteCategory(item.id);
+                                }
                               } else {
                                 handleDeleteRole(item.id);
                               }
@@ -225,18 +343,18 @@ export default function Categories() {
 
       <Modal title={`Add New ${tab === 'inventory' ? 'Category' : 'Role'}`} open={openAdd} onClose={() => setOpenAdd(false)}>
         {tab === 'inventory' ? (
-          <form style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <form style={{ display: 'flex', flexDirection: 'column', gap: 10 }} onSubmit={handleAddCategory}>
             <div>
               <label className="text-sm">Name</label>
-              <input className="input" placeholder="Enter name" />
+              <input className="input" placeholder="Enter name" value={catAddForm.name} onChange={(e) => setCatAddForm({...catAddForm, name: e.target.value})} required />
             </div>
             <div>
               <label className="text-sm">Description</label>
-              <textarea className="input" style={{ height: 80 }} placeholder="Enter description" />
+              <textarea className="input" style={{ height: 80 }} placeholder="Enter description" value={catAddForm.desc} onChange={(e) => setCatAddForm({...catAddForm, desc: e.target.value})} />
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }} className="modal-actions">
               <button className="btn-white" onClick={() => setOpenAdd(false)} type="button">Cancel</button>
-              <button className="btn-black">Create</button>
+              <button className="btn-black" type="submit" disabled={formLoading}>{formLoading ? 'Creating...' : 'Create'}</button>
             </div>
           </form>
         ) : (
@@ -260,18 +378,18 @@ export default function Categories() {
       <Modal title={`Edit ${tab === 'inventory' ? 'Category' : 'Role'}`} open={openEdit} onClose={() => setOpenEdit(false)}>
         {editing && (
           tab === 'inventory' ? (
-            <form style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <form style={{ display: 'flex', flexDirection: 'column', gap: 10 }} onSubmit={handleUpdateCategory}>
               <div>
                 <label className="text-sm">Name</label>
-                <input className="input" defaultValue={editing.name} />
+                <input className="input" value={catEditForm.name} onChange={(e) => setCatEditForm({...catEditForm, name: e.target.value})} required />
               </div>
               <div>
                 <label className="text-sm">Description</label>
-                <textarea className="input" defaultValue={editing.desc} style={{ height: 80 }} />
+                <textarea className="input" value={catEditForm.desc} onChange={(e) => setCatEditForm({...catEditForm, desc: e.target.value})} style={{ height: 80 }} />
               </div>
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }} className="modal-actions">
                 <button className="btn-white" onClick={() => setOpenEdit(false)} type="button">Cancel</button>
-                <button className="btn-black">Update</button>
+                <button className="btn-black" type="submit" disabled={formLoading}>{formLoading ? 'Updating...' : 'Update'}</button>
               </div>
             </form>
           ) : (
