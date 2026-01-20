@@ -28,6 +28,7 @@ exports.getAllItems = async (req, res) => {
       itemObj.unit = itemObj.unit || 'kg';
       return itemObj;
     });
+    console.log('📊 Fetching all items, first item:', itemsWithCategoryNames[0]?.sku ? 'HAS SKU' : 'NO SKU', itemsWithCategoryNames[0]?.name);
     res.json(itemsWithCategoryNames);
   } catch (err) {
     res.status(500).json({ error: err.message });
