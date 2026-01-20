@@ -5,6 +5,12 @@ const itemsController = require('../controllers/items');
 // GET all items
 router.get('/', itemsController.getAllItems);
 
+// GET low stock items
+router.get('/low-stock', itemsController.getLowStockItems);
+
+// GET stock by branches for a specific item
+router.get('/:id/stock-by-branches', itemsController.getItemStockByBranches);
+
 // POST create item
 router.post('/', itemsController.createItem);
 

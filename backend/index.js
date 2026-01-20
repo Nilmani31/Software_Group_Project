@@ -11,12 +11,14 @@ require('./models/branches');
 require('./models/items');
 require('./models/itemUnits');
 require('./models/stock');
+require('./models/suppliers');
 
 const Userrouter = require('./routes/users');
 const rolesRouter = require('./routes/roles');
 const itemsRouter = require('./routes/items');
 const categoriesRouter = require('./routes/categories');
 const BranchRouter = require('./routes/branches');
+const suppliersRouter = require('./routes/suppliers');
 
 
 
@@ -97,6 +99,7 @@ app.use('/api/roles', rolesRouter);
 app.use('/api/items', itemsRouter);
 app.use('/api/categories', categoriesRouter);
 app.use('/api/branches', BranchRouter);
+app.use('/api/suppliers', suppliersRouter);
 
 
 
