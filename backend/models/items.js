@@ -13,6 +13,12 @@ const itemSchema = new mongoose.Schema({
 			return `${cat}_${nm}_${uniq}`;
 		}
 	},
+	sku: {
+		type: String,
+		unique: true,
+		sparse: true,
+		default: null
+	},
 	barcode: {
 		type: String,
 		required: true,

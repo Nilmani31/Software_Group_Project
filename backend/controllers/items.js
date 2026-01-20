@@ -37,8 +37,21 @@ exports.getAllItems = async (req, res) => {
 // Create a new item
 exports.createItem = async (req, res) => {
   try {
-    const item = new Item(req.body);
+    const { itemId, sku, ...itemData } = req.body;
+    
+    console.log('📝 Creating item with data:', { sku, itemId, ...itemData });
+    
+    // If SKU is provided, use it. Otherwise let itemId auto-generate
+    const itemPayload = {
+      ...itemData,
+      ...(sku && { sku }),
+      ...(itemId && { itemId })
+    };
+    
+    const item = new Item(itemPayload);
     await item.save();
+    
+    console.log('✅ Item saved:', { _id: item._id, sku: item.sku, itemId: item.itemId, name: item.name });
     
     // Populate and transform for consistent response
     await item.populate('category', 'name');
@@ -51,8 +64,11 @@ exports.createItem = async (req, res) => {
       itemObj.branch = itemObj.branch.branchName || itemObj.branch.branch_name || itemObj.branch.name || String(itemObj.branch._id);
     }
     
+    console.log('📤 Sending response:', { _id: itemObj._id, sku: itemObj.sku, itemId: itemObj.itemId });
+    
     res.status(201).json(itemObj);
   } catch (err) {
+    console.error('❌ Error creating item:', err.message);
     res.status(400).json({ error: err.message });
   }
 };

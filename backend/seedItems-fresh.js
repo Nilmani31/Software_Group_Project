@@ -1,6 +1,11 @@
 const mongoose = require('mongoose');
 require('dotenv').config();
 
+// Helper function to generate SKU
+const generateSKU = () => {
+  return 'SKU-' + Math.random().toString(36).substr(2, 9).toUpperCase();
+};
+
 const seedItems = async () => {
   try {
     await mongoose.connect(process.env.MONGODB_URI);
@@ -41,7 +46,8 @@ const seedItems = async () => {
         maxStock: 50,
         branch: 'Colombo',
         quantity: 20,
-        status: 'normal'
+        status: 'normal',
+        sku: generateSKU()
       },
       {
         name: 'Sugar',
@@ -51,7 +57,8 @@ const seedItems = async () => {
         maxStock: 100,
         branch: 'Colombo',
         quantity: 5,
-        status: 'low'
+        status: 'low',
+        sku: generateSKU()
       },
       {
         name: 'Vanilla',
@@ -61,7 +68,8 @@ const seedItems = async () => {
         maxStock: 20,
         branch: 'Kandy',
         quantity: 0,
-        status: 'out'
+        status: 'out',
+        sku: generateSKU()
       },
       {
         name: 'Butter',
@@ -71,7 +79,8 @@ const seedItems = async () => {
         maxStock: 50,
         branch: 'Galle',
         quantity: 15,
-        status: 'normal'
+        status: 'normal',
+        sku: generateSKU()
       },
       {
         name: 'Eggs',
@@ -81,7 +90,8 @@ const seedItems = async () => {
         maxStock: 100,
         branch: 'Colombo',
         quantity: 8,
-        status: 'low'
+        status: 'low',
+        sku: generateSKU()
       },
       {
         name: 'Milk',
@@ -91,7 +101,8 @@ const seedItems = async () => {
         maxStock: 50,
         branch: 'Kandy',
         quantity: 25,
-        status: 'normal'
+        status: 'normal',
+        sku: generateSKU()
       },
       {
         name: 'Baking Powder',
@@ -101,7 +112,8 @@ const seedItems = async () => {
         maxStock: 30,
         branch: 'Galle',
         quantity: 3,
-        status: 'low'
+        status: 'low',
+        sku: generateSKU()
       },
       {
         name: 'Vegetable Oil',
@@ -111,7 +123,8 @@ const seedItems = async () => {
         maxStock: 100,
         branch: 'Colombo',
         quantity: 35,
-        status: 'normal'
+        status: 'normal',
+        sku: generateSKU()
       },
       {
         name: 'Salt',
@@ -121,7 +134,8 @@ const seedItems = async () => {
         maxStock: 50,
         branch: 'Kandy',
         quantity: 12,
-        status: 'normal'
+        status: 'normal',
+        sku: generateSKU()
       },
       {
         name: 'Packaging Boxes',
@@ -131,7 +145,8 @@ const seedItems = async () => {
         maxStock: 500,
         branch: 'Galle',
         quantity: 150,
-        status: 'normal'
+        status: 'normal',
+        sku: generateSKU()
       }
     ];
 

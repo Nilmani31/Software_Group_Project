@@ -43,6 +43,7 @@ const Inventory = () => {
     minStock: '',
     maxStock: '',
     branch: 'Colombo',
+    sku: generateSKU(),
     image: null
   });
   const [showItemDetailModal, setShowItemDetailModal] = useState(false);
@@ -143,6 +144,10 @@ const Inventory = () => {
   }, [items, query, categoryFilter, branchFilter]);
 
   const handleOpenModal = () => {
+    setFormData(prev => ({
+      ...prev,
+      sku: generateSKU()
+    }));
     setShowModal(true);
   };
   
@@ -156,6 +161,7 @@ const Inventory = () => {
       minStock: '',
       maxStock: '',
       branch: 'Colombo',
+      sku: generateSKU(),
       image: null
     });
   };
@@ -203,6 +209,7 @@ const Inventory = () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          sku: formData.sku,
           name: formData.name,
           category: categoryId,
           unit: formData.unit,
@@ -463,7 +470,7 @@ const Inventory = () => {
                                 onClick={() => handleRowClick(item)}
                                 style={{ cursor: 'pointer' }}
                               >
-                                <td style={{ width: '12%', paddingLeft: '16px' }}>{item.itemId || item.id}</td>
+                                <td style={{ width: '12%', paddingLeft: '16px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={item.sku || item.itemId}>{item.sku || item.itemId || item._id}</td>
                                 <td style={{ width: '20%' }}>{item.name}</td>
                                 <td style={{ width: '18%' }}>{categoryDisplay}</td>
                                 <td style={{ width: '15%', textAlign: 'center' }}>{item.quantity || item.qty || 0}</td>
