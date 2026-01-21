@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import Navbar from '../Components/Navbar'
 import Sidebar from '../Components/Sidebar'
 import ChatAssistant from '../Components/ChatAssistant'
@@ -45,9 +45,10 @@ export default function PurchaseOrder () {
   // ===== MAIN STATE =====
   const [pos, setPos] = useState(samplePOs)
   const [query, setQuery] = useState('')
-  // Suggestions for combobox-style inputs (editable + dropdown)
-  const categoryOptions = ['Glassware', 'Coffee']
-  const itemOptions = ['Arabica Coffee Beans', 'Highball Glass']
+  const [branches, setBranches] = useState([])
+  const [categories, setCategories] = useState([])
+  const [itemsWithStock, setItemsWithStock] = useState([])
+  const [selectedItemForCreate, setSelectedItemForCreate] = useState(null)
   const [openCreate, setOpenCreate] = useState(false)
   const [openView, setOpenView] = useState(false)
   const [openEdit, setOpenEdit] = useState(false)
@@ -97,6 +98,41 @@ export default function PurchaseOrder () {
     po.supplier.toLowerCase().includes(query.toLowerCase())
   )
 
+  // ===== FETCH BRANCHES, CATEGORIES, AND ITEMS =====
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        // Fetch branches
+        const branchRes = await fetch('http://localhost:5000/api/branches');
+        const branchResult = await branchRes.json();
+        let branchData = [];
+        if (branchResult.success && Array.isArray(branchResult.data)) {
+          branchData = branchResult.data;
+        } else if (Array.isArray(branchResult)) {
+          branchData = branchResult;
+        }
+        setBranches(branchData);
+
+        // Fetch categories
+        const catRes = await fetch('http://localhost:5000/api/categories');
+        const catData = await catRes.json();
+        if (Array.isArray(catData)) {
+          setCategories(catData);
+        }
+
+        // Fetch items with stock
+        const itemRes = await fetch('http://localhost:5000/api/items');
+        const itemData = await itemRes.json();
+        if (Array.isArray(itemData)) {
+          setItemsWithStock(itemData);
+        }
+      } catch (err) {
+        console.error('Error fetching data:', err);
+      }
+    };
+    fetchData();
+  }, [])
+
   // ===== HANDLE NEW PO =====
   const handleNewPO = () => setOpenCreate(true)
 
@@ -110,7 +146,15 @@ export default function PurchaseOrder () {
     }
     return ({ ...prev, [key]: val })
   })
-  const updateLine = (key, val) => setLine(prev => ({ ...prev, [key]: val }))
+  const updateLine = (key, val) => {
+    setLine(prev => ({ ...prev, [key]: val }))
+    if (key === 'item' && val) {
+      const selected = itemsWithStock.find(item => item.name === val)
+      setSelectedItemForCreate(selected || null)
+    } else if (key === 'category') {
+      setSelectedItemForCreate(null)
+    }
+  }
 
   const addToCart = () => {
     setCartVisible(true)
@@ -144,7 +188,15 @@ export default function PurchaseOrder () {
     setCart(prev => prev.filter((_, i) => i !== index))
   }
 
-  const updateEditLine = (key, val) => setEditLine(prev => ({ ...prev, [key]: val }))
+  const updateEditLine = (key, val) => {
+    setEditLine(prev => ({ ...prev, [key]: val }))
+    if (key === 'item' && val) {
+      const selected = itemsWithStock.find(item => item.name === val)
+      setSelectedItemForCreate(selected || null)
+    } else if (key === 'category') {
+      setSelectedItemForCreate(null)
+    }
+  }
 
   const addToEditCart = () => {
     setEditCartVisible(true)
@@ -326,70 +378,71 @@ export default function PurchaseOrder () {
             </div>
             <div className="modal-body-inventory">
               <form onSubmit={submitPO} className="modal-form-inventory">
-                <div className="form-layout-inventory">
-                  <div className="form-group-inventory">
-                    <label className="form-label-inventory">PO Number</label>
-                    <input type="text" value={poForm.poNumber} onChange={e => updateForm('poNumber', e.target.value)} placeholder="PO-2025-XXX" className="form-input-inventory" />
-                  </div>
-                  <div className="form-group-inventory">
-                    <label className="form-label-inventory">Order By</label>
-                    <select value={poForm.orderBy} onChange={e => updateForm('orderBy', e.target.value)} className="form-input-inventory">
-                      <option>Supplier</option>
-                      <option>Branch</option>
-                    </select>
-                  </div>
-                  {poForm.orderBy === 'Supplier' ? (
-                    <>
-                      <div className="form-group-inventory">
-                        <label className="form-label-inventory">Supplier Name</label>
-                        <input type="text" value={poForm.supplierName} onChange={e => updateForm('supplierName', e.target.value)} placeholder="Enter Supplier" className="form-input-inventory" />
-                      </div>
-                      <div className="form-group-inventory">
-                        <label className="form-label-inventory">Phone Number</label>
-                        <input type="tel" value={poForm.phone} onChange={e => updateForm('phone', e.target.value)} placeholder="07x xxx xxxx" className="form-input-inventory" />
-                      </div>
-                    </>
-                  ) : (
-                    <div className="form-group-inventory">
-                      <label className="form-label-inventory">Branch Name</label>
-                      <input type="text" value={poForm.branch} onChange={e => updateForm('branch', e.target.value)} placeholder="CBBS Colombo" className="form-input-inventory" />
-                    </div>
-                  )}
-                  <div className="form-group-inventory">
-                    <label className="form-label-inventory">Order Date</label>
-                    <input type="date" value={poForm.orderDate} onChange={e => updateForm('orderDate', e.target.value)} className="form-input-inventory" />
-                  </div>
-                  <div className="form-group-inventory">
-                    <label className="form-label-inventory">Expected Delivery Date</label>
-                    <input type="date" value={poForm.expectedDate} onChange={e => updateForm('expectedDate', e.target.value)} className="form-input-inventory" />
-                  </div>
-                </div>
-                <h4 style={{ margin: '8px 0 0 0', fontSize: '14px', fontWeight: 700, color: '#667eea' }}>Order Item</h4>
+                <h4 style={{ margin: '0 0 12px 0', fontSize: '14px', fontWeight: 700, color: '#667eea' }}>Select Item</h4>
                 <div className="form-layout-inventory">
                   <div className="form-group-inventory">
                     <label className="form-label-inventory">Category</label>
-                    <input type="text" list="category-list-create" value={line.category} onChange={e => updateLine('category', e.target.value)} placeholder="Select or type category" className="form-input-inventory" />
-                    <datalist id="category-list-create">
-                      {categoryOptions.map((c,i) => (<option value={c} key={i} />))}
-                    </datalist>
+                    <select value={line.category} onChange={e => updateLine('category', e.target.value)} className="form-input-inventory">
+                      <option value="">-- Select Category --</option>
+                      {categories.map((cat, idx) => (
+                        <option key={idx} value={cat.name || cat._id}>
+                          {cat.name}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                   <div className="form-group-inventory">
                     <label className="form-label-inventory">Item</label>
-                    <input type="text" list="item-list-create" value={line.item} onChange={e => updateLine('item', e.target.value)} placeholder="Select or type item" className="form-input-inventory" />
-                    <datalist id="item-list-create">
-                      {itemOptions.map((c,i) => (<option value={c} key={i} />))}
-                    </datalist>
+                    <select value={line.item} onChange={e => updateLine('item', e.target.value)} className="form-input-inventory">
+                      <option value="">-- Select Item --</option>
+                      {line.category && itemsWithStock
+                        .filter(item => {
+                          const itemCategory = item.category?.name || item.categoryName || item.category;
+                          return itemCategory === line.category;
+                        })
+                        .map((item, idx) => (
+                          <option key={idx} value={item.name}>
+                            {item.name}
+                          </option>
+                        ))}
+                    </select>
                   </div>
+
+                  {selectedItemForCreate && (
+                    <div style={{ gridColumn: '1 / -1', marginTop: '12px' }}>
+                      <label className="form-label-inventory">Availability by Branch</label>
+                      <div style={{ maxHeight: '200px', overflowY: 'auto', border: '1px solid #e5e7eb', borderRadius: '6px' }}>
+                        <table className="po-detail-table" style={{ marginBottom: 0 }}>
+                          <thead>
+                            <tr>
+                              <th>Branch Name</th>
+                              <th>Available Quantity</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {branches && branches.map((branch, idx) => {
+                              const branchId = branch._id?.toString() || String(branch._id);
+                              const branchStock = selectedItemForCreate.branchStocks?.find(s => {
+                                const stockBranchId = s.branchId?.toString() || String(s.branchId);
+                                return stockBranchId === branchId;
+                              });
+                              return (
+                                <tr key={idx}>
+                                  <td>{branch.name || branch.branchName}</td>
+                                  <td>{branchStock ? branchStock.quantity : 0}</td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
                   <div className="form-group-inventory">
                     <label className="form-label-inventory">Quantity</label>
                     <input value={line.qty} onChange={e => updateLine('qty', e.target.value)} placeholder="Qty" type="number" min="1" step="1" className="form-input-inventory" />
                   </div>
-                  {poForm.orderBy === 'Branch' && (
-                    <div className="form-group-inventory">
-                      <label className="form-label-inventory">Unit Price</label>
-                      <input value={line.unitPrice || ''} onChange={e => updateLine('unitPrice', e.target.value)} placeholder="Unit Price" type="number" className="form-input-inventory" />
-                    </div>
-                  )}
                   <div className="form-group-inventory" style={{ alignSelf:'end' }}>
                     <button type="button" className="modal-btn-inventory cancel" onClick={addToCart}>Add to cart</button>
                   </div>
@@ -430,6 +483,57 @@ export default function PurchaseOrder () {
                     </table>
                   </div>
                 )}
+
+                <h4 style={{ margin: '24px 0 12px 0', fontSize: '14px', fontWeight: 700, color: '#667eea' }}>Order Details</h4>
+                <div className="form-layout-inventory">
+                  <div className="form-group-inventory">
+                    <label className="form-label-inventory">PO Number</label>
+                    <input type="text" value={poForm.poNumber} onChange={e => updateForm('poNumber', e.target.value)} placeholder="PO-2025-XXX" className="form-input-inventory" />
+                  </div>
+                  <div className="form-group-inventory">
+                    <label className="form-label-inventory">Order By</label>
+                    <select value={poForm.orderBy} onChange={e => updateForm('orderBy', e.target.value)} className="form-input-inventory">
+                      <option>Supplier</option>
+                      <option>Branch</option>
+                    </select>
+                  </div>
+                  {poForm.orderBy === 'Supplier' ? (
+                    <>
+                      <div className="form-group-inventory">
+                        <label className="form-label-inventory">Supplier Name</label>
+                        <input type="text" value={poForm.supplierName} onChange={e => updateForm('supplierName', e.target.value)} placeholder="Enter Supplier" className="form-input-inventory" />
+                      </div>
+                      <div className="form-group-inventory">
+                        <label className="form-label-inventory">Phone Number</label>
+                        <input type="tel" value={poForm.phone} onChange={e => updateForm('phone', e.target.value)} placeholder="07x xxx xxxx" className="form-input-inventory" />
+                      </div>
+                    </>
+                  ) : (
+                    <div className="form-group-inventory">
+                      <label className="form-label-inventory">Branch Name</label>
+                      <select value={poForm.branch} onChange={e => updateForm('branch', e.target.value)} className="form-input-inventory">
+                        <option value="">-- Select a Branch --</option>
+                        {branches && branches.length > 0 ? (
+                          branches.map((branch, idx) => (
+                            <option key={idx} value={branch.branchName}>
+                              {branch.branchName}
+                            </option>
+                          ))
+                        ) : (
+                          <option disabled>No branches available</option>
+                        )}
+                      </select>
+                    </div>
+                  )}
+                  <div className="form-group-inventory">
+                    <label className="form-label-inventory">Order Date</label>
+                    <input type="date" value={poForm.orderDate} onChange={e => updateForm('orderDate', e.target.value)} className="form-input-inventory" />
+                  </div>
+                  <div className="form-group-inventory">
+                    <label className="form-label-inventory">Expected Delivery Date</label>
+                    <input type="date" value={poForm.expectedDate} onChange={e => updateForm('expectedDate', e.target.value)} className="form-input-inventory" />
+                  </div>
+                </div>
                 <div className="modal-footer-inventory" style={{ justifyContent:'flex-end' }}>
                   <button type="button" className="modal-btn-inventory cancel" onClick={() => setOpenCreate(false)}>Cancel</button>
                   <button type="submit" className="modal-btn-inventory submit">Purchase Order</button>
@@ -580,18 +684,63 @@ export default function PurchaseOrder () {
                 <div className="form-layout-inventory">
                   <div className="form-group-inventory">
                     <label className="form-label-inventory">Category</label>
-                    <input type="text" list="category-list-edit" value={editLine.category} onChange={e => updateEditLine('category', e.target.value)} placeholder="Select or type category" className="form-input-inventory" />
-                    <datalist id="category-list-edit">
-                      {categoryOptions.map((c,i) => (<option value={c} key={i} />))}
-                    </datalist>
+                    <select value={editLine.category} onChange={e => updateEditLine('category', e.target.value)} className="form-input-inventory">
+                      <option value="">-- Select Category --</option>
+                      {categories.map((cat, idx) => (
+                        <option key={idx} value={cat.name || cat._id}>
+                          {cat.name}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                   <div className="form-group-inventory">
                     <label className="form-label-inventory">Item</label>
-                    <input type="text" list="item-list-edit" value={editLine.item} onChange={e => updateEditLine('item', e.target.value)} placeholder="Select or type item" className="form-input-inventory" />
-                    <datalist id="item-list-edit">
-                      {itemOptions.map((c,i) => (<option value={c} key={i} />))}
-                    </datalist>
+                    <select value={editLine.item} onChange={e => updateEditLine('item', e.target.value)} className="form-input-inventory">
+                      <option value="">-- Select Item --</option>
+                      {editLine.category && itemsWithStock
+                        .filter(item => {
+                          const itemCategory = item.category?.name || item.categoryName || item.category;
+                          return itemCategory === editLine.category;
+                        })
+                        .map((item, idx) => (
+                          <option key={idx} value={item.name}>
+                            {item.name}
+                          </option>
+                        ))}
+                    </select>
                   </div>
+
+                  {selectedItemForCreate && (
+                    <div style={{ gridColumn: '1 / -1', marginTop: '12px' }}>
+                      <label className="form-label-inventory">Availability by Branch</label>
+                      <div style={{ maxHeight: '200px', overflowY: 'auto', border: '1px solid #e5e7eb', borderRadius: '6px' }}>
+                        <table className="po-detail-table" style={{ marginBottom: 0 }}>
+                          <thead>
+                            <tr>
+                              <th>Branch Name</th>
+                              <th>Available Quantity</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {branches && branches.map((branch, idx) => {
+                              const branchId = branch._id?.toString() || String(branch._id);
+                              const branchStock = selectedItemForCreate.branchStocks?.find(s => {
+                                const stockBranchId = s.branchId?.toString() || String(s.branchId);
+                                return stockBranchId === branchId;
+                              });
+                              return (
+                                <tr key={idx}>
+                                  <td>{branch.name || branch.branchName}</td>
+                                  <td>{branchStock ? branchStock.quantity : 0}</td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
                   <div className="form-group-inventory">
                     <label className="form-label-inventory">Quantity</label>
                     <input value={editLine.qty} onChange={e => updateEditLine('qty', e.target.value)} placeholder="Qty" type="number" min="1" step="1" className="form-input-inventory" />

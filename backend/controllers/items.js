@@ -15,9 +15,17 @@ exports.getAllItems = async (req, res) => {
     const itemsWithStatus = await Promise.all(items.map(async (item) => {
       const itemObj = item.toObject();
       
-      // Get total quantity from Stock collection
-      const stockRecords = await Stock.find({ itemId: item._id });
+      // Get stock records with branch information
+      const stockRecords = await Stock.find({ itemId: item._id })
+        .populate('branchId', 'name branchName _id');
       const totalQuantity = stockRecords.reduce((sum, stock) => sum + (stock.quantity || 0), 0);
+      
+      // Add branch stocks array
+      itemObj.branchStocks = stockRecords.map(stock => ({
+        branchId: stock.branchId._id,
+        branchName: stock.branchId.name || stock.branchId.branchName,
+        quantity: stock.quantity
+      }));
       
       // Convert category object to just the name string
       if (itemObj.category && typeof itemObj.category === 'object') {
