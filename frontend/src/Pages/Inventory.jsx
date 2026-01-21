@@ -235,7 +235,8 @@ const Inventory = () => {
           maxStock: parseInt(formData.maxStock) || 0,
           branch: formData.branch,
           quantity: 0,
-          status: 'normal'
+          status: 'normal',
+          image: imagePreview || ''
         })
       });
       
@@ -388,7 +389,8 @@ const Inventory = () => {
           quantity: parseInt(editFormData.quantity) || 0,
           minStock: parseInt(editFormData.minStock) || 0,
           maxStock: parseInt(editFormData.maxStock) || 0,
-          branch: editFormData.branch
+          branch: editFormData.branch,
+          image: editImagePreview || ''
         })
       });
       
@@ -703,9 +705,13 @@ const Inventory = () => {
             <div className="item-detail-body">
               {/* Item Image */}
               <div className="item-detail-image-container">
-                <div className="item-detail-image-placeholder">
-                  <span>Image</span>
-                </div>
+                {selectedItem.image ? (
+                  <img src={selectedItem.image} alt={selectedItem.name} className="item-detail-image" />
+                ) : (
+                  <div className="item-detail-image-placeholder">
+                    <span>No Image</span>
+                  </div>
+                )}
               </div>
 
               {/* Right Content */}

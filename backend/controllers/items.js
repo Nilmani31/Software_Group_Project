@@ -74,21 +74,27 @@ exports.getLowStockItems = async (req, res) => {
 // Create a new item
 exports.createItem = async (req, res) => {
   try {
-    const { itemId, sku, ...itemData } = req.body;
+    const { itemId, sku, image, ...itemData } = req.body;
     
-    console.log('📝 Creating item with data:', { sku, itemId, ...itemData });
+    console.log('📝 Creating item with data:', { sku, itemId, hasImage: !!image, imageLength: image?.length || 0 });
+    
+    // Limit image size to 5MB (base64 encoded)
+    if (image && image.length > 5242880) {
+      return res.status(400).json({ error: 'Image too large. Maximum size is 5MB.' });
+    }
     
     // If SKU is provided, use it. Otherwise let itemId auto-generate
     const itemPayload = {
       ...itemData,
       ...(sku && { sku }),
-      ...(itemId && { itemId })
+      ...(itemId && { itemId }),
+      ...(image && image.length <= 5242880 ? { image } : { image: '' })
     };
     
     const item = new Item(itemPayload);
     await item.save();
     
-    console.log('✅ Item saved:', { _id: item._id, sku: item.sku, itemId: item.itemId, name: item.name });
+    console.log('✅ Item saved:', { _id: item._id, sku: item.sku, itemId: item.itemId, name: item.name, hasImage: !!item.image });
     
     // Populate and transform for consistent response
     await item.populate('category', 'name');
@@ -113,7 +119,18 @@ exports.createItem = async (req, res) => {
 // Update an item
 exports.updateItem = async (req, res) => {
   try {
-    const item = await Item.findByIdAndUpdate(req.params.id, req.body, { new: true })
+    const updateData = { ...req.body };
+    
+    // Handle image if provided
+    if (req.body.image) {
+      // Limit image size to 5MB (base64 encoded)
+      if (req.body.image.length > 5242880) {
+        return res.status(400).json({ error: 'Image too large. Maximum size is 5MB.' });
+      }
+      updateData.image = req.body.image;
+    }
+    
+    const item = await Item.findByIdAndUpdate(req.params.id, updateData, { new: true })
       .populate('category', 'name');
     if (!item) return res.status(404).json({ error: 'Item not found' });
     
@@ -127,8 +144,11 @@ exports.updateItem = async (req, res) => {
       itemObj.branch = itemObj.branch.branchName || itemObj.branch.branch_name || itemObj.branch.name || String(itemObj.branch._id);
     }
     
+    console.log('✅ Item updated:', { _id: itemObj._id, name: itemObj.name, hasImage: !!itemObj.image });
+    
     res.json(itemObj);
   } catch (err) {
+    console.error('❌ Error updating item:', err.message);
     res.status(400).json({ error: err.message });
   }
 };

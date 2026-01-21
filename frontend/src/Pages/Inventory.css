@@ -1596,6 +1596,14 @@ html {
   grid-column: 1;
 }
 
+.item-detail-image {
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 8px;
+  object-fit: cover;
+  background: #f3f4f6;
+}
+
 .item-detail-image-placeholder {
   width: 100%;
   aspect-ratio: 1;
@@ -1858,6 +1866,11 @@ html {
   }
 
   .item-detail-image-placeholder {
+    aspect-ratio: auto;
+    height: 200px;
+  }
+
+  .item-detail-image {
     aspect-ratio: auto;
     height: 200px;
   }
