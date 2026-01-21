@@ -1888,21 +1888,36 @@ html {
 .edit-item-modal {
   background: white;
   border-radius: 12px;
-  max-width: 600px;
-  width: 90%;
-  max-height: 85vh;
+  max-width: 700px;
+  width: 95%;
+  max-height: 90vh;
   overflow-y: auto;
   scroll-behavior: smooth;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
   animation: slideUpModal 0.3s ease;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
   display: flex;
   flex-direction: column;
+  scrollbar-width: thin;
+  scrollbar-color: #667eea #f0f0f0;
+  -ms-overflow-style: thin-scrollbar;
 }
 
 .edit-item-modal::-webkit-scrollbar {
-  display: none;
+  width: 6px;
+}
+
+.edit-item-modal::-webkit-scrollbar-track {
+  background: #f0f0f0;
+  border-radius: 3px;
+}
+
+.edit-item-modal::-webkit-scrollbar-thumb {
+  background: #667eea;
+  border-radius: 3px;
+}
+
+.edit-item-modal::-webkit-scrollbar-thumb:hover {
+  background: #764ba2;
 }
 
 /* Edit Item Header - WHITE BACKGROUND */
@@ -1957,25 +1972,51 @@ html {
   transform: rotate(90deg);
 }
 
-/* Edit Item Body */
+/* Edit Item Body - Compact Form Display */
 .edit-item-body {
   padding: 24px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+/* Edit Stock Scroll Container */
+/* Edit Stock Scroll Container - Scrollable Table Section */
+.edit-stock-scroll-container {
+  padding: 20px 24px;
+  flex: 1;
+  min-height: 200px;
   overflow-y: auto;
   scroll-behavior: smooth;
-  flex: 1;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
+  scrollbar-width: thin;
+  scrollbar-color: #667eea #f0f0f0;
+  -ms-overflow-style: thin-scrollbar;
+  border-top: 1px solid #e5e7eb;
+  border-bottom: 1px solid #e5e7eb;
 }
 
-.edit-item-body::-webkit-scrollbar {
-  display: none;
+.edit-stock-scroll-container::-webkit-scrollbar {
+  width: 6px;
 }
 
-/* Edit Form Layout */
+.edit-stock-scroll-container::-webkit-scrollbar-track {
+  background: #f0f0f0;
+  border-radius: 3px;
+}
+
+.edit-stock-scroll-container::-webkit-scrollbar-thumb {
+  background: #667eea;
+  border-radius: 3px;
+}
+
+.edit-stock-scroll-container::-webkit-scrollbar-thumb:hover {
+  background: #764ba2;
+}
+
+/* Edit Form Layout - Compact */
 .edit-form-layout {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 24px;
+  gap: 16px;
   animation: slideInUp 0.4s ease both;
 }
 
@@ -1986,11 +2027,11 @@ html {
   gap: 16px;
 }
 
-/* Edit Form Group */
+/* Edit Form Group - Compact */
 .edit-form-group {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 
 .edit-form-label {

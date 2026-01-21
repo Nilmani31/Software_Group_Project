@@ -42,7 +42,7 @@ const Inventory = () => {
     unit: 'kg',
     minStock: '',
     maxStock: '',
-    branch: 'Colombo',
+    //branch: 'Colombo',
     sku: generateSKU(),
     image: null
   });
@@ -55,11 +55,12 @@ const Inventory = () => {
     unit: 'kg',
     minStock: '',
     maxStock: '',
-    branch: 'Colombo',
     image: null
   });
   const [editImagePreview, setEditImagePreview] = useState(null);
+  const [editableStockData, setEditableStockData] = useState([]);
   const [submitLoading, setSubmitLoading] = useState(false);
+  const [stockData, setStockData] = useState([]);
 
   // Fetch items and related data from server
   useEffect(() => {
@@ -124,6 +125,23 @@ const Inventory = () => {
       }
     } catch (err) {
       console.error('Error fetching branches:', err);
+    }
+  };
+
+  // Fetch stock data for a specific item
+  const fetchStockData = async (itemId) => {
+    try {
+      const response = await fetch(`http://localhost:5000/api/stock/item/${itemId}`);
+      if (response.ok) {
+        const data = await response.json();
+        setStockData(Array.isArray(data) ? data : []);
+      } else {
+        // If no stock data endpoint, set empty
+        setStockData([]);
+      }
+    } catch (err) {
+      console.error('Error fetching stock data:', err);
+      setStockData([]);
     }
   };
 
@@ -239,6 +257,7 @@ const Inventory = () => {
   const handleRowClick = (item) => {
     setSelectedItem(item);
     setShowItemDetailModal(true);
+    fetchStockData(item._id);
   };
 
   const handleCloseItemDetailModal = () => {
@@ -248,12 +267,6 @@ const Inventory = () => {
 
   const handleEditItem = () => {
     if (selectedItem) {
-      // Safely extract branch name if it's an object
-      let branchValue = selectedItem.branch;
-      if (typeof branchValue === 'object' && branchValue !== null) {
-        branchValue = branchValue.branch_name || branchValue.branchName || branchValue.name || 'Colombo';
-      }
-      
       // Safely extract category name if it's an object
       let categoryValue = selectedItem.category;
       if (typeof categoryValue === 'object' && categoryValue !== null) {
@@ -266,9 +279,9 @@ const Inventory = () => {
         unit: selectedItem.unit,
         minStock: selectedItem.minStock || '',
         maxStock: selectedItem.maxStock || '',
-        branch: branchValue || 'Colombo',
         image: null
       });
+      setEditableStockData(stockData.length > 0 ? [...stockData] : []);
       setEditImagePreview(null);
       setShowItemDetailModal(false);
       setShowEditItemModal(true);
@@ -278,13 +291,13 @@ const Inventory = () => {
   const handleCloseEditModal = () => {
     setShowEditItemModal(false);
     setEditImagePreview(null);
+    setEditableStockData([]);
     setEditFormData({
       name: '',
       category: '',
       unit: 'kg',
       minStock: '',
       maxStock: '',
-      branch: 'Colombo',
       image: null
     });
   };
@@ -328,6 +341,22 @@ const Inventory = () => {
     setEditFormData(prev => ({
       ...prev,
       [field]: String(Math.max(0, parseInt(prev[field] || 0) + (direction === 'up' ? 1 : -1)))
+    }));
+  };
+
+  const handleEditStockQuantityChange = (index, value) => {
+    setEditableStockData(prev => {
+      const updated = [...prev];
+      updated[index] = { ...updated[index], quantity: Math.max(0, parseInt(value) || 0) };
+      return updated;
+    });
+  };
+
+  const handleEditTotalQuantityChange = (value) => {
+    const totalValue = Math.max(0, parseInt(value) || 0);
+    setEditFormData(prev => ({
+      ...prev,
+      maxStock: String(totalValue)
     }));
   };
 
@@ -562,23 +591,6 @@ const Inventory = () => {
                       </select>
                     </div>
 
-                    {/* Branch */}
-                    <div className="form-group-inventory">
-                      <label className="form-label-inventory">Branch</label>
-                      <select
-                        name="branch"
-                        value={formData.branch}
-                        onChange={handleInputChange}
-                        className="form-input-inventory"
-                        required
-                      >
-                        <option value="">Select branch</option>
-                        {branches.map(b => (
-                          <option key={b} value={b}>{b}</option>
-                        ))}
-                      </select>
-                    </div>
-
                     {/* SKU - Read Only */}
                     <div className="form-group-inventory">
                       <label className="form-label-inventory">SKU</label>
@@ -734,7 +746,12 @@ const Inventory = () => {
             <div className="item-detail-info-section">
               <div className="item-info-row">
                 <span className="item-info-label">Quantity :</span>
-                <span className="item-info-value">{selectedItem.qty}</span>
+                <span className="item-info-value">
+                  {stockData && stockData.length > 0 
+                    ? stockData.reduce((total, stock) => total + (stock.quantity || 0), 0)
+                    : (selectedItem.qty || selectedItem.quantity || 0)
+                  }
+                </span>
               </div>
               <div className="item-info-row">
                 <span className="item-info-label">Category :</span>
@@ -749,15 +766,6 @@ const Inventory = () => {
                 <span className="item-info-label">Unit :</span>
                 <span className="item-info-value">{selectedItem.unit || '-'}</span>
               </div>
-              <div className="item-info-row">
-                <span className="item-info-label">Branch :</span>
-                <span className="item-info-value">
-                  {typeof selectedItem.branch === 'object' 
-                    ? (selectedItem.branch.branch_name || selectedItem.branch.branchName || selectedItem.branch.name || 'N/A')
-                    : (selectedItem.branch || 'N/A')
-                  }
-                </span>
-              </div>
             </div>
 
             {/* Stock Section */}
@@ -771,18 +779,31 @@ const Inventory = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  <tr>
-                    <td>Galle</td>
-                    <td>10</td>
-                  </tr>
-                  <tr>
-                    <td>Kandy</td>
-                    <td>5</td>
-                  </tr>
-                  <tr>
-                    <td>Colombo</td>
-                    <td>5</td>
-                  </tr>
+                  {stockData && stockData.length > 0 ? (
+                    stockData.map((stock, index) => {
+                      // Get branch name from the stock data or branchMap
+                      let branchName = 'Unknown Branch';
+                      if (stock.branchName) {
+                        branchName = stock.branchName;
+                      } else if (stock.branch && typeof stock.branch === 'object') {
+                        branchName = stock.branch.branchName || stock.branch.branch_name || stock.branch.name || 'Unknown Branch';
+                      }
+                      
+                      return (
+                        <tr key={stock._id || index}>
+                          <td>{branchName}</td>
+                          <td>{stock.quantity || 0}</td>
+                        </tr>
+                      );
+                    })
+                  ) : (
+                    branches.map(branchName => (
+                      <tr key={branchName}>
+                        <td>{branchName}</td>
+                        <td>0</td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
@@ -817,9 +838,9 @@ const Inventory = () => {
                       <label className="edit-form-label">Item Name</label>
                       <input
                         type="text"
-                        name="itemName"
+                        name="name"
                         placeholder="Name"
-                        value={editFormData.itemName}
+                        value={editFormData.name}
                         onChange={handleEditInputChange}
                         className="edit-form-input"
                         required
@@ -861,25 +882,6 @@ const Inventory = () => {
                         <option value="kg">kg</option>
                         <option value="ltr">ltr</option>
                         <option value="pcs">pcs</option>
-                      </select>
-                    </div>
-
-                    {/* Branch */}
-                    <div className="edit-form-group">
-                      <label className="edit-form-label">Branch</label>
-                      <select
-                        name="branch"
-                        value={typeof editFormData.branch === 'object' 
-                          ? (editFormData.branch?.branch_name || editFormData.branch?.branchName || editFormData.branch?.name || '')
-                          : (editFormData.branch || '')
-                        }
-                        onChange={handleEditInputChange}
-                        className="edit-form-input"
-                        required
-                      >
-                        <option value="Colombo">Colombo</option>
-                        <option value="Kandy">Kandy</option>
-                        <option value="Galle">Galle</option>
                       </select>
                     </div>
 
@@ -961,6 +963,166 @@ const Inventory = () => {
                   </div>
                 </div>
               </form>
+            </div>
+
+            {/* Editable Stock Section */}
+            <div className="edit-stock-scroll-container">
+              <h3 style={{ marginBottom: '12px', fontSize: '14px', fontWeight: '700', color: '#12203a', textTransform: 'uppercase', letterSpacing: '0.3px' }}>Branch Stock Quantities</h3>
+              <table style={{ 
+                width: '100%', 
+                borderCollapse: 'collapse', 
+                border: '1px solid #d8bfd8',
+                borderRadius: '6px',
+                overflow: 'hidden'
+              }}>
+                <thead>
+                  <tr style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
+                    <th style={{ 
+                      padding: '12px', 
+                      textAlign: 'left', 
+                      fontWeight: '700', 
+                      fontSize: '13px',
+                      color: 'white',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.3px',
+                      borderRight: '1px solid rgba(255, 255, 255, 0.2)'
+                    }}>Branch Name</th>
+                    <th style={{ 
+                      padding: '12px',
+                      textAlign: 'center',
+                      fontWeight: '700', 
+                      fontSize: '13px',
+                      color: 'white',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.3px',
+                      borderRight: 'none'
+                    }}>Quantity</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {editableStockData && editableStockData.length > 0 ? (
+                    <>
+                      {editableStockData.map((stock, index) => {
+                        let branchName = 'Unknown Branch';
+                        if (stock.branchName) {
+                          branchName = stock.branchName;
+                        } else if (stock.branch && typeof stock.branch === 'object') {
+                          branchName = stock.branch.branchName || stock.branch.branch_name || stock.branch.name || 'Unknown Branch';
+                        }
+                        
+                        return (
+                          <tr key={stock._id || index} style={{ 
+                            transition: 'all 0.3s ease',
+                            backgroundColor: 'white',
+                            borderBottom: index === editableStockData.length - 1 ? 'none' : '1px solid #d8bfd8'
+                          }}
+                          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(102, 126, 234, 0.05)'}
+                          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'white'}
+                          >
+                            <td style={{ 
+                              padding: '12px', 
+                              color: '#1a3a52', 
+                              fontWeight: '600', 
+                              fontSize: '13px',
+                              borderRight: '1px solid #d8bfd8'
+                            }}>{branchName}</td>
+                            <td style={{ 
+                              padding: '12px', 
+                              textAlign: 'center',
+                              borderRight: 'none'
+                            }}>
+                              <input
+                                type="number"
+                                min="0"
+                                value={stock.quantity || 0}
+                                onChange={(e) => handleEditStockQuantityChange(index, e.target.value)}
+                                style={{ 
+                                  width: '80px', 
+                                  padding: '8px 10px', 
+                                  border: '1.5px solid #667eea', 
+                                  borderRadius: '4px', 
+                                  textAlign: 'center',
+                                  fontSize: '13px',
+                                  fontWeight: '600',
+                                  color: '#1a3a52',
+                                  outline: 'none',
+                                  transition: 'all 0.2s ease',
+                                  backgroundColor: '#ffffff'
+                                }}
+                                onFocus={(e) => {
+                                  e.target.style.boxShadow = '0 0 0 3px rgba(102, 126, 234, 0.1)';
+                                  e.target.style.borderColor = '#764ba2';
+                                }}
+                                onBlur={(e) => {
+                                  e.target.style.boxShadow = 'none';
+                                  e.target.style.borderColor = '#667eea';
+                                }}
+                              />
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      {/* Total Row */}
+                      <tr style={{ 
+                        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                        fontWeight: '700'
+                      }}>
+                        <td style={{ 
+                          padding: '12px', 
+                          color: 'white', 
+                          fontWeight: '700', 
+                          fontSize: '13px',
+                          borderRight: '1px solid rgba(255, 255, 255, 0.2)',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.3px'
+                        }}>Total Stock</td>
+                        <td style={{ 
+                          padding: '12px', 
+                          textAlign: 'center',
+                          borderRight: 'none'
+                        }}>
+                          <input
+                            type="number"
+                            min="0"
+                            value={editableStockData.reduce((total, stock) => total + (stock.quantity || 0), 0)}
+                            onChange={(e) => handleEditTotalQuantityChange(e.target.value)}
+                            style={{ 
+                              width: '80px', 
+                              padding: '8px 10px', 
+                              border: 'none', 
+                              borderRadius: '4px', 
+                              textAlign: 'center',
+                              fontSize: '13px',
+                              fontWeight: '700',
+                              color: '#667eea',
+                              outline: 'none',
+                              transition: 'all 0.2s ease',
+                              backgroundColor: '#ffffff',
+                              boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)'
+                            }}
+                            onFocus={(e) => {
+                              e.target.style.boxShadow = '0 4px 12px rgba(102, 126, 234, 0.3)';
+                            }}
+                            onBlur={(e) => {
+                              e.target.style.boxShadow = '0 2px 4px rgba(0, 0, 0, 0.1)';
+                            }}
+                          />
+                        </td>
+                      </tr>
+                    </>
+                  ) : (
+                    <tr>
+                      <td colSpan="2" style={{ 
+                        padding: '20px', 
+                        textAlign: 'center', 
+                        color: '#9ca3af', 
+                        fontStyle: 'italic',
+                        borderBottom: 'none'
+                      }}>No stock data available</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
             </div>
 
             {/* Modal Footer */}
