@@ -145,6 +145,7 @@ exports.deleteItem = async (req, res) => {
 };
 
 
+
 // Get stock availability for an item across all branches
 exports.getItemStockByBranches = async (req, res) => {
   try {
@@ -177,6 +178,10 @@ exports.getItemStockByBranches = async (req, res) => {
     });
 
     res.json(response);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
 
 // Get stock data for an item (branch-wise quantities)
 exports.getItemStock = async (req, res) => {
@@ -200,10 +205,8 @@ exports.getItemStock = async (req, res) => {
     }));
     
     res.json(formattedStock);
-
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
-};  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }}; 
+};
+
