@@ -1,52 +1,108 @@
 const Branch = require('../models/branches');
 
-// Fetch every branch record (used by Branches page table/grid)
+const DEFAULT_BRANCH_EMAIL = 'branch@company.com';
+
+const toApiBranch = (branch) => {
+  const data = typeof branch?.toObject === 'function' ? branch.toObject() : branch;
+
+  if (!data) {
+    return null;
+  }
+
+  return {
+    branchId: data.branchId,
+    branchCode: data.branchCode,
+    branchName: data.branchName,
+    location: data.location,
+    city: data.city,
+    state: data.state,
+    address: data.address,
+    phoneNumber: data.phoneNumber,
+    email: data.email,
+    manager: data.manager,
+    status: data.status,
+    createdBy: data.createdBy,
+    updatedBy: data.updatedBy,
+    createdAt: data.createdAt,
+    updatedAt: data.updatedAt,
+    branch_id: data.branchId,
+    branch_code: data.branchCode,
+    branch_name: data.branchName,
+    contact_person: data.manager,
+    phone: data.phoneNumber,
+  };
+};
+
+const sanitizePhoneNumber = (phone) => {
+  if (phone === undefined || phone === null) {
+    return '';
+  }
+
+  return String(phone).replace(/\D+/g, '');
+};
+
+const buildBranchCode = (branchName) => {
+  const namePart = branchName.replace(/[^a-z0-9]/gi, '').toUpperCase().slice(0, 3) || 'BRN';
+  return `${namePart}${Date.now().toString(36).toUpperCase()}`;
+};
+
 exports.getBranches = async (req, res) => {
   try {
-    const branches = await Branch.find().sort({ branch_id: 1 }).lean();
-    res.json({ success: true, data: branches });
+    const branches = await Branch.find().sort({ branchName: 1 }).lean();
+    res.json({ success: true, data: branches.map(toApiBranch) });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
 };
 
-// Fetch a single branch by its numeric identifier
 exports.getBranchById = async (req, res) => {
   try {
-    const branchId = Number(req.params.branchId);
-    const branch = await Branch.findOne({ branch_id: branchId }).lean();
+    const branchId = req.params.branchId;
+    const branch = await Branch.findOne({ branchId }).lean();
 
     if (!branch) {
       return res.status(404).json({ success: false, message: 'Branch not found' });
     }
 
-    res.json({ success: true, data: branch });
+    res.json({ success: true, data: toApiBranch(branch) });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
 };
 
-// Create a new branch document adhering to BRANCHES structure
 exports.createBranch = async (req, res) => {
   try {
     const { branch_name, location, contact_person, phone } = req.body;
 
-    if (!branch_name) {
-      return res.status(400).json({ success: false, message: 'branch_name is required' });
+    if (!branch_name || !location || !contact_person || !phone) {
+      return res.status(400).json({ success: false, message: 'branch_name, location, contact_person, and phone are required' });
     }
 
-    const newBranch = await Branch.create({ 
-      branchName: branch_name,
-      location: location,
-      city: location, // Use location as city if not provided
-      state: location, // Use location as state if not provided
-      address: location, // Use location as address if not provided
-      phoneNumber: phone,
-      email: 'branch@company.com', // Default email
-      branchCode: branch_name.substring(0, 3).toUpperCase() + Date.now().toString().slice(-4) // Generate code
+    const sanitizedPhone = sanitizePhoneNumber(phone);
+
+    if (!/^\d{10,15}$/.test(sanitizedPhone)) {
+      return res.status(400).json({ success: false, message: 'Phone number must contain 10-15 digits' });
+    }
+
+    const trimmedLocation = location.trim();
+    const trimmedName = branch_name.trim();
+    const trimmedManager = contact_person.trim();
+
+    const newBranch = await Branch.create({
+      branchName: trimmedName,
+      branchCode: buildBranchCode(trimmedName),
+      location: trimmedLocation,
+      city: trimmedLocation,
+      state: trimmedLocation,
+      address: trimmedLocation,
+      phoneNumber: sanitizedPhone,
+      email: DEFAULT_BRANCH_EMAIL,
+      manager: trimmedManager,
+      createdBy: req.user?.username || 'SYSTEM',
+      updatedBy: req.user?.username || 'SYSTEM',
     });
 
-    res.status(201).json({ success: true, data: newBranch });
+    res.status(201).json({ success: true, data: toApiBranch(newBranch) });
   } catch (error) {
     if (error.code === 11000) {
       return res.status(409).json({ success: false, message: 'Branch name must be unique' });
@@ -56,38 +112,57 @@ exports.createBranch = async (req, res) => {
   }
 };
 
-// Update branch details partially or fully
 exports.updateBranch = async (req, res) => {
   try {
-    const branchId = Number(req.params.branchId);
+    const branchId = req.params.branchId;
     const { branch_name, location, contact_person, phone } = req.body;
-    
-    // Map incoming field names to schema field names
+
     const update = {};
-    if (branch_name !== undefined) update.branchName = branch_name;
-    if (location !== undefined) {
-      update.location = location;
-      update.city = location;
-      update.state = location;
-      update.address = location;
+
+    if (branch_name !== undefined) {
+      const trimmedName = branch_name.trim();
+      update.branchName = trimmedName;
     }
-    if (phone !== undefined) update.phoneNumber = phone;
+
+    if (location !== undefined) {
+      const trimmedLocation = location.trim();
+      update.location = trimmedLocation;
+      update.city = trimmedLocation;
+      update.state = trimmedLocation;
+      update.address = trimmedLocation;
+    }
+
+    if (contact_person !== undefined) {
+      update.manager = contact_person.trim();
+    }
+
+    if (phone !== undefined) {
+      const sanitizedPhone = sanitizePhoneNumber(phone);
+
+      if (!/^\d{10,15}$/.test(sanitizedPhone)) {
+        return res.status(400).json({ success: false, message: 'Phone number must contain 10-15 digits' });
+      }
+
+      update.phoneNumber = sanitizedPhone;
+    }
 
     if (Object.keys(update).length === 0) {
       return res.status(400).json({ success: false, message: 'No valid fields to update' });
     }
 
+    update.updatedBy = req.user?.username || 'SYSTEM';
+
     const updated = await Branch.findOneAndUpdate(
       { branchId },
       update,
-      { new: true, runValidators: true }
+      { new: true, runValidators: true, context: 'query' }
     );
 
     if (!updated) {
       return res.status(404).json({ success: false, message: 'Branch not found' });
     }
 
-    res.json({ success: true, data: updated });
+    res.json({ success: true, data: toApiBranch(updated) });
   } catch (error) {
     if (error.code === 11000) {
       return res.status(409).json({ success: false, message: 'Branch name must be unique' });
@@ -97,11 +172,10 @@ exports.updateBranch = async (req, res) => {
   }
 };
 
-// Remove a branch document
 exports.deleteBranch = async (req, res) => {
   try {
-    const branchId = Number(req.params.branchId);
-    const removed = await Branch.findOneAndDelete({ branch_id: branchId });
+    const branchId = req.params.branchId;
+    const removed = await Branch.findOneAndDelete({ branchId });
 
     if (!removed) {
       return res.status(404).json({ success: false, message: 'Branch not found' });
