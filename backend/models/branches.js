@@ -58,7 +58,8 @@ const branchSchema = new mongoose.Schema({
   },
   manager: {
     type: String,
-    required: true
+    required: true,
+    default: 'To Be Assigned'
   },
   status: {
     type: String,

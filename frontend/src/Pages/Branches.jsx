@@ -11,7 +11,8 @@ export default function Branches() {
     const [query, setQuery] = useState("");
     const [showAdd, setShowAdd] = useState(false);
     const [editing, setEditing] = useState(null);
-    const [form, setForm] = useState({ name: "", location: "", contact: "", phone: "" });
+    const [form, setForm] = useState({ name: "", location: "", contact_person: "", phone: "" });
+    const [errors, setErrors] = useState({});
 
     useEffect(() => {
         async function fetchBranches() {
@@ -28,8 +29,8 @@ export default function Branches() {
                         id: item.branch_id || item._id,
                         name: item.branch_name || item.branchName || item.name || "",
                         location: item.location || "",
-                        contact: item.contact_person || item.contactPerson || "",
-                        phone: item.phone || "",
+                        contact_person: item.contact_person || item.manager || "",
+                        phone: item.phone || item.phoneNumber || "",
                         createdAt: item.created_at || item.createdAt,
                     }))
                     : [];
@@ -44,26 +45,50 @@ export default function Branches() {
     }, [API_BASE_URL]);
 
     function openAdd() {
-        setForm({ name: "", location: "", contact: "", phone: "" });
+        setForm({ name: "", location: "", contact_person: "", phone: "" });
         setEditing(null);
         setShowAdd(true);
+        setErrors({});
     }
 
     function openEdit(b) {
-        setForm({ name: b.name, location: b.location, contact: b.contact, phone: b.phone });
+        setForm({ name: b.name, location: b.location, contact_person: b.contact_person, phone: b.phone });
         setEditing(b);
         setShowAdd(true);
+        setErrors({});
     }
 
     async function save() {
-        if (!form.name || !form.location || !form.contact || !form.phone) {
-            alert("Please fill in all fields");
+        const newErrors = {};
+        
+        if (!form.name?.trim()) {
+            newErrors.name = "Branch name is required";
+        }
+        if (!form.location?.trim()) {
+            newErrors.location = "Location is required";
+        }
+        if (!form.contact_person?.trim()) {
+            newErrors.contact_person = "Manager/Contact person is required";
+        }
+        if (!form.phone?.trim()) {
+            newErrors.phone = "Phone number is required";
+        } else {
+            const digits = form.phone.replace(/\D/g, '');
+            if (!/^\d{10,15}$/.test(digits)) {
+                newErrors.phone = "Phone number must contain 10-15 digits";
+            }
+        }
+        
+        if (Object.keys(newErrors).length > 0) {
+            setErrors(newErrors);
             return;
         }
+        
+        setErrors({});
         const payload = {
             branch_name: form.name.trim(),
             location: form.location.trim(),
-            contact_person: form.contact.trim(),
+            contact_person: form.contact_person.trim(),
             phone: form.phone.trim(),
         };
 
@@ -82,7 +107,8 @@ export default function Branches() {
             const body = await res.json().catch(() => ({}));
 
             if (!res.ok || body.success === false) {
-                throw new Error(body.message || "Unable to save branch");
+                setErrors({ submit: body.message || "Unable to save branch" });
+                return;
             }
 
             const saved = body.data || {};
@@ -90,7 +116,7 @@ export default function Branches() {
                 id: saved.branch_id,
                 name: saved.branch_name,
                 location: saved.location || payload.location,
-                contact: saved.contact_person || payload.contact_person,
+                contact_person: saved.contact_person || payload.contact_person,
                 phone: saved.phone || payload.phone,
                 createdAt: saved.created_at,
             };
@@ -105,7 +131,7 @@ export default function Branches() {
             setShowAdd(false);
         } catch (error) {
             console.error("Branch save error", error);
-            alert(error.message || "Unable to save branch");
+            setErrors({ submit: error.message || "Unable to save branch" });
         }
     }
 
@@ -198,7 +224,7 @@ export default function Branches() {
                                                         </div>
                                                         <div className="branch-card-row">
                                                             <span className="branch-label">👤 Contact Person</span>
-                                                            <span className="branch-value">{b.contact}</span>
+                                                            <span className="branch-value">{b.contact_person}</span>
                                                         </div>
                                                         <div className="branch-card-row">
                                                             <span className="branch-label">📞 Phone</span>
@@ -235,15 +261,29 @@ export default function Branches() {
 
                         {/* Modal Body */}
                         <div className="branch-modal-body">
+                            {errors.submit && (
+                                <div style={{ 
+                                    color: '#dc2626', 
+                                    padding: '12px', 
+                                    backgroundColor: '#fee2e2', 
+                                    borderRadius: '6px',
+                                    marginBottom: '16px',
+                                    fontSize: '14px'
+                                }}>
+                                    {errors.submit}
+                                </div>
+                            )}
+                            
                             <div className="branch-form-group">
                                 <label className="branch-form-label">Branch Name</label>
                                 <input
                                     type="text"
                                     value={form.name}
                                     onChange={e => setForm({ ...form, name: e.target.value })}
-                                    className="branch-form-input"
+                                    className={`branch-form-input ${errors.name ? 'error' : ''}`}
                                     placeholder="Enter branch name"
                                 />
+                                {errors.name && <span style={{ color: '#dc2626', fontSize: '12px' }}>{errors.name}</span>}
                             </div>
 
                             <div className="branch-form-group">
@@ -252,31 +292,34 @@ export default function Branches() {
                                     type="text"
                                     value={form.location}
                                     onChange={e => setForm({ ...form, location: e.target.value })}
-                                    className="branch-form-input"
+                                    className={`branch-form-input ${errors.location ? 'error' : ''}`}
                                     placeholder="Enter location"
                                 />
+                                {errors.location && <span style={{ color: '#dc2626', fontSize: '12px' }}>{errors.location}</span>}
                             </div>
 
                             <div className="branch-form-group">
-                                <label className="branch-form-label">Contact Person</label>
+                                <label className="branch-form-label">Manager/Contact Person</label>
                                 <input
                                     type="text"
-                                    value={form.contact}
-                                    onChange={e => setForm({ ...form, contact: e.target.value })}
-                                    className="branch-form-input"
-                                    placeholder="Enter contact person name"
+                                    value={form.contact_person}
+                                    onChange={e => setForm({ ...form, contact_person: e.target.value })}
+                                    className={`branch-form-input ${errors.contact_person ? 'error' : ''}`}
+                                    placeholder="Enter manager or contact person name"
                                 />
+                                {errors.contact_person && <span style={{ color: '#dc2626', fontSize: '12px' }}>{errors.contact_person}</span>}
                             </div>
 
                             <div className="branch-form-group">
-                                <label className="branch-form-label">Phone</label>
+                                <label className="branch-form-label">Phone Number</label>
                                 <input
                                     type="tel"
                                     value={form.phone}
                                     onChange={e => setForm({ ...form, phone: e.target.value })}
-                                    className="branch-form-input"
-                                    placeholder="Enter phone number"
+                                    className={`branch-form-input ${errors.phone ? 'error' : ''}`}
+                                    placeholder="Enter phone number (10-15 digits)"
                                 />
+                                {errors.phone && <span style={{ color: '#dc2626', fontSize: '12px' }}>{errors.phone}</span>}
                             </div>
                         </div>
 

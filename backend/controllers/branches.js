@@ -72,10 +72,15 @@ exports.getBranchById = async (req, res) => {
 
 exports.createBranch = async (req, res) => {
   try {
-    const { branch_name, location, contact_person, phone } = req.body;
+    const { branch_name, location, contact_person, phone, manager } = req.body;
 
-    if (!branch_name || !location || !contact_person || !phone) {
-      return res.status(400).json({ success: false, message: 'branch_name, location, contact_person, and phone are required' });
+    // Use contact_person or manager field (fallback to contact_person)
+    const managerName = (manager || contact_person || '').trim();
+
+    console.log('📝 Creating branch with data:', { branch_name, location, contact_person, manager, managerName, phone });
+
+    if (!branch_name || !location || !phone) {
+      return res.status(400).json({ success: false, message: 'branch_name, location, and phone are required' });
     }
 
     const sanitizedPhone = sanitizePhoneNumber(phone);
@@ -86,7 +91,7 @@ exports.createBranch = async (req, res) => {
 
     const trimmedLocation = location.trim();
     const trimmedName = branch_name.trim();
-    const trimmedManager = contact_person.trim();
+    const finalManager = managerName || 'To Be Assigned';
 
     const newBranch = await Branch.create({
       branchName: trimmedName,
@@ -97,15 +102,18 @@ exports.createBranch = async (req, res) => {
       address: trimmedLocation,
       phoneNumber: sanitizedPhone,
       email: DEFAULT_BRANCH_EMAIL,
-      manager: trimmedManager,
+      manager: finalManager,
+      status: 'ACTIVE',
       createdBy: req.user?.username || 'SYSTEM',
       updatedBy: req.user?.username || 'SYSTEM',
     });
 
+    console.log('✅ Branch created successfully:', newBranch._id);
     res.status(201).json({ success: true, data: toApiBranch(newBranch) });
   } catch (error) {
+    console.error('❌ Error creating branch:', error);
     if (error.code === 11000) {
-      return res.status(409).json({ success: false, message: 'Branch name must be unique' });
+      return res.status(409).json({ success: false, message: 'Branch name or code must be unique' });
     }
 
     res.status(500).json({ success: false, message: error.message });
@@ -115,7 +123,7 @@ exports.createBranch = async (req, res) => {
 exports.updateBranch = async (req, res) => {
   try {
     const branchId = req.params.branchId;
-    const { branch_name, location, contact_person, phone } = req.body;
+    const { branch_name, location, contact_person, manager, phone } = req.body;
 
     const update = {};
 
@@ -132,8 +140,11 @@ exports.updateBranch = async (req, res) => {
       update.address = trimmedLocation;
     }
 
-    if (contact_person !== undefined) {
-      update.manager = contact_person.trim();
+    if (contact_person !== undefined || manager !== undefined) {
+      const managerName = (manager || contact_person || '').trim();
+      if (managerName) {
+        update.manager = managerName;
+      }
     }
 
     if (phone !== undefined) {
