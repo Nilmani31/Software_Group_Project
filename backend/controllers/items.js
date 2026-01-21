@@ -10,9 +10,15 @@ exports.getAllItems = async (req, res) => {
     const items = await Item.find()
       .populate('category', 'name')
       .select('-__v');
-    // Transform to include category name as string for frontend
-    const itemsWithCategoryNames = items.map(item => {
+    
+    // For each item, fetch total stock quantity and calculate status
+    const itemsWithStatus = await Promise.all(items.map(async (item) => {
       const itemObj = item.toObject();
+      
+      // Get total quantity from Stock collection
+      const stockRecords = await Stock.find({ itemId: item._id });
+      const totalQuantity = stockRecords.reduce((sum, stock) => sum + (stock.quantity || 0), 0);
+      
       // Convert category object to just the name string
       if (itemObj.category && typeof itemObj.category === 'object') {
         itemObj.categoryName = itemObj.category.name;
@@ -22,14 +28,26 @@ exports.getAllItems = async (req, res) => {
       if (itemObj.branch && typeof itemObj.branch === 'object') {
         itemObj.branch = itemObj.branch.branchName || itemObj.branch.name || String(itemObj.branch._id);
       }
-      // Ensure these are proper values
-      itemObj.quantity = itemObj.quantity || 0;
-      itemObj.status = itemObj.status || 'normal';
+      
+      // Set quantity from database
+      itemObj.quantity = totalQuantity;
+      itemObj.minStock = itemObj.minStock || 0;
+      
+      // Calculate status based on actual quantity vs minStock
+      if (totalQuantity === 0) {
+        itemObj.status = 'out';
+      } else if (totalQuantity > 0 && totalQuantity < itemObj.minStock) {
+        itemObj.status = 'low';
+      } else {
+        itemObj.status = 'normal';
+      }
+      
       itemObj.unit = itemObj.unit || 'kg';
       return itemObj;
-    });
-    console.log('📊 Fetching all items, first item:', itemsWithCategoryNames[0]?.sku ? 'HAS SKU' : 'NO SKU', itemsWithCategoryNames[0]?.name);
-    res.json(itemsWithCategoryNames);
+    }));
+    
+    console.log('📊 Fetching all items, total items:', itemsWithStatus.length);
+    res.json(itemsWithStatus);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -38,17 +56,18 @@ exports.getAllItems = async (req, res) => {
 // Get low stock items (quantity <= minStock)
 exports.getLowStockItems = async (req, res) => {
   try {
-    const items = await Item.find({
-      $expr: {
-        $lte: ['$quantity', '$minStock']
-      }
-    })
+    const items = await Item.find()
       .populate('category', 'name')
       .select('-__v');
     
-    // Transform to include category name as string for frontend
-    const itemsWithCategoryNames = items.map(item => {
+    // For each item, fetch total stock quantity and calculate status
+    const itemsWithStatus = await Promise.all(items.map(async (item) => {
       const itemObj = item.toObject();
+      
+      // Get total quantity from Stock collection
+      const stockRecords = await Stock.find({ itemId: item._id });
+      const totalQuantity = stockRecords.reduce((sum, stock) => sum + (stock.quantity || 0), 0);
+      
       // Convert category object to just the name string
       if (itemObj.category && typeof itemObj.category === 'object') {
         itemObj.categoryName = itemObj.category.name;
@@ -58,14 +77,30 @@ exports.getLowStockItems = async (req, res) => {
       if (itemObj.branch && typeof itemObj.branch === 'object') {
         itemObj.branch = itemObj.branch.branchName || itemObj.branch.name || String(itemObj.branch._id);
       }
-      // Ensure these are proper values
-      itemObj.quantity = itemObj.quantity || 0;
-      itemObj.status = itemObj.status || 'normal';
+      
+      // Set quantity from database
+      itemObj.quantity = totalQuantity;
+      itemObj.minStock = itemObj.minStock || 0;
+      
+      // Calculate status based on actual quantity vs minStock
+      if (totalQuantity === 0) {
+        itemObj.status = 'out';
+      } else if (totalQuantity > 0 && totalQuantity < itemObj.minStock) {
+        itemObj.status = 'low';
+      } else {
+        itemObj.status = 'normal';
+      }
+      
       itemObj.unit = itemObj.unit || 'kg';
       return itemObj;
-    });
+    }));
     
-    res.json(itemsWithCategoryNames);
+    // Filter for low stock or out of stock items
+    const lowStockItems = itemsWithStatus.filter(item => 
+      item.status === 'low' || item.status === 'out'
+    );
+    
+    res.json(lowStockItems);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
