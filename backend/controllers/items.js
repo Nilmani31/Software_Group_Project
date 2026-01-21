@@ -144,6 +144,7 @@ exports.deleteItem = async (req, res) => {
   }
 };
 
+
 // Get stock availability for an item across all branches
 exports.getItemStockByBranches = async (req, res) => {
   try {
@@ -176,7 +177,33 @@ exports.getItemStockByBranches = async (req, res) => {
     });
 
     res.json(response);
+
+// Get stock data for an item (branch-wise quantities)
+exports.getItemStock = async (req, res) => {
+  try {
+    const itemId = req.params.itemId;
+    const stockRecords = await Stock.find({ itemId })
+      .populate('branchId', 'branchName branch_name name')
+      .select('quantity branchId');
+    
+    // Format response to include branch names
+    const formattedStock = stockRecords.map(stock => ({
+      _id: stock._id,
+      branchId: stock.branchId._id,
+      branchName: stock.branchId.branchName || stock.branchId.branch_name || stock.branchId.name,
+      branch: {
+        branchName: stock.branchId.branchName,
+        branch_name: stock.branchId.branch_name,
+        name: stock.branchId.name
+      },
+      quantity: stock.quantity || 0
+    }));
+    
+    res.json(formattedStock);
+
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
-};
+};  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }}; 
