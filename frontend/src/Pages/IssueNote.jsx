@@ -207,7 +207,7 @@ const IssueNote = () => {
             id: item.itemId?._id || item.itemId,
             name: item.itemId?.name || 'Unknown Item',
             qty: item.quantity,
-            unit: item.itemId?.unit || 'unit',
+            unit: item.itemId?.unit || item.itemUnitId?.unitName || 'unit',
             availableQty: 0
           })),
           _original: note // Keep original data for API calls
@@ -229,13 +229,16 @@ const IssueNote = () => {
       const response = await fetch('http://localhost:5000/api/branches');
       const data = await response.json();
       
+      console.log('Branches API response:', data);
+      
       // Handle both response formats: { success: true, data: [...] } or direct array
       const branchesArray = data.success && data.data ? data.data : (Array.isArray(data) ? data : []);
       
-      console.log('Fetched branches:', branchesArray.length);
+      console.log('Fetched branches:', branchesArray.length, branchesArray);
       setBranches(branchesArray);
     } catch (err) {
       console.error('Error fetching branches:', err);
+      setBranches([]);
     }
   };
 
@@ -1060,6 +1063,10 @@ const IssueNote = () => {
   };
 
   const handleCreateIssueNote = async () => {
+    console.log("=== CREATE ISSUE NOTE START ===");
+    console.log("Branches state:", branches);
+    console.log("FormData:", formData);
+    
     if (!formData.trainingSession || formData.items.length === 0) {
       alert("Please fill all required fields and add at least one item");
       return;
@@ -1069,21 +1076,21 @@ const IssueNote = () => {
     console.log("Branches available:", branches.length, branches);
     console.log("Users available:", users.length, users);
     console.log("Items in form:", formData.items.length, formData.items);
+    console.log("Selected training session:", formData.trainingSession);
+    console.log("Issue type:", formData.issueType);
 
     // Find the branch ID if it's a branch transfer
     let toBranchId = null;
     if (formData.issueType === "Branch Transfer" || formData.issueType === "Stock Transfer") {
-      const branch = branches.find(b => {
-        const branchName = b.branchName || b.branch_name;
-        const branchCode = b.branchCode || b.branch_code;
-        return branchName === formData.trainingSession || branchCode === formData.trainingSession;
-      });
-      toBranchId = branch?._id || branch?.id || null;
+      // formData.trainingSession now contains the branch ID directly
+      toBranchId = formData.trainingSession;
       
       if (!toBranchId) {
-        alert("Selected branch not found. Please select a valid branch.");
+        alert("Please select a branch.");
         return;
       }
+      
+      console.log("Selected branch ID:", toBranchId);
     }
 
     // Get the first branch as source
@@ -1435,8 +1442,9 @@ const IssueNote = () => {
                     {branches.map(branch => {
                       const branchName = branch.branchName || branch.branch_name || 'Unknown';
                       const branchCode = branch.branchCode || branch.branch_code || '';
+                      const branchId = branch._id || branch.id;
                       return (
-                        <option key={branch._id || branch.id} value={branchName}>
+                        <option key={branchId} value={branchId}>
                           {branchName} {branchCode ? `(${branchCode})` : ''}
                         </option>
                       );

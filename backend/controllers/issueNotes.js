@@ -17,10 +17,14 @@ exports.getAllIssueNotes = async (req, res) => {
       .select('-__v')
       .lean();
     
-    // Fetch items for each issue note
+    // Fetch items for each issue note with full item details
     const issueNotesWithItems = await Promise.all(issueNotes.map(async (note) => {
-      const items = await require('../models/issueNoteItems').find({ issueNoteId: note._id })
-        .populate('itemId', 'name sku itemId')
+      const items = await IssueNoteItem.find({ issueNoteId: note._id })
+        .populate({
+          path: 'itemId',
+          select: 'name sku itemId unit description category'
+        })
+        .populate('itemUnitId', 'unitName')
         .select('-__v')
         .lean();
       return { ...note, items };
@@ -38,24 +42,26 @@ exports.getAllIssueNotes = async (req, res) => {
 exports.getIssueNoteById = async (req, res) => {
   try {
     const issueNote = await IssueNote.findById(req.params.id)
-      .populate('fromBranchId', 'branchName branchCode')
-      .populate('toBranchId', 'branchName branchCode')
-      .populate('issuedBy', 'name email')
-      .populate('approvedBy', 'name email')
-      .select('-__v');
+      .populate('fromBranchId', 'branchName branchCode branch_name branch_code')
+      .populate('toBranchId', 'branchName branchCode branch_name branch_code')
+      .populate('issuedBy', 'name email username')
+      .populate('approvedBy', 'name email username')
+      .select('-__v')
+      .lean();
     
     if (!issueNote) {
       return res.status(404).json({ error: 'Issue note not found' });
     }
 
-    // Get all items for this issue note
+    // Get all items for this issue note with full details
     const items = await IssueNoteItem.find({ issueNoteId: issueNote._id })
-      .populate('itemId', 'name sku itemId')
+      .populate('itemId', 'name sku itemId unit description category')
       .populate('itemUnitId', 'unitName')
-      .select('-__v');
+      .select('-__v')
+      .lean();
     
     const result = {
-      ...issueNote.toObject(),
+      ...issueNote,
       items: items
     };
     
@@ -77,14 +83,24 @@ exports.getIssueNotesByBranch = async (req, res) => {
         { toBranchId: branchId }
       ]
     })
-      .populate('fromBranchId', 'branchName branchCode')
-      .populate('toBranchId', 'branchName branchCode')
-      .populate('issuedBy', 'name email')
-      .populate('approvedBy', 'name email')
+      .populate('fromBranchId', 'branchName branchCode branch_name branch_code')
+      .populate('toBranchId', 'branchName branchCode branch_name branch_code')
+      .populate('issuedBy', 'name email username')
+      .populate('approvedBy', 'name email username')
       .sort({ createdAt: -1 })
-      .select('-__v');
+      .select('-__v')
+      .lean();
     
-    res.json(issueNotes);
+    // Fetch items for each issue note
+    const issueNotesWithItems = await Promise.all(issueNotes.map(async (note) => {
+      const items = await IssueNoteItem.find({ issueNoteId: note._id })
+        .populate('itemId', 'name sku itemId unit')
+        .populate('itemUnitId', 'unitName')
+        .lean();
+      return { ...note, items };
+    }));
+    
+    res.json(issueNotesWithItems);
   } catch (err) {
     console.error('❌ Error fetching issue notes by branch:', err.message);
     res.status(500).json({ error: err.message });
@@ -167,15 +183,22 @@ exports.createIssueNote = async (req, res) => {
 
     // Validate stock availability for all items
     for (const item of items) {
+      // Validate that item exists
+      const itemExists = await Item.findById(item.itemId);
+      if (!itemExists) {
+        return res.status(404).json({
+          error: `Item not found: ${item.itemId}`
+        });
+      }
+
       const stockRecord = await Stock.findOne({
         itemId: item.itemId,
         branchId: fromBranchId
       });
 
       if (!stockRecord || stockRecord.quantity < item.quantity) {
-        const itemDetails = await Item.findById(item.itemId);
         return res.status(400).json({
-          error: `Insufficient stock for item: ${itemDetails?.name || item.itemId}. Available: ${stockRecord?.quantity || 0}, Required: ${item.quantity}`
+          error: `Insufficient stock for item: ${itemExists.name}. Available: ${stockRecord?.quantity || 0}, Required: ${item.quantity}`
         });
       }
     }
@@ -216,16 +239,26 @@ exports.createIssueNote = async (req, res) => {
     issueNote.totalAmount = totalAmount;
     await issueNote.save();
 
-    // Populate the response
+    // Populate the response with full details
     const populatedIssueNote = await IssueNote.findById(issueNote._id)
-      .populate('fromBranchId', 'branchName branchCode')
-      .populate('toBranchId', 'branchName branchCode')
-      .populate('issuedBy', 'name email');
+      .populate('fromBranchId', 'branchName branchCode branch_name branch_code')
+      .populate('toBranchId', 'branchName branchCode branch_name branch_code')
+      .populate('issuedBy', 'name email username')
+      .lean();
+
+    // Populate items with full item details
+    const populatedItems = await Promise.all(issueNoteItems.map(async (item) => {
+      const populatedItem = await IssueNoteItem.findById(item._id)
+        .populate('itemId', 'name sku itemId unit description')
+        .populate('itemUnitId', 'unitName')
+        .lean();
+      return populatedItem;
+    }));
 
     console.log('✅ Issue note created:', issueNote.issueNoteNumber);
     res.status(201).json({
-      ...populatedIssueNote.toObject(),
-      items: issueNoteItems
+      ...populatedIssueNote,
+      items: populatedItems
     });
   } catch (err) {
     console.error('❌ Error creating issue note:', err.message);
@@ -261,7 +294,8 @@ exports.approveIssueNote = async (req, res) => {
     }
 
     // Get all items for this issue note
-    const issueNoteItems = await IssueNoteItem.find({ issueNoteId: id });
+    const issueNoteItems = await IssueNoteItem.find({ issueNoteId: id })
+      .populate('itemId', 'name sku');
 
     // Update stock: deduct from source branch
     for (const item of issueNoteItems) {
@@ -272,13 +306,17 @@ exports.approveIssueNote = async (req, res) => {
       });
 
       if (!fromStock || fromStock.quantity < item.quantity) {
+        const itemName = item.itemId?.name || 'Unknown Item';
         return res.status(400).json({
-          error: `Insufficient stock for item: ${item.itemId}`
+          error: `Insufficient stock for item: ${itemName}. Available: ${fromStock?.quantity || 0}, Required: ${item.quantity}`
         });
       }
 
       fromStock.quantity -= item.quantity;
+      fromStock.updatedAt = new Date();
       await fromStock.save();
+
+      console.log(`✅ Deducted ${item.quantity} of ${item.itemId?.name} from source branch`);
 
       // If toBranchId exists, add to destination branch
       if (issueNote.toBranchId) {
@@ -289,16 +327,21 @@ exports.approveIssueNote = async (req, res) => {
 
         if (toStock) {
           toStock.quantity += item.quantity;
+          toStock.updatedAt = new Date();
           await toStock.save();
+          console.log(`✅ Added ${item.quantity} of ${item.itemId?.name} to destination branch`);
         } else {
           // Create new stock record for destination branch
           toStock = new Stock({
             itemId: item.itemId,
             itemUnitId: item.itemUnitId,
             branchId: issueNote.toBranchId,
-            quantity: item.quantity
+            quantity: item.quantity,
+            minStockLevel: 0,
+            maxStockLevel: 1000
           });
           await toStock.save();
+          console.log(`✅ Created new stock record with ${item.quantity} of ${item.itemId?.name} in destination branch`);
         }
       }
     }
@@ -309,13 +352,20 @@ exports.approveIssueNote = async (req, res) => {
     await issueNote.save();
 
     const updatedIssueNote = await IssueNote.findById(id)
-      .populate('fromBranchId', 'branchName branchCode')
-      .populate('toBranchId', 'branchName branchCode')
-      .populate('issuedBy', 'name email')
-      .populate('approvedBy', 'name email');
+      .populate('fromBranchId', 'branchName branchCode branch_name branch_code')
+      .populate('toBranchId', 'branchName branchCode branch_name branch_code')
+      .populate('issuedBy', 'name email username')
+      .populate('approvedBy', 'name email username')
+      .lean();
+
+    // Get populated items
+    const items = await IssueNoteItem.find({ issueNoteId: id })
+      .populate('itemId', 'name sku itemId unit')
+      .populate('itemUnitId', 'unitName')
+      .lean();
 
     console.log('✅ Issue note approved:', issueNote.issueNoteNumber);
-    res.json(updatedIssueNote);
+    res.json({ ...updatedIssueNote, items });
   } catch (err) {
     console.error('❌ Error approving issue note:', err.message);
     res.status(400).json({ error: err.message });
@@ -357,13 +407,20 @@ exports.rejectIssueNote = async (req, res) => {
     await issueNote.save();
 
     const updatedIssueNote = await IssueNote.findById(id)
-      .populate('fromBranchId', 'branchName branchCode')
-      .populate('toBranchId', 'branchName branchCode')
-      .populate('issuedBy', 'name email')
-      .populate('approvedBy', 'name email');
+      .populate('fromBranchId', 'branchName branchCode branch_name branch_code')
+      .populate('toBranchId', 'branchName branchCode branch_name branch_code')
+      .populate('issuedBy', 'name email username')
+      .populate('approvedBy', 'name email username')
+      .lean();
+
+    // Get populated items
+    const items = await IssueNoteItem.find({ issueNoteId: id })
+      .populate('itemId', 'name sku itemId unit')
+      .populate('itemUnitId', 'unitName')
+      .lean();
 
     console.log('✅ Issue note rejected:', issueNote.issueNoteNumber);
-    res.json(updatedIssueNote);
+    res.json({ ...updatedIssueNote, items });
   } catch (err) {
     console.error('❌ Error rejecting issue note:', err.message);
     res.status(400).json({ error: err.message });
@@ -398,13 +455,20 @@ exports.updateIssueNote = async (req, res) => {
     await issueNote.save();
 
     const updatedIssueNote = await IssueNote.findById(id)
-      .populate('fromBranchId', 'branchName branchCode')
-      .populate('toBranchId', 'branchName branchCode')
-      .populate('issuedBy', 'name email')
-      .populate('approvedBy', 'name email');
+      .populate('fromBranchId', 'branchName branchCode branch_name branch_code')
+      .populate('toBranchId', 'branchName branchCode branch_name branch_code')
+      .populate('issuedBy', 'name email username')
+      .populate('approvedBy', 'name email username')
+      .lean();
+
+    // Get populated items
+    const items = await IssueNoteItem.find({ issueNoteId: id })
+      .populate('itemId', 'name sku itemId unit')
+      .populate('itemUnitId', 'unitName')
+      .lean();
 
     console.log('✅ Issue note updated:', issueNote.issueNoteNumber);
-    res.json(updatedIssueNote);
+    res.json({ ...updatedIssueNote, items });
   } catch (err) {
     console.error('❌ Error updating issue note:', err.message);
     res.status(400).json({ error: err.message });

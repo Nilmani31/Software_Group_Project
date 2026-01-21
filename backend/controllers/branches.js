@@ -10,6 +10,8 @@ const toApiBranch = (branch) => {
   }
 
   return {
+    _id: data._id,
+    id: data._id,
     branchId: data.branchId,
     branchCode: data.branchCode,
     branchName: data.branchName,
