@@ -28,7 +28,7 @@ const LowStock = () => {
           // Transform backend data to match frontend structure
           const transformedItems = data.map(item => ({
             id: item._id,
-            sku: item.itemId || item.barcode || 'N/A',
+            sku: item.sku || item.itemId || item.barcode || 'N/A',
             name: item.name,
             currentStock: item.quantity || 0,
             minimumStock: item.minStock || 0,
