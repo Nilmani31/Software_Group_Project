@@ -131,12 +131,14 @@ const Inventory = () => {
   // Fetch stock data for a specific item
   const fetchStockData = async (itemId) => {
     try {
-      const response = await fetch(`http://localhost:5000/api/stock/item/${itemId}`);
+      const response = await fetch(`http://localhost:5000/api/items/stock/${itemId}`);
       if (response.ok) {
         const data = await response.json();
+        console.log('Stock data fetched:', data);
         setStockData(Array.isArray(data) ? data : []);
       } else {
         // If no stock data endpoint, set empty
+        console.log('No stock data found for item:', itemId);
         setStockData([]);
       }
     } catch (err) {
@@ -283,6 +285,7 @@ const Inventory = () => {
         maxStock: selectedItem.maxStock || '',
         image: null
       });
+      // Use current stockData if available, otherwise it will be populated
       setEditableStockData(stockData.length > 0 ? [...stockData] : []);
       setEditImagePreview(null);
       setShowItemDetailModal(false);
@@ -379,6 +382,7 @@ const Inventory = () => {
     
     setSubmitLoading(true);
     try {
+      // First, update the item
       const response = await fetch(`http://localhost:5000/api/items/${selectedItem._id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -396,7 +400,20 @@ const Inventory = () => {
       
       const result = await response.json();
       if (result._id || result.id) {
-        alert('Item updated successfully!');
+        // Now save the stock quantities for each branch
+        if (editableStockData && editableStockData.length > 0) {
+          for (const stock of editableStockData) {
+            await fetch(`http://localhost:5000/api/stock/${stock._id}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                quantity: parseInt(stock.quantity) || 0
+              })
+            });
+          }
+        }
+        
+        alert('Item and stock updated successfully!');
         fetchItems();
         handleCloseEditModal();
         handleCloseItemDetailModal();
@@ -1011,7 +1028,8 @@ const Inventory = () => {
                           color: 'white',
                           textTransform: 'uppercase',
                           letterSpacing: '0.3px',
-                          borderRight: '1px solid rgba(255, 255, 255, 0.2)'
+                          borderRight: '1px solid rgba(255, 255, 255, 0.2)',
+                          width: '40%'
                         }}>Branch Name</th>
                         <th style={{ 
                           padding: '12px',
@@ -1021,8 +1039,20 @@ const Inventory = () => {
                           color: 'white',
                           textTransform: 'uppercase',
                           letterSpacing: '0.3px',
-                          borderRight: 'none'
-                        }}>Quantity</th>
+                          borderRight: '1px solid rgba(255, 255, 255, 0.2)',
+                          width: '30%'
+                        }}>Current Qty</th>
+                        <th style={{ 
+                          padding: '12px',
+                          textAlign: 'center',
+                          fontWeight: '700', 
+                          fontSize: '13px',
+                          color: 'white',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.3px',
+                          borderRight: 'none',
+                          width: '30%'
+                        }}>New Qty</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1055,6 +1085,17 @@ const Inventory = () => {
                                 <td style={{ 
                                   padding: '12px', 
                                   textAlign: 'center',
+                                  borderRight: '1px solid #d8bfd8',
+                                  color: '#1a3a52',
+                                  fontWeight: '600',
+                                  fontSize: '13px',
+                                  backgroundColor: '#f9fafb'
+                                }}>
+                                  {stock.quantity || 0}
+                                </td>
+                                <td style={{ 
+                                  padding: '12px', 
+                                  textAlign: 'center',
                                   borderRight: 'none'
                                 }}>
                                   <input
@@ -1063,7 +1104,7 @@ const Inventory = () => {
                                     value={stock.quantity || 0}
                                     onChange={(e) => handleEditStockQuantityChange(index, e.target.value)}
                                     style={{ 
-                                      width: '80px', 
+                                      width: '100%', 
                                       padding: '8px 10px', 
                                       border: '1.5px solid #667eea', 
                                       borderRadius: '4px', 
@@ -1100,12 +1141,25 @@ const Inventory = () => {
                               fontSize: '13px',
                               borderRight: '1px solid rgba(255, 255, 255, 0.2)',
                               textTransform: 'uppercase',
-                              letterSpacing: '0.3px'
+                              letterSpacing: '0.3px',
+                              width: '40%'
                             }}>Total Stock</td>
                             <td style={{ 
                               padding: '12px', 
                               textAlign: 'center',
-                              borderRight: 'none'
+                              borderRight: '1px solid rgba(255, 255, 255, 0.2)',
+                              color: 'white',
+                              fontSize: '13px',
+                              fontWeight: '700',
+                              width: '30%'
+                            }}>
+                              {editableStockData.reduce((total, stock) => total + (stock.quantity || 0), 0)}
+                            </td>
+                            <td style={{ 
+                              padding: '12px', 
+                              textAlign: 'center',
+                              borderRight: 'none',
+                              width: '30%'
                             }}>
                               <input
                                 type="number"
@@ -1113,7 +1167,7 @@ const Inventory = () => {
                                 value={editableStockData.reduce((total, stock) => total + (stock.quantity || 0), 0)}
                                 onChange={(e) => handleEditTotalQuantityChange(e.target.value)}
                                 style={{ 
-                                  width: '80px', 
+                                  width: '100%', 
                                   padding: '8px 10px', 
                                   border: 'none', 
                                   borderRadius: '4px', 

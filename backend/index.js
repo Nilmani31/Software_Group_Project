@@ -19,6 +19,7 @@ const itemsRouter = require('./routes/items');
 const categoriesRouter = require('./routes/categories');
 const BranchRouter = require('./routes/branches');
 const suppliersRouter = require('./routes/suppliers');
+const stockRouter = require('./routes/stock');
 
 
 
@@ -100,6 +101,7 @@ app.use('/api/items', itemsRouter);
 app.use('/api/categories', categoriesRouter);
 app.use('/api/branches', BranchRouter);
 app.use('/api/suppliers', suppliersRouter);
+app.use('/api/stock', stockRouter);
 
 
 
