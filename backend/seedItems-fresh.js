@@ -73,7 +73,7 @@ const seedItems = async () => {
       },
       {
         name: 'Butter',
-        category: categoryMap['Supplies'],
+        category: categoryMap['Raw Materials'],
         unit: 'kg',
         minStock: 5,
         maxStock: 50,
@@ -84,7 +84,7 @@ const seedItems = async () => {
       },
       {
         name: 'Eggs',
-        category: categoryMap['Supplies'],
+        category: categoryMap['Raw Materials'],
         unit: 'pcs',
         minStock: 10,
         maxStock: 100,
@@ -106,7 +106,7 @@ const seedItems = async () => {
       },
       {
         name: 'Baking Powder',
-        category: categoryMap['Supplies'],
+        category: categoryMap['Raw Materials'],
         unit: 'kg',
         minStock: 5,
         maxStock: 30,
@@ -145,6 +145,39 @@ const seedItems = async () => {
         maxStock: 500,
         branch: 'Galle',
         quantity: 150,
+        status: 'normal',
+        sku: generateSKU()
+      },
+      {
+        name: 'Cocktail Shaker',
+        category: categoryMap['Bar Materials'],
+        unit: 'pcs',
+        minStock: 5,
+        maxStock: 20,
+        branch: 'Colombo',
+        quantity: 10,
+        status: 'normal',
+        sku: generateSKU()
+      },
+      {
+        name: 'Cleaning Cloth',
+        category: categoryMap['Cleaning Supplies'],
+        unit: 'pcs',
+        minStock: 20,
+        maxStock: 100,
+        branch: 'Colombo',
+        quantity: 50,
+        status: 'normal',
+        sku: generateSKU()
+      },
+      {
+        name: 'Bar Glass',
+        category: categoryMap['Glassware'],
+        unit: 'pcs',
+        minStock: 30,
+        maxStock: 200,
+        branch: 'Kandy',
+        quantity: 80,
         status: 'normal',
         sku: generateSKU()
       }

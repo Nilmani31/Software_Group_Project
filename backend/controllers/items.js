@@ -126,10 +126,46 @@ exports.createItem = async (req, res) => {
       return res.status(400).json({ error: 'Image too large. Maximum size is 5MB.' });
     }
     
+    let finalSku = sku;
+    
+    // Auto-generate SKU if not provided or empty
+    if (!finalSku) {
+      try {
+        // Get the category name
+        const category = await Category.findById(itemData.category);
+        if (category) {
+          // Get first 3 letters of category name
+          const initials = category.name
+            .substring(0, 3)
+            .toUpperCase();
+          
+          // Find all items with this category to get the next number
+          const prefix = `SKU-${initials}-`;
+          const existingItems = await Item.find({ sku: { $regex: `^${prefix}`, $options: 'i' } });
+          
+          // Find the highest number
+          let maxNumber = 0;
+          existingItems.forEach(item => {
+            const numberStr = item.sku.replace(new RegExp(`^${prefix}`, 'i'), '');
+            const number = parseInt(numberStr, 10);
+            if (!isNaN(number) && number > maxNumber) {
+              maxNumber = number;
+            }
+          });
+          
+          // Generate next number with padding (001, 002, etc.)
+          const nextNumber = String(maxNumber + 1).padStart(3, '0');
+          finalSku = `${prefix}${nextNumber}`;
+        }
+      } catch (err) {
+        console.warn('⚠️ Could not auto-generate SKU:', err.message);
+      }
+    }
+    
     // If SKU is provided, use it. Otherwise let itemId auto-generate
     const itemPayload = {
       ...itemData,
-      ...(sku && { sku }),
+      ...(finalSku && { sku: finalSku }),
       ...(itemId && { itemId }),
       ...(image && image.length <= 5242880 ? { image } : { image: '' })
     };

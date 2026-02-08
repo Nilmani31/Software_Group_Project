@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import LoginPage from './Pages/Login';
 import Dashboard from './Pages/Dashboard';
 import Report from './Pages/Report';
@@ -31,6 +31,11 @@ function App() {
         <Route path="/users" element={<ProtectedRoute path="/users"><Users /></ProtectedRoute>} />
         <Route path="/categories" element={<ProtectedRoute path="/categories"><Categories /></ProtectedRoute>} />
         <Route path="/good-received" element={<ProtectedRoute path="/good-received"><GoodReceived /></ProtectedRoute>} />
+        
+        {/* Redirect common typos to correct routes */}
+        <Route path="/dashbord" element={<Navigate to="/dashboard" replace />} />
+        <Route path="/inventöry" element={<Navigate to="/inventory" replace />} />
+        <Route path="/report" element={<Navigate to="/reports" replace />} />
       </Routes>
     </Router>
   );

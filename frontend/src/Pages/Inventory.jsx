@@ -5,9 +5,33 @@ import ChatAssistant from '../Components/ChatAssistant';
 import './Inventory.css';
 import { FaTimes, FaEdit, FaTrash } from 'react-icons/fa';
 
-// Helper function to generate SKU
-const generateSKU = () => {
-  return 'SKU-' + Math.random().toString(36).substr(2, 9).toUpperCase();
+// Helper function to generate SKU with first 3 letters of category name
+const generateSKU = (categoryName, existingSkus = []) => {
+  if (!categoryName) {
+    return ''; // Empty if no category
+  }
+  
+  // Get first 3 letters of category name
+  const initials = categoryName
+    .substring(0, 3)
+    .toUpperCase();
+  
+  // Find the highest number for this category prefix
+  const prefix = `SKU-${initials}-`;
+  const categorySkus = existingSkus.filter(sku => sku.startsWith(prefix));
+  
+  let maxNumber = 0;
+  categorySkus.forEach(sku => {
+    const numberStr = sku.replace(prefix, '');
+    const number = parseInt(numberStr, 10);
+    if (!isNaN(number) && number > maxNumber) {
+      maxNumber = number;
+    }
+  });
+  
+  // Generate next number with padding (001, 002, etc.)
+  const nextNumber = String(maxNumber + 1).padStart(3, '0');
+  return `${prefix}${nextNumber}`;
 };
 
 // Helper function to get status class
@@ -43,7 +67,7 @@ const Inventory = () => {
     minStock: '',
     maxStock: '',
     //branch: 'Colombo',
-    sku: generateSKU(),
+    sku: '',
     image: null
   });
   const [showItemDetailModal, setShowItemDetailModal] = useState(false);
@@ -166,7 +190,7 @@ const Inventory = () => {
   const handleOpenModal = () => {
     setFormData(prev => ({
       ...prev,
-      sku: generateSKU()
+      sku: '' // SKU will be generated when category is selected
     }));
     setShowModal(true);
   };
@@ -181,14 +205,26 @@ const Inventory = () => {
       minStock: '',
       maxStock: '',
       branch: 'Colombo',
-      sku: generateSKU(),
+      sku: '', // SKU will be generated when category is selected
       image: null
     });
   };
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    const updatedData = { ...formData, [name]: value };
+    
+    // When category changes, regenerate SKU
+    if (name === 'category' && value) {
+      // Extract all existing SKUs from items
+      const existingSKUs = items
+        .map(item => item.sku)
+        .filter(sku => sku && typeof sku === 'string');
+      
+      updatedData.sku = generateSKU(value, existingSKUs);
+    }
+    
+    setFormData(updatedData);
   };
 
   const handleImageUpload = (e) => {
@@ -283,6 +319,7 @@ const Inventory = () => {
         quantity: selectedItem.quantity || 0,
         minStock: selectedItem.minStock || '',
         maxStock: selectedItem.maxStock || '',
+        sku: selectedItem.sku || '',
         image: null
       });
       // Use current stockData if available, otherwise it will be populated
@@ -304,6 +341,7 @@ const Inventory = () => {
       quantity: 0,
       minStock: '',
       maxStock: '',
+      sku: '',
       image: null
     });
   };
@@ -330,7 +368,19 @@ const Inventory = () => {
 
   const handleEditInputChange = (e) => {
     const { name, value } = e.target;
-    setEditFormData(prev => ({ ...prev, [name]: value }));
+    const updatedData = { ...editFormData, [name]: value };
+    
+    // When category changes during edit, regenerate SKU
+    if (name === 'category' && value) {
+      // Extract all existing SKUs from items
+      const existingSKUs = items
+        .map(item => item.sku)
+        .filter(sku => sku && typeof sku === 'string');
+      
+      updatedData.sku = generateSKU(value, existingSKUs);
+    }
+    
+    setEditFormData(updatedData);
   };
 
   const handleEditImageUpload = (e) => {
@@ -394,6 +444,7 @@ const Inventory = () => {
           minStock: parseInt(editFormData.minStock) || 0,
           maxStock: parseInt(editFormData.maxStock) || 0,
           branch: editFormData.branch,
+          sku: editFormData.sku,
           image: editImagePreview || ''
         })
       });
@@ -853,12 +904,7 @@ const Inventory = () => {
             </div>
 
             {/* Modal Body - Full Scrollable Content */}
-            <div className="edit-item-body" style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitScrollbar: 'none' }}>
-              <style>{`
-                .edit-item-body::-webkit-scrollbar {
-                  display: none;
-                }
-              `}</style>
+            <div className="edit-item-body" style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
               <form className="edit-item-form" onSubmit={handleEditSubmit} style={{ paddingRight: '12px' }}>
                 {/* Form Layout */}
                 <div className="edit-form-layout">
@@ -891,11 +937,12 @@ const Inventory = () => {
                         className="edit-form-input"
                         required
                       >
-                        <option value="">Category</option>
-                        <option value="Raw Materials">Raw Materials</option>
-                        <option value="Tools & Equipment">Tools & Equipment</option>
-                        <option value="Packaging">Packaging</option>
-                        <option value="Supplies">Supplies</option>
+                        <option value="">Select Category</option>
+                        {categories.map((cat) => (
+                          <option key={cat._id} value={cat.name}>
+                            {cat.name}
+                          </option>
+                        ))}
                       </select>
                     </div>
 
@@ -921,7 +968,7 @@ const Inventory = () => {
                       <label className="edit-form-label">SKU</label>
                       <input
                         type="text"
-                        value="Auto create"
+                        value={editFormData.sku || 'Auto-generated'}
                         className="edit-form-input-readonly"
                         readOnly
                       />

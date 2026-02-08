@@ -366,10 +366,17 @@ html, body {
 .list-wrap {
   max-height: 400px;
   overflow-y: auto;
-  overflow-x: auto;
+  overflow-x: hidden;
   background: white;
   border-radius: 8px;
   box-shadow: var(--shadow);
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+/* Hide scrollbar but keep scrolling functional */
+.list-wrap::-webkit-scrollbar {
+  display: none;
 }
 
 .inventory-table {
