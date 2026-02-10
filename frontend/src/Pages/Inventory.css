@@ -127,18 +127,19 @@ html, body {
 
 .inventory-top-row {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
+  justify-content: flex-start;
+  align-items: flex-end;
   gap: 16px;
   margin-bottom: 16px;
   flex-wrap: wrap;
+  width: 100%;
 }
 
 /* Search field */
 .inventory-search {
   flex: 1;
-  max-width: 400px;
   min-width: 250px;
+  max-width: 350px;
 }
 
 .search-field {
@@ -165,6 +166,7 @@ html, body {
   font-size: 14px;
   color: var(--text);
   transition: all var(--transition);
+  height: 42px;
 }
 
 .search-field input:focus {
@@ -181,8 +183,9 @@ html, body {
 .inventory-actions {
   display: flex;
   gap: 12px;
-  align-items: center;
+  align-items: flex-end;
   flex-wrap: wrap;
+  margin-left: auto;
 }
 
 .btn {
@@ -195,11 +198,13 @@ html, body {
   transition: all var(--transition);
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
   text-decoration: none;
   white-space: nowrap;
   position: relative;
   overflow: hidden;
+  height: 42px;
 }
 
 /* Find by Image Button */
@@ -303,13 +308,15 @@ html, body {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  min-width: 180px;
+  min-width: 150px;
+  flex-shrink: 0;
 }
 
 .filter label {
   font-weight: 600;
   font-size: 14px;
   color: var(--text);
+  white-space: nowrap;
 }
 
 .filter select {
@@ -320,6 +327,7 @@ html, body {
   background: white;
   transition: all var(--transition);
   width: 100%;
+  height: 42px;
 }
 
 .filter select:focus {
@@ -331,6 +339,7 @@ html, body {
 /* Main content area - This is the equivalent of po-main and will be the scrolling container */
 .inventory-main {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
   background: var(--panel);
@@ -339,6 +348,8 @@ html, body {
   box-shadow: var(--shadow);
   border: 1px solid var(--border);
   scroll-behavior: smooth;
+  display: flex;
+  flex-direction: column;
   scrollbar-width: thin;
   scrollbar-color: #d1d5db #f3f4f6;
   max-height: calc(100vh - 70px - 24px - 100px);
@@ -364,7 +375,8 @@ html, body {
 
 /* Table styles - IMPROVED */
 .list-wrap {
-  max-height: 400px;
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
   background: white;

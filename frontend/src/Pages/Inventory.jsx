@@ -505,14 +505,7 @@ const Inventory = () => {
                       </div>
                     </div>
 
-                    <div className="inventory-actions">
-                      <button className="btn btn-add" onClick={handleOpenModal}>+ Add new Item</button>
-                    </div>
-                  </div>
-
-                  <div className="inventory-filters-row">
                     <div className="filter">
-                      <label>Categories</label>
                       <select 
                         value={categoryFilter} 
                         onChange={(e) => setCategoryFilter(e.target.value)}
@@ -526,7 +519,6 @@ const Inventory = () => {
                     </div>
 
                     <div className="filter">
-                      <label>Branch</label>
                       <select 
                         value={branchFilter} 
                         onChange={(e) => setBranchFilter(e.target.value)}
@@ -538,6 +530,10 @@ const Inventory = () => {
                         ))}
                       </select>
                     </div>
+
+                    <div className="inventory-actions">
+                      <button className="btn btn-add" onClick={handleOpenModal}>+ Add new Item</button>
+                    </div>
                   </div>
                 </header>
 
@@ -545,7 +541,7 @@ const Inventory = () => {
                   {filtered.length === 0 ? (
                     <div className="no-results">No items found.</div>
                   ) : (
-                    <div className="list-wrap" style={{ maxHeight: '400px', overflowY: 'auto' }}>
+                    <div className="list-wrap" style={{ maxHeight: '600px', overflowY: 'auto' }}>
                       <table className="inventory-table" role="table" aria-label="Inventory list" style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0 }}>
                         <thead style={{ position: 'sticky', top: 0, zIndex: 2 }}>
                           <tr>
