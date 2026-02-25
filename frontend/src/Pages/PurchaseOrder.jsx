@@ -5,41 +5,7 @@ import ChatAssistant from '../Components/ChatAssistant'
 // Modal component replaced for Create PO to match Inventory design
 import './PurchaseOrder.css'
 
-const samplePOs = [
-  {
-    id: 'PO-2025-001',
-    status: 'Pending',
-    supplier: 'Noritake Lanka',
-    branch: 'CBBS Colombo',
-    orderDate: '2025-10-05',
-    expectedDate: '2025-10-20',
-    total: 'Rs. 23,900',
-    createdBy: 'Admin User',
-    items: ['Highball Glasses x 50', 'Wine Glasses x 30']
-  },
-  {
-    id: 'PO-2025-002',
-    status: 'Pending',
-    supplier: 'Ceylon Coffee Company',
-    branch: 'CBBS Colombo',
-    orderDate: '2025-10-10',
-    expectedDate: '2025-10-25',
-    total: 'Rs. 44,000',
-    createdBy: 'Kasun Silva',
-    items: ['Sugar Syrup x 20', 'Cocktail Shaker Set x 10']
-  },
-  {
-    id: 'PO-2025-003',
-    status: 'Received',
-    supplier: 'Ceylon Coffee Company',
-    branch: 'CBBS Colombo',
-    orderDate: '2025-10-01',
-    expectedDate: '2025-10-15',
-    total: 'Rs. 75,000',
-    createdBy: 'Admin User',
-    items: ['Arabica Coffee Beans x 30']
-  }
-]
+const samplePOs = []
 
 export default function PurchaseOrder () {
   // ===== MAIN STATE =====
@@ -49,6 +15,7 @@ export default function PurchaseOrder () {
   const [categories, setCategories] = useState([])
   const [itemsWithStock, setItemsWithStock] = useState([])
   const [selectedItemForCreate, setSelectedItemForCreate] = useState(null)
+  const [selectedBranchRow, setSelectedBranchRow] = useState(null)
   const [openCreate, setOpenCreate] = useState(false)
   const [openView, setOpenView] = useState(false)
   const [openEdit, setOpenEdit] = useState(false)
@@ -63,12 +30,13 @@ export default function PurchaseOrder () {
     phone: '',
     branch: '',
     orderDate: '',
-    expectedDate: ''
+    expectedDate: '',
+    createdByBranch: ''
   })
 
   const [cart, setCart] = useState([])
   const [cartVisible, setCartVisible] = useState(false)
-  const [line, setLine] = useState({ category: '', item: '', qty: '' })
+  const [line, setLine] = useState({ category: '', item: '', qty: '', branch: '' })
   // Edit modal state
   const [editForm, setEditForm] = useState({
     poNumber: '',
@@ -77,11 +45,12 @@ export default function PurchaseOrder () {
     phone: '',
     branch: '',
     orderDate: '',
-    expectedDate: ''
+    expectedDate: '',
+    createdByBranch: ''
   })
   const [editCart, setEditCart] = useState([])
   const [editCartVisible, setEditCartVisible] = useState(false)
-  const [editLine, setEditLine] = useState({ category: '', item: '', qty: '' })
+  const [editLine, setEditLine] = useState({ category: '', item: '', qty: '', branch: '' })
   // Cancel/Delete modal state
   const [cancelForm, setCancelForm] = useState({
     deletedBy: '',
@@ -134,7 +103,50 @@ export default function PurchaseOrder () {
   }, [])
 
   // ===== HANDLE NEW PO =====
-  const handleNewPO = () => setOpenCreate(true)
+  const generatePONumber = () => {
+    const year = new Date().getFullYear()
+    const existingIds = new Set(pos.map(p => p.id))
+    const pattern = new RegExp(`^PO-${year}-\\d{3}$`)
+    
+    const takenNumbers = pos
+      .map(p => {
+        const m = p.id.match(new RegExp(`^PO-${year}-(\\d{3})$`))
+        return m ? parseInt(m[1], 10) : null
+      })
+      .filter(n => n !== null)
+    
+    let seq = takenNumbers.length ? Math.max(...takenNumbers) + 1 : 1
+    while (existingIds.has(`PO-${year}-${String(seq).padStart(3,'0')}`)) seq++
+    
+    return `PO-${year}-${String(seq).padStart(3,'0')}`
+  }
+
+  const handleNewPO = () => {
+    const autoNumber = generatePONumber()
+    // Get user's branch from localStorage
+    const userBranchId = localStorage.getItem('branchId')
+    let userBranchName = ''
+    
+    console.log('User Branch ID from localStorage:', userBranchId)
+    console.log('Available branches:', branches)
+    
+    // Find the branch name from the branches list
+    if (userBranchId && branches.length > 0) {
+      const userBranch = branches.find(b => {
+        const bId = String(b._id || b.id)
+        const uId = String(userBranchId)
+        console.log('Comparing:', { bId, uId, match: bId === uId })
+        return bId === uId
+      })
+      console.log('Found user branch:', userBranch)
+      userBranchName = userBranch ? (userBranch.name || userBranch.branchName || '') : ''
+    }
+    
+    console.log('Final user branch name:', userBranchName)
+    setPoForm(prev => ({ ...prev, poNumber: autoNumber, createdByBranch: userBranchName }))
+    setSelectedBranchRow(null)
+    setOpenCreate(true)
+  }
 
   const updateForm = (key, val) => setPoForm(prev => {
     if (key === 'orderBy') {
@@ -156,14 +168,33 @@ export default function PurchaseOrder () {
     }
   }
 
+  // Handle branch row click - auto-fill branch and switch to Branch ordering
+  const handleBranchSelect = (branchName, branchData) => {
+    setSelectedBranchRow(branchName)
+    setPoForm(prev => ({
+      ...prev,
+      orderBy: 'Branch',
+      branch: branchName,
+      supplierName: '',
+      phone: ''
+    }))
+    setLine(prev => ({
+      ...prev,
+      branch: branchName
+    }))
+  }
+
   const addToCart = () => {
     setCartVisible(true)
     if (!line.item || !line.qty) return
     // Normalize numbers
     const qty = Number(line.qty)
-    const unitPrice = line.unitPrice ? Number(line.unitPrice) : undefined
-    setCart(prev => [...prev, { ...line, qty, unitPrice }])
-    setLine({ category: '', item: '', qty: '' })
+    setCart(prev => [...prev, { 
+      ...line, 
+      qty,
+      branch: poForm.orderBy === 'Branch' ? (line.branch || poForm.branch) : undefined
+    }])
+    setLine({ category: '', item: '', qty: '', branch: '' })
   }
 
   const editExistingCreateItem = (index) => {
@@ -173,16 +204,15 @@ export default function PurchaseOrder () {
     // If there's a pending line edit not yet added, put it back into the cart first
     if (line.item && line.qty) {
       const pendingQty = Number(line.qty)
-      const pendingUnit = line.unitPrice ? Number(line.unitPrice) : undefined
       setCart(prev => {
         const base = prev.filter((_, i) => i !== index)
-        return [...base, { ...line, qty: pendingQty, unitPrice: pendingUnit }]
+        return [...base, { ...line, qty: pendingQty, branch: poForm.orderBy === 'Branch' ? (line.branch || poForm.branch) : undefined }]
       })
     } else {
       setCart(prev => prev.filter((_, i) => i !== index))
     }
     // Load selected target into inputs for editing
-    setLine({ category: target.category || '', item: target.item, qty: target.qty, unitPrice: target.unitPrice })
+    setLine({ category: target.category || '', item: target.item, qty: target.qty, branch: target.branch || '' })
   }
   const removeCreateItem = (index) => {
     setCart(prev => prev.filter((_, i) => i !== index))
@@ -202,9 +232,12 @@ export default function PurchaseOrder () {
     setEditCartVisible(true)
     if (!editLine.item || !editLine.qty) return
     const qty = Number(editLine.qty)
-    const unitPrice = editLine.unitPrice ? Number(editLine.unitPrice) : undefined
-    setEditCart(prev => [...prev, { ...editLine, qty, unitPrice }])
-    setEditLine({ category: '', item: '', qty: '' })
+    setEditCart(prev => [...prev, { 
+      ...editLine, 
+      qty,
+      branch: editForm.orderBy === 'Branch' ? (editLine.branch || editForm.branch) : undefined
+    }])
+    setEditLine({ category: '', item: '', qty: '', branch: '' })
   }
 
   const editExistingEditItem = (index) => {
@@ -220,7 +253,7 @@ export default function PurchaseOrder () {
     } else {
       setEditCart(prev => prev.filter((_, i) => i !== index))
     }
-    setEditLine({ category: target.category || '', item: target.item, qty: target.qty })
+    setEditLine({ category: target.category || '', item: target.item, qty: target.qty, branch: target.branch || '' })
   }
   const removeEditItem = (index) => {
     setEditCart(prev => prev.filter((_, i) => i !== index))
@@ -228,35 +261,16 @@ export default function PurchaseOrder () {
 
   const submitPO = (e) => {
     e.preventDefault()
-    const year = new Date().getFullYear()
-    const raw = (poForm.poNumber || '').trim()
-    const existingIds = new Set(pos.map(p => p.id))
-    const pattern = new RegExp(`^PO-${year}-\\d{3}$`)
-    let id = raw
-    if (!id || existingIds.has(id)) {
-      const takenNumbers = pos
-        .map(p => {
-          const m = p.id.match(new RegExp(`^PO-${year}-(\\d{3})$`))
-          return m ? parseInt(m[1], 10) : null
-        })
-        .filter(n => n !== null)
-      let seq = takenNumbers.length ? Math.max(...takenNumbers) + 1 : 1
-      while (existingIds.has(`PO-${year}-${String(seq).padStart(3,'0')}`)) seq++
-      id = `PO-${year}-${String(seq).padStart(3,'0')}`
-    } else if (!pattern.test(id)) {
-      // If user entered a custom format that collides later, append a unique suffix
-      if (existingIds.has(id)) {
-        let suffix = 1
-        while (existingIds.has(`${id}-${suffix}`)) suffix++
-        id = `${id}-${suffix}`
-      }
-    }
+    // Use the auto-generated PO number from form
+    const id = poForm.poNumber || generatePONumber()
+    
+    // Store items as simple format
     const items = cart.map(ci => `${ci.item} x ${ci.qty}`)
     let total = ''
-    if (poForm.orderBy === 'Branch') {
-      const sum = cart.reduce((acc, ci) => acc + ((Number(ci.qty) || 0) * (Number(ci.unitPrice) || 0)), 0)
-      if (sum > 0) total = `Rs. ${sum.toLocaleString('en-LK')}`
-    }
+    
+    // Get logged-in user info
+    const username = localStorage.getItem('username') || 'Admin User'
+    
     const newPO = {
       id,
       status: 'Pending',
@@ -265,15 +279,23 @@ export default function PurchaseOrder () {
       orderDate: poForm.orderDate || '',
       expectedDate: poForm.expectedDate || '',
       total,
-      createdBy: 'Admin User',
-      items
+      createdBy: username,
+      createdByBranch: poForm.createdByBranch || '',
+      items,
+      orderType: poForm.orderBy,
+      orderDetails: {
+        supplierName: poForm.supplierName,
+        phone: poForm.phone,
+        branch: poForm.branch
+      }
     }
     setPos(prev => [newPO, ...prev])
     // Reset form and cart
-    setPoForm({ poNumber: '', orderBy: 'Supplier', supplierName: '', phone: '', branch: '', orderDate: '', expectedDate: '' })
+    setSelectedBranchRow(null)
+    setPoForm({ poNumber: '', orderBy: 'Supplier', supplierName: '', phone: '', branch: '', orderDate: '', expectedDate: '', createdByBranch: '' })
     setCart([])
     setCartVisible(false)
-    setLine({ category: '', item: '', qty: '' })
+    setLine({ category: '', item: '', qty: '', branch: '' })
     setOpenCreate(false)
   }
 
@@ -332,8 +354,8 @@ export default function PurchaseOrder () {
                               <div className="info-val">{po.supplier}</div>
                             </div>
                             <div className="info-col">
-                              <div className="info-label">Branch</div>
-                              <div className="info-val">{po.branch}</div>
+                              <div className="info-label">Created Branch</div>
+                              <div className="info-val">{po.createdByBranch || po.branch}</div>
                             </div>
                             <div className="info-col">
                               <div className="info-label">Order Date</div>
@@ -410,7 +432,7 @@ export default function PurchaseOrder () {
 
                   {selectedItemForCreate && (
                     <div style={{ gridColumn: '1 / -1', marginTop: '12px' }}>
-                      <label className="form-label-inventory">Availability by Branch</label>
+                      <label className="form-label-inventory">Availability by Branch (Click to Select)</label>
                       <div style={{ maxHeight: '200px', overflowY: 'auto', border: '1px solid #e5e7eb', borderRadius: '6px' }}>
                         <table className="po-detail-table" style={{ marginBottom: 0 }}>
                           <thead>
@@ -426,10 +448,32 @@ export default function PurchaseOrder () {
                                 const stockBranchId = s.branchId?.toString() || String(s.branchId);
                                 return stockBranchId === branchId;
                               });
+                              const branchName = branch.name || branch.branchName;
+                              const quantity = branchStock ? branchStock.quantity : 0;
                               return (
-                                <tr key={idx}>
-                                  <td>{branch.name || branch.branchName}</td>
-                                  <td>{branchStock ? branchStock.quantity : 0}</td>
+                                <tr 
+                                  key={idx} 
+                                  onClick={() => handleBranchSelect(branchName, branch)}
+                                  style={{ 
+                                    cursor: 'pointer', 
+                                    transition: 'background-color 0.2s',
+                                    backgroundColor: selectedBranchRow === branchName ? '#667eea' : 'transparent',
+                                    color: selectedBranchRow === branchName ? 'white' : 'inherit'
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    if (selectedBranchRow !== branchName) {
+                                      e.currentTarget.style.backgroundColor = '#f0f4ff'
+                                    }
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    if (selectedBranchRow !== branchName) {
+                                      e.currentTarget.style.backgroundColor = 'transparent'
+                                    }
+                                  }}
+                                  title={`Click to order from ${branchName}`}
+                                >
+                                  <td>{branchName}</td>
+                                  <td>{quantity}</td>
                                 </tr>
                               );
                             })}
@@ -454,7 +498,7 @@ export default function PurchaseOrder () {
                         {poForm.orderBy === 'Supplier' ? (
                           <tr><th>Item Name</th><th>Quantity</th><th style={{width:'120px'}}>Actions</th></tr>
                         ) : (
-                          <tr><th>Item Name</th><th>Quantity</th><th>Unit Price</th><th>Total</th><th style={{width:'120px'}}>Actions</th></tr>
+                          <tr><th>Branch Name</th><th>Item Name</th><th>Quantity</th><th style={{width:'120px'}}>Actions</th></tr>
                         )}
                       </thead>
                       <tbody>
@@ -462,7 +506,7 @@ export default function PurchaseOrder () {
                           poForm.orderBy === 'Supplier' ? (
                             <tr><td colSpan={3} style={{ color:'#6b7280' }}>No items added yet</td></tr>
                           ) : (
-                            <tr><td colSpan={5} style={{ color:'#6b7280' }}>No items added yet</td></tr>
+                            <tr><td colSpan={4} style={{ color:'#6b7280' }}>No items added yet</td></tr>
                           )
                         ) : (
                           cart.map((ci, i) => (
@@ -472,7 +516,7 @@ export default function PurchaseOrder () {
                                 <button type="button" className="modal-btn-inventory cancel" style={{padding:'6px 10px'}} onClick={() => removeCreateItem(i)}>Remove</button>
                               </td></tr>
                             ) : (
-                              <tr key={i}><td>{ci.item}</td><td>{ci.qty}</td><td>{ci.unitPrice}</td><td>{(Number(ci.qty)||0) * (Number(ci.unitPrice)||0)}</td><td style={{display:'flex',gap:6}}>
+                              <tr key={i}><td>{ci.item}</td><td>{ci.qty}</td><td style={{display:'flex',gap:6}}>
                                 <button type="button" className="modal-btn-inventory cancel" style={{padding:'6px 10px'}} onClick={() => editExistingCreateItem(i)}>Edit</button>
                                 <button type="button" className="modal-btn-inventory cancel" style={{padding:'6px 10px'}} onClick={() => removeCreateItem(i)}>Remove</button>
                               </td></tr>
@@ -508,23 +552,7 @@ export default function PurchaseOrder () {
                         <input type="tel" value={poForm.phone} onChange={e => updateForm('phone', e.target.value)} placeholder="07x xxx xxxx" className="form-input-inventory" />
                       </div>
                     </>
-                  ) : (
-                    <div className="form-group-inventory">
-                      <label className="form-label-inventory">Branch Name</label>
-                      <select value={poForm.branch} onChange={e => updateForm('branch', e.target.value)} className="form-input-inventory">
-                        <option value="">-- Select a Branch --</option>
-                        {branches && branches.length > 0 ? (
-                          branches.map((branch, idx) => (
-                            <option key={idx} value={branch.branchName}>
-                              {branch.branchName}
-                            </option>
-                          ))
-                        ) : (
-                          <option disabled>No branches available</option>
-                        )}
-                      </select>
-                    </div>
-                  )}
+                  ) : null}
                   <div className="form-group-inventory">
                     <label className="form-label-inventory">Order Date</label>
                     <input type="date" value={poForm.orderDate} onChange={e => updateForm('orderDate', e.target.value)} className="form-input-inventory" />
@@ -535,7 +563,10 @@ export default function PurchaseOrder () {
                   </div>
                 </div>
                 <div className="modal-footer-inventory" style={{ justifyContent:'flex-end' }}>
-                  <button type="button" className="modal-btn-inventory cancel" onClick={() => setOpenCreate(false)}>Cancel</button>
+                  <button type="button" className="modal-btn-inventory cancel" onClick={() => {
+                    setSelectedBranchRow(null)
+                    setOpenCreate(false)
+                  }}>Cancel</button>
                   <button type="submit" className="modal-btn-inventory submit">Purchase Order</button>
                 </div>
               </form>
@@ -561,17 +592,15 @@ export default function PurchaseOrder () {
                 <span className={`po-detail-badge ${selected.status === 'Pending' ? 'pending' : (selected.status === 'Cancelled' ? 'cancelled' : 'received')}`}>{selected.status}</span>
               </div>
               <div className="po-detail-info-grid">
-                <div>
-                  <span className="po-detail-label supplier">SUPPLIER</span>
-                  <div>{selected.supplier}</div>
-                </div>
+                {selected.orderType !== 'Branch' && selected.supplier && (
+                  <div>
+                    <span className="po-detail-label supplier">SUPPLIER</span>
+                    <div>{selected.supplier}</div>
+                  </div>
+                )}
                 <div>
                   <span className="po-detail-label order-date">ORDER DATE</span>
                   <div>{selected.orderDate}</div>
-                </div>
-                <div>
-                  <span className="po-detail-label branch">BRANCH</span>
-                  <div>{selected.branch}</div>
                 </div>
                 <div>
                   <span className="po-detail-label expected-date">EXPECTED DATE</span>
@@ -582,19 +611,30 @@ export default function PurchaseOrder () {
                   <div>{selected.createdBy}</div>
                 </div>
                 <div>
-                  <span className="po-detail-label total">TOTAL AMOUNT</span>
-                  <div>{selected.total}</div>
+                  <span className="po-detail-label branch">CREATED BRANCH</span>
+                  <div>{selected.createdByBranch}</div>
                 </div>
+                
               </div>
               <div className="po-detail-table-wrap">
                 <table className="po-detail-table">
                   <thead>
-                    <tr><th>Item Name</th><th>Quantity</th></tr>
+                    <tr>
+                      {selected.orderType === 'Branch' && <th>Selected Branch</th>}
+                      <th>Item Name</th>
+                      <th>Quantity</th>
+                    </tr>
                   </thead>
                   <tbody>
                     {selected.items.map((it, i) => {
                       const parts = it.split(' x ')
-                      return <tr key={i}><td>{parts[0]}</td><td>{parts[1] || ''}</td></tr>
+                      return (
+                        <tr key={i}>
+                          {selected.orderType === 'Branch' && <td>{selected.branch}</td>}
+                          <td>{parts[0]}</td>
+                          <td>{parts[1] || ''}</td>
+                        </tr>
+                      )
                     })}
                   </tbody>
                 </table>
@@ -620,20 +660,21 @@ export default function PurchaseOrder () {
                       if (!selected) return
                       setEditForm({
                         poNumber: selected.id,
-                        orderBy: 'Supplier',
+                        orderBy: selected.orderType || 'Supplier',
                         supplierName: selected.supplier || '',
-                        phone: '',
+                        phone: selected.orderDetails?.phone || '',
                         branch: selected.branch || '',
                         orderDate: selected.orderDate || '',
-                        expectedDate: selected.expectedDate || ''
+                        expectedDate: selected.expectedDate || '',
+                        createdByBranch: selected.createdByBranch || ''
                       })
                       const parsed = (selected.items || []).map(it => {
                         const parts = it.split(' x ')
-                        return { item: parts[0] || it, qty: parts[1] ? Number(parts[1]) : '' }
+                        return { item: parts[0] || it, qty: parts[1] ? Number(parts[1]) : '', branch: '' }
                       })
                       setEditCart(parsed)
                       // Ensure inline add/edit inputs start empty when opening Edit Order
-                      setEditLine({ category: '', item: '', qty: '' })
+                      setEditLine({ category: '', item: '', qty: '', branch: '' })
                       setOpenView(false)
                       setOpenEdit(true)
                       setEditCartVisible(true)
@@ -674,7 +715,14 @@ export default function PurchaseOrder () {
                   branch: editForm.branch,
                   orderDate: editForm.orderDate,
                   expectedDate: editForm.expectedDate,
-                  items: updatedItems
+                  createdByBranch: editForm.createdByBranch || selected.createdByBranch,
+                  items: updatedItems,
+                  orderType: editForm.orderBy,
+                  orderDetails: {
+                    supplierName: editForm.supplierName,
+                    phone: editForm.phone,
+                    branch: editForm.branch
+                  }
                 }
                 setPos(prev => prev.map(p => p.id === selected.id ? updated : p))
                 setSelected(updated)
@@ -712,7 +760,7 @@ export default function PurchaseOrder () {
 
                   {selectedItemForCreate && (
                     <div style={{ gridColumn: '1 / -1', marginTop: '12px' }}>
-                      <label className="form-label-inventory">Availability by Branch</label>
+                      <label className="form-label-inventory">Availability by Branch (Click to Select)</label>
                       <div style={{ maxHeight: '200px', overflowY: 'auto', border: '1px solid #e5e7eb', borderRadius: '6px' }}>
                         <table className="po-detail-table" style={{ marginBottom: 0 }}>
                           <thead>
@@ -728,10 +776,32 @@ export default function PurchaseOrder () {
                                 const stockBranchId = s.branchId?.toString() || String(s.branchId);
                                 return stockBranchId === branchId;
                               });
+                              const branchName = branch.name || branch.branchName;
+                              const quantity = branchStock ? branchStock.quantity : 0;
                               return (
-                                <tr key={idx}>
-                                  <td>{branch.name || branch.branchName}</td>
-                                  <td>{branchStock ? branchStock.quantity : 0}</td>
+                                <tr 
+                                  key={idx} 
+                                  onClick={() => handleBranchSelect(branchName, branch)}
+                                  style={{ 
+                                    cursor: 'pointer', 
+                                    transition: 'background-color 0.2s',
+                                    backgroundColor: selectedBranchRow === branchName ? '#667eea' : 'transparent',
+                                    color: selectedBranchRow === branchName ? 'white' : 'inherit'
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    if (selectedBranchRow !== branchName) {
+                                      e.currentTarget.style.backgroundColor = '#f0f4ff'
+                                    }
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    if (selectedBranchRow !== branchName) {
+                                      e.currentTarget.style.backgroundColor = 'transparent'
+                                    }
+                                  }}
+                                  title={`Click to order from ${branchName}`}
+                                >
+                                  <td>{branchName}</td>
+                                  <td>{quantity}</td>
                                 </tr>
                               );
                             })}
@@ -754,17 +824,32 @@ export default function PurchaseOrder () {
                   <div className="po-detail-table-wrap">
                     <table className="po-detail-table">
                       <thead>
-                        <tr><th>Item Name</th><th>Quantity</th><th style={{width:'120px'}}>Actions</th></tr>
+                        {editForm.orderBy === 'Supplier' ? (
+                          <tr><th>Item Name</th><th>Quantity</th><th style={{width:'120px'}}>Actions</th></tr>
+                        ) : (
+                          <tr><th>Branch Name</th><th>Item Name</th><th>Quantity</th><th style={{width:'120px'}}>Actions</th></tr>
+                        )}
                       </thead>
                       <tbody>
                         {editCart.length === 0 ? (
-                          <tr><td colSpan={3} style={{ color:'#6b7280' }}>No items added yet</td></tr>
+                          editForm.orderBy === 'Supplier' ? (
+                            <tr><td colSpan={3} style={{ color:'#6b7280' }}>No items added yet</td></tr>
+                          ) : (
+                            <tr><td colSpan={4} style={{ color:'#6b7280' }}>No items added yet</td></tr>
+                          )
                         ) : (
                           editCart.map((ci, i) => (
-                            <tr key={i}><td>{ci.item}</td><td>{ci.qty}</td><td style={{display:'flex',gap:6}}>
-                              <button type="button" className="modal-btn-inventory cancel" style={{padding:'6px 10px'}} onClick={() => editExistingEditItem(i)}>Edit</button>
-                              <button type="button" className="modal-btn-inventory cancel" style={{padding:'6px 10px'}} onClick={() => removeEditItem(i)}>Remove</button>
-                            </td></tr>
+                            editForm.orderBy === 'Supplier' ? (
+                              <tr key={i}><td>{ci.item}</td><td>{ci.qty}</td><td style={{display:'flex',gap:6}}>
+                                <button type="button" className="modal-btn-inventory cancel" style={{padding:'6px 10px'}} onClick={() => editExistingEditItem(i)}>Edit</button>
+                                <button type="button" className="modal-btn-inventory cancel" style={{padding:'6px 10px'}} onClick={() => removeEditItem(i)}>Remove</button>
+                              </td></tr>
+                            ) : (
+                              <tr key={i}><td>{ci.branch || editForm.branch}</td><td>{ci.item}</td><td>{ci.qty}</td><td style={{display:'flex',gap:6}}>
+                                <button type="button" className="modal-btn-inventory cancel" style={{padding:'6px 10px'}} onClick={() => editExistingEditItem(i)}>Edit</button>
+                                <button type="button" className="modal-btn-inventory cancel" style={{padding:'6px 10px'}} onClick={() => removeEditItem(i)}>Remove</button>
+                              </td></tr>
+                            )
                           ))
                         )}
                       </tbody>
