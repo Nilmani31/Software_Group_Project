@@ -152,7 +152,8 @@
 
 .message {
   display: flex;
-  max-width: 80%;
+  max-width: 85%;
+  min-width: 0;
 }
 
 .message.user {
@@ -185,6 +186,10 @@
   margin: 0;
   font-size: 14px;
   line-height: 1.4;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  white-space: pre-wrap;
 }
 
 .timestamp {
@@ -231,8 +236,11 @@
 
 .quick-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   margin-bottom: 12px;
+  overflow-x: hidden;
+  overflow-y: visible;
 }
 
 .quick-btn {
@@ -244,6 +252,11 @@
   cursor: pointer;
   transition: all 0.2s;
   color: #6b7280;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 0;
+  max-width: 100%;
 }
 
 .quick-btn:hover {
