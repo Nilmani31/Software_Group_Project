@@ -11,6 +11,9 @@ export default function PurchaseOrder () {
   // ===== MAIN STATE =====
   const [pos, setPos] = useState(samplePOs)
   const [query, setQuery] = useState('')
+  const [filterStatus, setFilterStatus] = useState('')
+  const [filterOrderBy, setFilterOrderBy] = useState('')
+  const [filterSupplier, setFilterSupplier] = useState('')
   const [branches, setBranches] = useState([])
   const [userBranchName, setUserBranchName] = useState('')
   const [categories, setCategories] = useState([])
@@ -55,7 +58,6 @@ export default function PurchaseOrder () {
   // Cancel/Delete modal state
   const [cancelForm, setCancelForm] = useState({
     deletedBy: '',
-    contactNumber: '',
     deletedDate: '',
     branchName: '',
     reason: ''
@@ -65,8 +67,14 @@ export default function PurchaseOrder () {
 
   const filtered = pos.filter(po => {
     const poNum = po.poNumber || po.id
-    return poNum.toLowerCase().includes(query.toLowerCase()) || 
-    po.supplier.toLowerCase().includes(query.toLowerCase())
+    const matchesQuery = poNum.toLowerCase().includes(query.toLowerCase()) || 
+      (po.supplier && po.supplier.toLowerCase().includes(query.toLowerCase()))
+    
+    const matchesStatus = !filterStatus || po.status === filterStatus
+    const matchesOrderBy = !filterOrderBy || po.orderType === filterOrderBy
+    const matchesSupplier = !filterSupplier || (po.supplier && po.supplier.toLowerCase().includes(filterSupplier.toLowerCase()))
+    
+    return matchesQuery && matchesStatus && matchesOrderBy && matchesSupplier
   })
 
   // ===== FETCH BRANCHES, CATEGORIES, AND ITEMS =====
@@ -388,6 +396,51 @@ export default function PurchaseOrder () {
                     </div>
                     <button className="btn-new-po" onClick={handleNewPO}>
                       + New Purchase Order
+                    </button>
+                  </div>
+                  
+                  {/* Filter Section */}
+                  <div className="po-filters">
+                    <div className="filter-group">
+                      <label className="filter-label">Order Status:</label>
+                      <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="filter-select">
+                        <option value="">All Status</option>
+                        <option value="Pending">Pending</option>
+                        <option value="Received">Received</option>
+                        <option value="Cancelled">Cancelled</option>
+                      </select>
+                    </div>
+                    
+                    <div className="filter-group">
+                      <label className="filter-label">Order By:</label>
+                      <select value={filterOrderBy} onChange={e => setFilterOrderBy(e.target.value)} className="filter-select">
+                        <option value="">All Types</option>
+                        <option value="Supplier">Supplier</option>
+                        <option value="Branch">Branch</option>
+                      </select>
+                    </div>
+                    
+                    <div className="filter-group">
+                      <label className="filter-label">Supplier:</label>
+                      <input 
+                        type="text"
+                        placeholder="Filter by supplier..."
+                        value={filterSupplier}
+                        onChange={e => setFilterSupplier(e.target.value)}
+                        className="filter-input"
+                      />
+                    </div>
+                    
+                    <button 
+                      className="btn-clear-filters"
+                      onClick={() => {
+                        setFilterStatus('')
+                        setFilterOrderBy('')
+                        setFilterSupplier('')
+                        setQuery('')
+                      }}
+                    >
+                      Clear Filters
                     </button>
                   </div>
                 </header>
@@ -725,11 +778,12 @@ export default function PurchaseOrder () {
                     <button type="button" className="modal-btn-inventory cancel" onClick={() => {
                       if (!selected) return
                       const today = new Date().toISOString().split('T')[0]
+                      const username = localStorage.getItem('username') || ''
+                      const branchName = userBranchName || localStorage.getItem('branchName') || 'Main Branch'
                       setCancelForm({
-                        deletedBy: '',
-                        contactNumber: '',
+                        deletedBy: username,
                         deletedDate: today,
-                        branchName: selected.branch || '',
+                        branchName: branchName,
                         reason: ''
                       })
                       setOpenView(false)
@@ -968,7 +1022,7 @@ export default function PurchaseOrder () {
               <span className="modal-item-id-inventory">{selected.poNumber || selected.id}</span>
               <span className={`po-detail-badge ${selected.status === 'Pending' ? 'pending' : (selected.status === 'Cancelled' ? 'cancelled' : 'received')}`}>{selected.status}</span>
             </div>
-            <form onSubmit={(e) => {
+            <form onSubmit={async (e) => {
               e.preventDefault()
               
               // Update the PO status to Cancelled and store deletion details
@@ -977,21 +1031,42 @@ export default function PurchaseOrder () {
                 status: 'Cancelled',
                 deleted: {
                   by: cancelForm.deletedBy,
-                  contact: cancelForm.contactNumber,
-                  date: cancelForm.deletedDate,
                   branchName: cancelForm.branchName,
+                  date: cancelForm.deletedDate,
                   reason: cancelForm.reason
                 }
               }
               
-              // Update the PO list
-              setPos(prev => prev.map(p => p.id === selected.id ? updated : p))
-              
-              // Update selected reference
-              setSelected(updated)
-              
-              // Close the cancel modal
-              setOpenCancel(false)
+              try {
+                // Send cancel request to backend API
+                const response = await fetch(`http://localhost:5000/api/purchase-orders/${selected.poNumber}/cancel`, {
+                  method: 'PATCH',
+                  headers: {
+                    'Content-Type': 'application/json'
+                  },
+                  body: JSON.stringify(updated.deleted)
+                })
+                
+                const result = await response.json()
+                
+                if (result.success) {
+                  // Update the PO list
+                  setPos(prev => prev.map(p => (p.poNumber === selected.poNumber || p.id === selected.id) ? updated : p))
+                  
+                  // Update selected reference
+                  setSelected(updated)
+                  
+                  alert('Purchase Order cancelled successfully')
+                  
+                  // Close the cancel modal
+                  setOpenCancel(false)
+                } else {
+                  alert('Error cancelling purchase order: ' + (result.message || 'Unknown error'))
+                }
+              } catch (error) {
+                console.error('Error:', error)
+                alert('Error cancelling purchase order: ' + error.message)
+              }
             }} className="modal-form-inventory">
               <div className="form-layout-inventory">
                 <div className="form-group-inventory">
@@ -1000,23 +1075,14 @@ export default function PurchaseOrder () {
                   {cancelErrors.deletedBy && <div className="field-error">{cancelErrors.deletedBy}</div>}
                 </div>
                 <div className="form-group-inventory">
-                  <label className="form-label-inventory">Contact Number</label>
-                  <input className="form-input-inventory" value={cancelForm.contactNumber} onChange={e => updateCancelForm('contactNumber', e.target.value)} placeholder="" aria-invalid={!!cancelErrors.contactNumber} />
-                  {cancelErrors.contactNumber && <div className="field-error">{cancelErrors.contactNumber}</div>}
+                  <label className="form-label-inventory">Branch Name</label>
+                  <input className="form-input-inventory" type="text" value={cancelForm.branchName} readOnly placeholder="Auto-filled" aria-invalid={!!cancelErrors.branchName} />
+                  {cancelErrors.branchName && <div className="field-error">{cancelErrors.branchName}</div>}
                 </div>
                 <div className="form-group-inventory">
                   <label className="form-label-inventory">Deleted Date</label>
                   <input className="form-input-inventory" type="date" value={cancelForm.deletedDate} onChange={e => updateCancelForm('deletedDate', e.target.value)} aria-invalid={!!cancelErrors.deletedDate} />
                   {cancelErrors.deletedDate && <div className="field-error">{cancelErrors.deletedDate}</div>}
-                </div>
-                <div className="form-group-inventory">
-                  <label className="form-label-inventory">Branch Name</label>
-                  <select className="form-input-inventory" value={cancelForm.branchName} onChange={e => updateCancelForm('branchName', e.target.value)} aria-invalid={!!cancelErrors.branchName}>
-                    <option value="">Select Branch</option>
-                    <option value="Colombo">Colombo</option>
-                    <option value="Kandy">Kandy</option>
-                  </select>
-                  {cancelErrors.branchName && <div className="field-error">{cancelErrors.branchName}</div>}
                 </div>
               </div>
               <div className="form-group-inventory">
