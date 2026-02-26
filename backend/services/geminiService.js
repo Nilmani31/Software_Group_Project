@@ -39,12 +39,17 @@ IMPORTANT:
 - Use emojis and formatting for clarity
 - If unsure which function to call, ask the user for clarification
 - For stock operations, always ask for quantity if not provided
+- For "goods received" without specific item name, show all recent GRNs
+- For "low stock" queries combined with "purchase order", suggest checking both low stock items and pending orders
 
 Examples:
 - "Do we have coffee?" → Call checkStock("coffee")
 - "Add 50 units of milk" → Call addStock("milk", 50)
 - "What's our low stock?" → Call getLowStockItems()
-- "Show pending orders" → Call getPendingPurchaseOrders()`;
+- "Show pending orders" → Call getPendingPurchaseOrders()
+- "Show goods received" → Call viewGoodsReceived() to see recent GRNs
+- "Goods received for coffee?" → Call checkGoodsReceivedItem("coffee")
+- "Low stock items to purchase?" → Call getLowStockItems() followed by viewAllPurchaseOrders()`;
     }
 
     async chat(userMessage) {
@@ -133,14 +138,16 @@ Examples:
         const functions = [];
         const lowerMsg = userMessage.toLowerCase();
 
-        // Keywords mapping
+        // Keywords mapping - Order matters! More specific patterns first
         const functionMap = {
+            'pending order|pending purchase': { name: 'getPendingPurchaseOrders', extract: null },
+            'purchase order|purchase\\s+order': { name: 'viewAllPurchaseOrders', extract: null },
             'low stock|low on|running low|critical stock|reorder': { name: 'getLowStockItems', extract: null },
             'check stock|available|how much|do we have': { name: 'checkStock', extract: 'itemName' },
             'add stock|add to|add \\d+': { name: 'addStock', extract: 'itemName,quantity' },
             'remove stock|use|remove \\d+': { name: 'removeStock', extract: 'itemName,quantity' },
-            'goods received|grn|received items': { name: 'checkGoodsReceivedItem', extract: 'itemName' },
-            'purchase order|purchase|order|pending order': { name: 'viewAllPurchaseOrders', extract: null }
+            'goods received items|grn items|received items': { name: 'viewGoodsReceived', extract: null },
+            'goods received|grn|show received': { name: 'checkGoodsReceivedItem', extract: 'itemName' }
         };
 
         // Check which functions are mentioned
@@ -148,10 +155,19 @@ Examples:
             const pattern = new RegExp(keywords, 'i');
             if (pattern.test(lowerMsg)) {
                 const params = this.extractParametersLocally(userMessage, funcInfo.name);
-                functions.push({
-                    name: funcInfo.name,
-                    params
-                });
+                
+                // Special handling: if checkGoodsReceivedItem and no itemName found, use viewGoodsReceived instead
+                if (funcInfo.name === 'checkGoodsReceivedItem' && !params.itemName) {
+                    functions.push({
+                        name: 'viewGoodsReceived',
+                        params: {}
+                    });
+                } else {
+                    functions.push({
+                        name: funcInfo.name,
+                        params
+                    });
+                }
                 break; // Execute first matching function
             }
         }
