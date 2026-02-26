@@ -159,8 +159,11 @@ const IssueNote = () => {
         fetchUsers()
       ]);
       
-      // Get current user from localStorage
-      const user = JSON.parse(localStorage.getItem('user') || '{"_id": "temp-user-id", "name": "Current User"}');
+      // Get current user from localStorage (stored as individual fields in Login.jsx)
+      const user = {
+        _id: localStorage.getItem('userId') || 'temp-user-id',
+        name: localStorage.getItem('username') || 'Current User'
+      };
       setCurrentUser(user);
       
       setLoading(false);
@@ -1151,6 +1154,10 @@ const IssueNote = () => {
 
       const responseText = await response.text();
       console.log("API Response:", responseText);
+
+      if (!responseText) {
+        throw new Error("Empty response from server");
+      }
 
       let data;
       try {

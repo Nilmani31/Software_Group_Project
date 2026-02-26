@@ -20,6 +20,34 @@ const stockSchema = new mongoose.Schema({
     type: Number,
     required: true,
     default: 0,
+    min: 0,
+  },
+  minStock: {
+    type: Number,
+    required: false,
+    default: 0,
+    min: 0,
+  },
+  maxStock: {
+    type: Number,
+    required: false,
+    default: 100,
+    min: 0,
+  },
+  reorderLevel: {
+    type: Number,
+    required: false,
+    default: 0,
+    min: 0,
+  },
+  status: {
+    type: String,
+    enum: ['in-stock', 'low', 'critical', 'out-of-stock'],
+    default: 'in-stock',
+  },
+  lastRestockDate: {
+    type: Date,
+    default: null,
   },
   minStockLevel: {
     type: Number,
@@ -57,5 +85,8 @@ stockSchema.pre('save', function(next) {
   this.updatedAt = Date.now();
   next();
 });
+
+// Compound index to ensure unique stock per item unit per branch
+stockSchema.index({ itemId: 1, itemUnitId: 1, branchId: 1 }, { unique: true });
 
 module.exports = mongoose.model('Stock', stockSchema);

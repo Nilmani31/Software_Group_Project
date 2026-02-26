@@ -1,4 +1,4 @@
-const PurchaseOrder = require('../models/purchaseOrders');
+const PurchaseOrder = require('../models/purchaseOrder');
 
 // Get all purchase orders
 exports.getAllPOs = async (req, res) => {

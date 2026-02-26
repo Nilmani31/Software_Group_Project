@@ -7,6 +7,34 @@ import './PurchaseOrder.css'
 
 const samplePOs = []
 
+// Format date to readable format (YYYY/MM/DD only, no time)
+const formatDate = (dateString) => {
+  if (!dateString) return '-'
+  try {
+    // Remove time portion if present (handle ISO format like "2026-02-26T00:00:00.000Z")
+    const dateOnly = dateString.split('T')[0]
+    
+    // If it's YYYY-MM-DD format, convert to YYYY/MM/DD
+    if (dateOnly.includes('-')) {
+      return dateOnly.replace(/-/g, '/')
+    }
+    
+    // If it's already YYYY/MM/DD format, return as-is
+    if (dateOnly.includes('/')) {
+      return dateOnly
+    }
+    
+    // Fallback: parse as date object
+    const date = new Date(dateString)
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    return `${year}/${month}/${day}`
+  } catch (e) {
+    return dateString
+  }
+}
+
 export default function PurchaseOrder () {
   // ===== MAIN STATE =====
   const [pos, setPos] = useState(samplePOs)
@@ -482,11 +510,11 @@ export default function PurchaseOrder () {
                             </div>
                             <div className="info-col">
                               <div className="info-label">Order Date</div>
-                              <div className="info-val">{po.orderDate}</div>
+                              <div className="info-val">{formatDate(po.orderDate)}</div>
                             </div>
                             <div className="info-col">
                               <div className="info-label">Expected Date</div>
-                              <div className="info-val">{po.expectedDate}</div>
+                              <div className="info-val">{formatDate(po.expectedDate)}</div>
                             </div>
                             <div className="info-col">
                               <div className="info-label">Created By</div>
@@ -495,9 +523,15 @@ export default function PurchaseOrder () {
                           </div>
 
                           <div className="po-items">
-                            {po.items.map((it, i) => (
-                              <span className="pill" key={i}>{it}</span>
-                            ))}
+                            {Array.isArray(po.items) ? (
+                              po.items.map((it, i) => (
+                                <span className="pill" key={i}>{it}</span>
+                              ))
+                            ) : po.items && typeof po.items === 'object' ? (
+                              Object.values(po.items).map((it, i) => (
+                                <span className="pill" key={i}>{it}</span>
+                              ))
+                            ) : null}
                           </div>
                         </div>
                       ))}
@@ -733,11 +767,11 @@ export default function PurchaseOrder () {
                 )}
                 <div>
                   <span className="po-detail-label order-date">ORDER DATE</span>
-                  <div>{selected.orderDate}</div>
+                  <div>{formatDate(selected.orderDate)}</div>
                 </div>
                 <div>
                   <span className="po-detail-label expected-date">EXPECTED DATE</span>
-                  <div>{selected.expectedDate}</div>
+                  <div>{formatDate(selected.expectedDate)}</div>
                 </div>
                 <div>
                   <span className="po-detail-label created-by">CREATED BY</span>
@@ -759,7 +793,7 @@ export default function PurchaseOrder () {
                     </tr>
                   </thead>
                   <tbody>
-                    {selected.items.map((it, i) => {
+                    {(Array.isArray(selected.items) ? selected.items : Object.values(selected.items || {})).map((it, i) => {
                       const parts = it.split(' x ')
                       return (
                         <tr key={i}>

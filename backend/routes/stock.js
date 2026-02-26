@@ -65,4 +65,65 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
+// GET stock by item name (for chat assistant)
+router.get('/search/byname', async (req, res) => {
+  try {
+    const { itemName, branchId } = req.query;
+    
+    if (!itemName) {
+      return res.status(400).json({ error: 'Item name is required' });
+    }
+
+    const Item = require('../models/items');
+    
+    // Search for items by name (case-insensitive)
+    const items = await Item.find({ 
+      name: { $regex: itemName, $options: 'i' } 
+    });
+
+    if (!items || items.length === 0) {
+      return res.json({ 
+        found: false, 
+        message: `No items found matching "${itemName}"` 
+      });
+    }
+
+    // Get stock info for each found item
+    const stockInfo = [];
+    for (const item of items) {
+      let query = { itemId: item._id };
+      if (branchId) {
+        query.branchId = branchId;
+      }
+      
+      const stocks = await Stock.find(query)
+        .populate('branchId', 'branchName')
+        .populate('itemUnitId', 'unitName');
+
+      stockInfo.push({
+        itemId: item._id,
+        itemName: item.name,
+        sku: item.sku,
+        description: item.description,
+        stocks: stocks.map(s => ({
+          branchId: s.branchId?._id,
+          branchName: s.branchId?.branchName || 'Unknown Branch',
+          quantity: s.quantity,
+          minStock: s.minStock,
+          maxStock: s.maxStock,
+          status: s.status,
+          unitName: s.itemUnitId?.unitName || 'Unit'
+        }))
+      });
+    }
+
+    res.json({
+      found: true,
+      results: stockInfo
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;

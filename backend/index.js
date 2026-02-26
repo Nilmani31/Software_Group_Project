@@ -14,7 +14,8 @@ require('./models/stock');
 require('./models/suppliers');
 require('./models/issueNotes');
 require('./models/issueNoteItems');
-require('./models/purchaseOrders');
+require('./models/purchaseOrder');
+require('./models/goodsReceived');
 
 const Userrouter = require('./routes/users');
 const rolesRouter = require('./routes/roles');
@@ -25,6 +26,7 @@ const suppliersRouter = require('./routes/suppliers');
 const stockRouter = require('./routes/stock');
 const issueNotesRouter = require('./routes/issueNotes');
 const purchaseOrdersRouter = require('./routes/purchaseOrders');
+const chatRoutes = require('./routes/chat');
 
 
 
@@ -81,6 +83,18 @@ app.get('/api/health', (req, res) => {
 
 
 
+// Routes - Register BEFORE app.listen()
+app.use('/api/users', Userrouter);
+app.use('/api/roles', rolesRouter);
+app.use('/api/items', itemsRouter);
+app.use('/api/categories', categoriesRouter);
+app.use('/api/branches', BranchRouter);
+app.use('/api/suppliers', suppliersRouter);
+app.use('/api/stock', stockRouter);
+app.use('/api/purchase-orders', purchaseOrdersRouter);
+app.use('/api/issue-notes', issueNotesRouter);
+app.use('/api/chat', chatRoutes);
+
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error('Error:', err.stack);
@@ -90,25 +104,11 @@ app.use((err, req, res, next) => {
   });
 });
 
-
-
-
-
 app.listen(PORT, () => {
   console.log(`🚀 Server is running on port ${PORT}`);
   console.log(`📱 Frontend URL: http://localhost:3000`);
   console.log(`🔗 Backend URL: http://localhost:${PORT}`);
 });
-// Routes
-app.use('/api/users', Userrouter);
-app.use('/api/roles', rolesRouter);
-app.use('/api/items', itemsRouter);
-app.use('/api/categories', categoriesRouter);
-app.use('/api/branches', BranchRouter);
-app.use('/api/suppliers', suppliersRouter);
-app.use('/api/stock', stockRouter);
-app.use('/api/issue-notes', issueNotesRouter);
-app.use('/api/purchase-orders', purchaseOrdersRouter);
 
 
 
