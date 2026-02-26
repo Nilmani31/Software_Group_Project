@@ -14,6 +14,7 @@ require('./models/stock');
 require('./models/suppliers');
 require('./models/issueNotes');
 require('./models/issueNoteItems');
+require('./models/purchaseOrders');
 
 const Userrouter = require('./routes/users');
 const rolesRouter = require('./routes/roles');
@@ -23,6 +24,7 @@ const BranchRouter = require('./routes/branches');
 const suppliersRouter = require('./routes/suppliers');
 const stockRouter = require('./routes/stock');
 const issueNotesRouter = require('./routes/issueNotes');
+const purchaseOrdersRouter = require('./routes/purchaseOrders');
 
 
 
@@ -106,6 +108,7 @@ app.use('/api/branches', BranchRouter);
 app.use('/api/suppliers', suppliersRouter);
 app.use('/api/stock', stockRouter);
 app.use('/api/issue-notes', issueNotesRouter);
+app.use('/api/purchase-orders', purchaseOrdersRouter);
 
 
 

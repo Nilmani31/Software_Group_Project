@@ -1309,18 +1309,43 @@ body {
   padding-right: 24px;
 }
 
+/* Remove all dropdown marks from form inputs in modal */
+.purchase-order-page .modal-content-inventory input.form-input-inventory {
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  -moz-appearance: none !important;
+  background-image: none !important;
+  background-color: white;
+}
+
+.purchase-order-page .modal-content-inventory select.form-input-inventory {
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  -moz-appearance: none !important;
+  background-image: none !important;
+  padding-right: 12px;
+  cursor: pointer;
+}
+
+.purchase-order-page .modal-content-inventory textarea.form-input-inventory {
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  -moz-appearance: none !important;  
+  background-image: none !important;
+}
+
 /* Ensure phone input shows no dropdown icon */
 .purchase-order-page .modal-content-inventory input[type=tel].form-input-inventory {
   background-image: none !important;
 }
 
-/* Show calendar picker for dates */
+/* Hide calendar picker for dates */
 .purchase-order-page .modal-content-inventory input[type=date].form-input-inventory {
-  appearance: auto; -webkit-appearance: auto; -moz-appearance: auto;
+  appearance: none; -webkit-appearance: none; -moz-appearance: none;
   background-image: none !important;
 }
 .purchase-order-page .modal-content-inventory input[type=date].form-input-inventory::-webkit-calendar-picker-indicator {
-  display: inline-block;
+  display: none;
 }
 
 /* Allow number spinners (for quantity etc.) */

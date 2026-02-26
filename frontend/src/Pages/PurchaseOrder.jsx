@@ -12,6 +12,7 @@ export default function PurchaseOrder () {
   const [pos, setPos] = useState(samplePOs)
   const [query, setQuery] = useState('')
   const [branches, setBranches] = useState([])
+  const [userBranchName, setUserBranchName] = useState('')
   const [categories, setCategories] = useState([])
   const [itemsWithStock, setItemsWithStock] = useState([])
   const [selectedItemForCreate, setSelectedItemForCreate] = useState(null)
@@ -62,10 +63,11 @@ export default function PurchaseOrder () {
   const [cancelErrors, setCancelErrors] = useState({})
   const updateCancelForm = (key, val) => setCancelForm(prev => ({ ...prev, [key]: val }))
 
-  const filtered = pos.filter(po => 
-    po.id.toLowerCase().includes(query.toLowerCase()) || 
+  const filtered = pos.filter(po => {
+    const poNum = po.poNumber || po.id
+    return poNum.toLowerCase().includes(query.toLowerCase()) || 
     po.supplier.toLowerCase().includes(query.toLowerCase())
-  )
+  })
 
   // ===== FETCH BRANCHES, CATEGORIES, AND ITEMS =====
   useEffect(() => {
@@ -82,6 +84,26 @@ export default function PurchaseOrder () {
         }
         setBranches(branchData);
 
+        // Get user's branch name from localStorage branchId
+        const userBranchId = localStorage.getItem('branchId');
+        if (userBranchId && branchData.length > 0) {
+          // Find the branch matching the user's branchId
+          const userBranch = branchData.find(b => {
+            // Try different possible ID field names
+            return b._id === userBranchId || 
+                   String(b._id) === String(userBranchId) ||
+                   b.branchId === userBranchId ||
+                   String(b.branchId) === String(userBranchId) ||
+                   b.id === userBranchId ||
+                   String(b.id) === String(userBranchId);
+          });
+          
+          if (userBranch) {
+            const branchName = userBranch.name || userBranch.branchName || userBranch.branch_name || '';
+            setUserBranchName(branchName);
+          }
+        }
+
         // Fetch categories
         const catRes = await fetch('http://localhost:5000/api/categories');
         const catData = await catRes.json();
@@ -95,6 +117,15 @@ export default function PurchaseOrder () {
         if (Array.isArray(itemData)) {
           setItemsWithStock(itemData);
         }
+
+        // Fetch purchase orders from backend
+        const poRes = await fetch('http://localhost:5000/api/purchase-orders');
+        const poData = await poRes.json();
+        if (poData.success && Array.isArray(poData.data)) {
+          setPos(poData.data);
+        } else if (Array.isArray(poData)) {
+          setPos(poData);
+        }
       } catch (err) {
         console.error('Error fetching data:', err);
       }
@@ -105,12 +136,14 @@ export default function PurchaseOrder () {
   // ===== HANDLE NEW PO =====
   const generatePONumber = () => {
     const year = new Date().getFullYear()
-    const existingIds = new Set(pos.map(p => p.id))
+    const existingIds = new Set(pos.map(p => p.poNumber || p.id))
     const pattern = new RegExp(`^PO-${year}-\\d{3}$`)
     
     const takenNumbers = pos
       .map(p => {
-        const m = p.id.match(new RegExp(`^PO-${year}-(\\d{3})$`))
+        // Support both old 'id' and new 'poNumber' field names
+        const poNum = p.poNumber || p.id
+        const m = poNum.match(new RegExp(`^PO-${year}-(\\d{3})$`))
         return m ? parseInt(m[1], 10) : null
       })
       .filter(n => n !== null)
@@ -123,26 +156,6 @@ export default function PurchaseOrder () {
 
   const handleNewPO = () => {
     const autoNumber = generatePONumber()
-    // Get user's branch from localStorage
-    const userBranchId = localStorage.getItem('branchId')
-    let userBranchName = ''
-    
-    console.log('User Branch ID from localStorage:', userBranchId)
-    console.log('Available branches:', branches)
-    
-    // Find the branch name from the branches list
-    if (userBranchId && branches.length > 0) {
-      const userBranch = branches.find(b => {
-        const bId = String(b._id || b.id)
-        const uId = String(userBranchId)
-        console.log('Comparing:', { bId, uId, match: bId === uId })
-        return bId === uId
-      })
-      console.log('Found user branch:', userBranch)
-      userBranchName = userBranch ? (userBranch.name || userBranch.branchName || '') : ''
-    }
-    
-    console.log('Final user branch name:', userBranchName)
     setPoForm(prev => ({ ...prev, poNumber: autoNumber, createdByBranch: userBranchName }))
     setSelectedBranchRow(null)
     setOpenCreate(true)
@@ -259,10 +272,25 @@ export default function PurchaseOrder () {
     setEditCart(prev => prev.filter((_, i) => i !== index))
   }
 
-  const submitPO = (e) => {
+  const submitPO = async (e) => {
     e.preventDefault()
+    
+    // Validate form is filled
+    if (!poForm.orderBy) {
+      alert('Please select Order By (Supplier or Branch)')
+      return
+    }
+    if (!poForm.orderDate) {
+      alert('Please select Order Date')
+      return
+    }
+    if (cart.length === 0) {
+      alert('Please add items to the cart')
+      return
+    }
+    
     // Use the auto-generated PO number from form
-    const id = poForm.poNumber || generatePONumber()
+    const poNumber = poForm.poNumber || generatePONumber()
     
     // Store items as simple format
     const items = cart.map(ci => `${ci.item} x ${ci.qty}`)
@@ -270,9 +298,20 @@ export default function PurchaseOrder () {
     
     // Get logged-in user info
     const username = localStorage.getItem('username') || 'Admin User'
+    const branchName = userBranchName || localStorage.getItem('branchName') || 'Main Branch'
+    
+    // Validate required fields
+    if (!username) {
+      alert('Error: User not logged in properly')
+      return
+    }
+    if (!branchName) {
+      alert('Error: User branch not found')
+      return
+    }
     
     const newPO = {
-      id,
+      poNumber,
       status: 'Pending',
       supplier: poForm.orderBy === 'Supplier' ? (poForm.supplierName || '') : '',
       branch: poForm.orderBy === 'Branch' ? (poForm.branch || '') : '',
@@ -280,7 +319,7 @@ export default function PurchaseOrder () {
       expectedDate: poForm.expectedDate || '',
       total,
       createdBy: username,
-      createdByBranch: poForm.createdByBranch || '',
+      createdByBranch: branchName,
       items,
       orderType: poForm.orderBy,
       orderDetails: {
@@ -289,14 +328,37 @@ export default function PurchaseOrder () {
         branch: poForm.branch
       }
     }
-    setPos(prev => [newPO, ...prev])
-    // Reset form and cart
-    setSelectedBranchRow(null)
-    setPoForm({ poNumber: '', orderBy: 'Supplier', supplierName: '', phone: '', branch: '', orderDate: '', expectedDate: '', createdByBranch: '' })
-    setCart([])
-    setCartVisible(false)
-    setLine({ category: '', item: '', qty: '', branch: '' })
-    setOpenCreate(false)
+    
+    console.log('Sending PO:', newPO)
+    
+    try {
+      // Send PO to backend API
+      const response = await fetch('http://localhost:5000/api/purchase-orders', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(newPO)
+      })
+      
+      const result = await response.json()
+      
+      if (result.success) {
+        setPos(prev => [newPO, ...prev])
+        // Reset form and cart
+        setSelectedBranchRow(null)
+        setPoForm({ poNumber: '', orderBy: 'Supplier', supplierName: '', phone: '', branch: '', orderDate: '', expectedDate: '', createdByBranch: '' })
+        setCart([])
+        setCartVisible(false)
+        setLine({ category: '', item: '', qty: '', branch: '' })
+        setOpenCreate(false)
+      } else {
+        alert('Error creating purchase order: ' + (result.message || 'Unknown error'))
+      }
+    } catch (error) {
+      console.error('Error:', error)
+      alert('Error creating purchase order: ' + error.message)
+    }
   }
 
   // ===== RENDER =====
@@ -339,9 +401,9 @@ export default function PurchaseOrder () {
                   ) : (
                     <div className="po-list">
                       {filtered.map((po, idx) => (
-                        <div className={`po-card ${idx === 0 ? 'selected' : ''}`} key={po.id}>
+                        <div className={`po-card ${idx === 0 ? 'selected' : ''}`} key={po.poNumber || po.id}>
                           <div className="po-row top">
-                            <div className="po-id">{po.id}</div>
+                            <div className="po-id">{po.poNumber || po.id}</div>
                             <div className={`po-badge ${po.status === 'Pending' ? 'pending' : (po.status === 'Cancelled' ? 'cancelled' : 'received')}`}>
                               {po.status}
                             </div>
@@ -349,10 +411,18 @@ export default function PurchaseOrder () {
                           </div>
 
                           <div className="po-row info">
-                            <div className="info-col">
-                              <div className="info-label">Supplier</div>
-                              <div className="info-val">{po.supplier}</div>
-                            </div>
+                            {po.orderType === 'Supplier' && (
+                              <>
+                                <div className="info-col">
+                                  <div className="info-label">Supplier</div>
+                                  <div className="info-val">{po.supplier || po.orderDetails?.supplierName}</div>
+                                </div>
+                                <div className="info-col">
+                                  <div className="info-label">Phone</div>
+                                  <div className="info-val">{po.orderDetails?.phone}</div>
+                                </div>
+                              </>
+                            )}
                             <div className="info-col">
                               <div className="info-label">Created Branch</div>
                               <div className="info-val">{po.createdByBranch || po.branch}</div>
@@ -552,7 +622,17 @@ export default function PurchaseOrder () {
                         <input type="tel" value={poForm.phone} onChange={e => updateForm('phone', e.target.value)} placeholder="07x xxx xxxx" className="form-input-inventory" />
                       </div>
                     </>
-                  ) : null}
+                  ) : (
+                    <div className="form-group-inventory">
+                      <label className="form-label-inventory">Branch</label>
+                      <select value={poForm.branch} onChange={e => updateForm('branch', e.target.value)} className="form-input-inventory">
+                        <option value="">Select Branch</option>
+                        {branches.map(b => (
+                          <option key={b._id} value={b.name || b.branchName}>{b.name || b.branchName}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                   <div className="form-group-inventory">
                     <label className="form-label-inventory">Order Date</label>
                     <input type="date" value={poForm.orderDate} onChange={e => updateForm('orderDate', e.target.value)} className="form-input-inventory" />
@@ -588,7 +668,7 @@ export default function PurchaseOrder () {
             </div>
             <div className="modal-body-inventory">
               <div className="po-detail-number-row">
-                <span className="po-detail-number">{selected.id}</span>
+                <span className="po-detail-number">{selected.poNumber || selected.id}</span>
                 <span className={`po-detail-badge ${selected.status === 'Pending' ? 'pending' : (selected.status === 'Cancelled' ? 'cancelled' : 'received')}`}>{selected.status}</span>
               </div>
               <div className="po-detail-info-grid">
@@ -659,7 +739,7 @@ export default function PurchaseOrder () {
                       // Prepare edit form from selected and open edit modal
                       if (!selected) return
                       setEditForm({
-                        poNumber: selected.id,
+                        poNumber: selected.poNumber || selected.id,
                         orderBy: selected.orderType || 'Supplier',
                         supplierName: selected.supplier || '',
                         phone: selected.orderDetails?.phone || '',
@@ -724,7 +804,7 @@ export default function PurchaseOrder () {
                     branch: editForm.branch
                   }
                 }
-                setPos(prev => prev.map(p => p.id === selected.id ? updated : p))
+                setPos(prev => prev.map(p => (p.poNumber || p.id) === (selected.poNumber || selected.id) ? updated : p))
                 setSelected(updated)
                 setOpenEdit(false)
                 setOpenView(true)
@@ -885,7 +965,7 @@ export default function PurchaseOrder () {
             </div>
             <div className="modal-body-inventory">
             <div className="modal-id-section-inventory">
-              <span className="modal-item-id-inventory">{selected.id}</span>
+              <span className="modal-item-id-inventory">{selected.poNumber || selected.id}</span>
               <span className={`po-detail-badge ${selected.status === 'Pending' ? 'pending' : (selected.status === 'Cancelled' ? 'cancelled' : 'received')}`}>{selected.status}</span>
             </div>
             <form onSubmit={(e) => {
