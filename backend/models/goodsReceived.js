@@ -10,6 +10,7 @@ const goodsReceivedSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'PurchaseOrder'
     },
+    branch: String,
     items: [{
         itemId: String,
         itemName: String,

@@ -71,7 +71,8 @@ exports.createGRN = async (req, res) => {
       receivedDate,
       receivedBy,
       poNumber,
-      supplierName
+      supplierName,
+      branch
     } = req.body;
 
     // Validate items array
@@ -90,6 +91,7 @@ exports.createGRN = async (req, res) => {
     const newGRN = new GoodsReceived({
       grnNumber,
       purchaseOrderId,
+      branch: branch || '',
       items: items.map(item => ({
         itemId: item.itemId || '',
         itemName: item.itemName || '',
@@ -122,7 +124,7 @@ exports.createGRN = async (req, res) => {
       }
     }
 
-    // Update PO status if PO number is provided
+    // Update PO status to Received if PO number is provided
     if (poNumber) {
       try {
         await PurchaseOrder.findOneAndUpdate(
@@ -130,6 +132,7 @@ exports.createGRN = async (req, res) => {
           { status: 'Received' },
           { new: true }
         );
+        console.log(`Updated PO ${poNumber} status to Received`);
       } catch (poErr) {
         console.error(`Failed to update PO status for ${poNumber}:`, poErr.message);
       }
