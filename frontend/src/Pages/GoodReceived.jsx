@@ -462,7 +462,7 @@ export default function GoodReceived() {
                       <option value="">-- Select Purchase Order --</option>
                       {poList && poList.length > 0 ? (
                         poList
-                          .filter(po => po.status !== 'Cancelled')
+                          .filter(po => po.status === 'Pending')
                           .map((po, idx) => {
                             const orderType = po.orderType || po.orderBy || 'Supplier';
                             const displayName = orderType === 'Branch' 
@@ -476,7 +476,7 @@ export default function GoodReceived() {
                             );
                           })
                       ) : (
-                        <option disabled>No purchase orders available</option>
+                        <option disabled>No pending purchase orders available</option>
                       )}
                     </select>
                   </div>

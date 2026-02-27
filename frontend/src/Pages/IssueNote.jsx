@@ -12,122 +12,56 @@ const IssueNote = () => {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState(null);
-  const [oldIssueNotes] = useState([
-    {
-      id: 1,
-      issueNumber: "ISS-2025-001",
-      issueType: "Branch Transfer",
-      issuedTo: "CBBS Kandy Branch",
-      issueDate: "2025-10-12",
-      issuedBy: "Admin User",
-      status: "Completed",
-      itemCount: 2,
-      quantity: 45,
-      items: [
-        { id: 1, name: "Arabica Coffee Beans", qty: "12", availableQty: 100, unit: "kg" },
-        { id: 2, name: "Highball Glasses", qty: "15", availableQty: 200, unit: "sets" }
-      ]
-    },
-    {
-      id: 2,
-      issueNumber: "ISS-2025-002",
-      issueType: "Training Transfer",
-      issuedTo: "Barista Level 1 - Batch Oct 2025",
-      issueDate: "2025-10-11",
-      issuedBy: "Staff User",
-      status: "Pending",
-      itemCount: 2,
-      quantity: 32,
-      items: [
-        { id: 3, name: "Arabica Coffee Beans", qty: "2", availableQty: 100, unit: "kg" },
-        { id: 4, name: "Training Manual - Barista Level 1", qty: "20", availableQty: 150, unit: "copies" }
-      ]
-    },
-    {
-      id: 3,
-      issueNumber: "ISS-2025-003",
-      issueType: "Stock Transfer",
-      issuedTo: "CBBS Colombo Branch",
-      issueDate: "2025-10-10",
-      issuedBy: "Manager User",
-      status: "Processing",
-      itemCount: 3,
-      quantity: 58,
-      items: [
-        { id: 5, name: "Coffee Filters", qty: "10", availableQty: 500, unit: "boxes" },
-        { id: 6, name: "Sugar Syrup", qty: "5", availableQty: 50, unit: "liters" },
-        { id: 7, name: "Espresso Cups", qty: "20", availableQty: 300, unit: "sets" }
-      ]
-    },
-    {
-      id: 4,
-      issueNumber: "ISS-2025-004",
-      issueType: "Branch Transfer",
-      issuedTo: "CBBS Galle Branch",
-      issueDate: "2025-10-09",
-      issuedBy: "Admin User",
-      status: "Completed",
-      itemCount: 4,
-      quantity: 72,
-      items: [
-        { id: 8, name: "Espresso Machine Parts", qty: "3", availableQty: 50, unit: "sets" },
-        { id: 9, name: "Grinding Beans", qty: "15", availableQty: 200, unit: "kg" },
-        { id: 10, name: "Milk Frother", qty: "2", availableQty: 30, unit: "units" },
-        { id: 11, name: "Coffee Tamper", qty: "6", availableQty: 100, unit: "units" }
-      ]
-    }
-  ]);
+  const [error, setError] = useState('');
 
-  const [branchRequests] = useState([
-    {
-      id: 101,
-      requestNumber: "BR-2025-001",
-      requestType: "Stock Request",
-      requestFrom: "CBBS Matara Branch",
-      requestDate: "2025-10-15",
-      requestedBy: "Branch Manager",
-      status: "Pending",
-      itemCount: 3,
-      quantity: 40,
-      items: [
-        { id: 12, name: "Espresso Beans", qty: "10", availableQty: 150, unit: "kg" },
-        { id: 13, name: "Milk", qty: "20", availableQty: 100, unit: "liters" },
-        { id: 14, name: "Sugar", qty: "10", availableQty: 200, unit: "kg" }
-      ]
-    },
-    {
-      id: 102,
-      requestNumber: "BR-2025-002",
-      requestType: "Equipment Request",
-      requestFrom: "CBBS Negombo Branch",
-      requestDate: "2025-10-14",
-      requestedBy: "Asst Manager",
-      status: "Approved",
-      itemCount: 2,
-      quantity: 25,
-      items: [
-        { id: 15, name: "Coffee Machine", qty: "1", availableQty: 10, unit: "unit" },
-        { id: 16, name: "Grinder Machine", qty: "1", availableQty: 8, unit: "unit" }
-      ]
-    },
-    {
-      id: 103,
-      requestNumber: "BR-2025-003",
-      requestType: "Stock Request",
-      requestFrom: "CBBS Jaffna Branch",
-      requestDate: "2025-10-13",
-      requestedBy: "Branch Staff",
-      status: "Processing",
-      itemCount: 4,
-      quantity: 55,
-      items: [
-        { id: 17, name: "Arabica Beans", qty: "15", availableQty: 300, unit: "kg" },
-        { id: 18, name: "Cups", qty: "100", availableQty: 500, unit: "pieces" },
-        { id: 19, name: "Napkins", qty: "500", availableQty: 2000, unit: "pieces" },
-        { id: 20, name: "Straws", qty: "1000", availableQty: 5000, unit: "pieces" }
-      ]
-    }
-  ]);
+  // Fetch issue notes from backend
+  useEffect(() => {
+    const fetchIssueNotes = async () => {
+      try {
+        setLoading(true);
+        setError('');
+        const response = await fetch('http://localhost:5000/api/issue-notes');
+        if (!response.ok) {
+          throw new Error('Failed to fetch issue notes');
+        }
+        const data = await response.json();
+        
+        // Transform backend data to match UI expectations - PRESERVE ALL FIELDS
+        const transformedData = Array.isArray(data) ? data.map(note => ({
+          // Keep all original backend fields
+          ...note,
+          // Add/override with frontend-friendly field names
+          _original: note, // Save original for API calls
+          issueNumber: note.issueNoteNumber,
+          issueType: note.purpose || 'Stock Transfer',
+          issuedTo: note.toBranchId?.branchName || 'Unknown',
+          issueDate: note.issueDate,
+          issuedBy: note.issuedBy?.name || 'System',
+          status: note.status === 'approved' ? 'Completed' : 
+                  note.status === 'pending' ? 'Pending' : 
+                  note.status === 'rejected' ? 'Rejected' :
+                  note.status || 'Pending',
+          itemCount: note.items?.length || 0,
+          quantity: note.items?.reduce((sum, item) => sum + (item.quantity || 0), 0) || 0,
+          items: note.items || [],
+          totalAmount: note.totalAmount,
+          remarks: note.remarks || '',
+          id: note._id // Add id for compatibility
+        })) : [];
+        
+        setIssueNotes(transformedData);
+        console.log('✅ Issue notes loaded:', transformedData);
+      } catch (err) {
+        console.error('❌ Error fetching issue notes:', err);
+        setError(err.message);
+        setIssueNotes([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchIssueNotes();
+  }, []);
 
   const [viewType, setViewType] = useState("list");
   const [activeTab, setActiveTab] = useState("issueNotes");
@@ -276,68 +210,13 @@ const IssueNote = () => {
   };
 
   // Category data with items
-  const [categories] = useState([
-    {
-      id: "coffee-supplies",
-      name: "☕ Coffee Supplies",
-      items: [
-        { id: 1, name: "Arabica Coffee Beans", unit: "kg", availableQty: 100 },
-        { id: 2, name: "Robusta Coffee Beans", unit: "kg", availableQty: 80 },
-        { id: 3, name: "Coffee Filters", unit: "boxes", availableQty: 500 },
-        { id: 4, name: "Ground Coffee", unit: "kg", availableQty: 60 },
-      ]
-    },
-    {
-      id: "glassware",
-      name: "🥤 Glassware & Cups",
-      items: [
-        { id: 2, name: "Highball Glasses", unit: "sets", availableQty: 200 },
-        { id: 6, name: "Espresso Cups", unit: "sets", availableQty: 300 },
-        { id: 21, name: "Coffee Mugs", unit: "sets", availableQty: 250 },
-        { id: 22, name: "Glass Jars", unit: "pieces", availableQty: 150 },
-      ]
-    },
-    {
-      id: "training-materials",
-      name: "📚 Training Materials",
-      items: [
-        { id: 3, name: "Training Manual - Barista Level 1", unit: "copies", availableQty: 150 },
-        { id: 23, name: "Training Manual - Barista Level 2", unit: "copies", availableQty: 120 },
-        { id: 24, name: "Certification Certificates", unit: "pieces", availableQty: 200 },
-        { id: 25, name: "Training Videos USB", unit: "pieces", availableQty: 50 },
-      ]
-    },
-    {
-      id: "equipment",
-      name: "⚙️ Equipment & Machines",
-      items: [
-        { id: 8, name: "Espresso Machine Parts", unit: "sets", availableQty: 50 },
-        { id: 26, name: "Coffee Machine", unit: "units", availableQty: 10 },
-        { id: 27, name: "Grinder Machine", unit: "units", availableQty: 8 },
-        { id: 10, name: "Milk Frother", unit: "units", availableQty: 30 },
-      ]
-    },
-    {
-      id: "syrups-sauces",
-      name: "🍯 Syrups & Sauces",
-      items: [
-        { id: 5, name: "Sugar Syrup", unit: "liters", availableQty: 50 },
-        { id: 28, name: "Vanilla Syrup", unit: "liters", availableQty: 40 },
-        { id: 29, name: "Caramel Syrup", unit: "liters", availableQty: 45 },
-        { id: 30, name: "Chocolate Sauce", unit: "liters", availableQty: 35 },
-      ]
-    },
-    {
-      id: "other-supplies",
-      name: "📦 Other Supplies",
-      items: [
-        { id: 9, name: "Grinding Beans", unit: "kg", availableQty: 200 },
-        { id: 11, name: "Coffee Tamper", unit: "units", availableQty: 100 },
-        { id: 31, name: "Napkins", unit: "boxes", availableQty: 500 },
-        { id: 32, name: "Straws", unit: "boxes", availableQty: 1000 },
-      ]
-    }
-  ]);
+  const [categories, setCategories] = useState([]);
+
+  // Fetch categories from backend if needed
+  useEffect(() => {
+    // Categories will be empty for now - can be populated from backend later
+    setCategories([]);
+  }, []);
 
   // Get available items based on selected category
   const getAvailableItems = () => {
@@ -345,7 +224,7 @@ const IssueNote = () => {
     return selectedCategory ? selectedCategory.items : [];
   };
 
-  const currentData = activeTab === "issueNotes" ? issueNotes : branchRequests;
+  const currentData = issueNotes;
 
   const getStatusIcon = (status) => {
     switch(status) {
@@ -1233,6 +1112,35 @@ const IssueNote = () => {
                 </button>
               </div>
 
+              {/* Error Message */}
+              {error && (
+                <div style={{
+                  padding: '16px',
+                  backgroundColor: '#fee',
+                  color: '#c00',
+                  borderRadius: '8px',
+                  marginBottom: '16px',
+                  border: '1px solid #fcc',
+                  fontSize: '14px'
+                }}>
+                  ❌ Error: {error}
+                </div>
+              )}
+
+              {/* Loading Message */}
+              {loading && (
+                <div style={{
+                  padding: '16px',
+                  backgroundColor: '#e0f2fe',
+                  color: '#0369a1',
+                  borderRadius: '8px',
+                  marginBottom: '16px',
+                  fontSize: '14px'
+                }}>
+                  ⏳ Loading issue notes...
+                </div>
+              )}
+
               {/* Stats Cards */}
               <div className="stats-row">
                 {activeTab === "issueNotes" ? (
@@ -1304,8 +1212,8 @@ const IssueNote = () => {
                     <div className="stat-card total">
                       <div className="stat-icon">📮</div>
                       <div className="stat-info">
-                        <span className="stat-label">Total Requests</span>
-                        <span className="stat-value">{branchRequests.length}</span>
+                        <span className="stat-label">Total Notes</span>
+                        <span className="stat-value">{issueNotes.length}</span>
                       </div>
                     </div>
                   </>
