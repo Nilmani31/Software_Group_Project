@@ -42,6 +42,8 @@ export default function PurchaseOrder () {
   const [filterStatus, setFilterStatus] = useState('')
   const [filterOrderBy, setFilterOrderBy] = useState('')
   const [filterSupplier, setFilterSupplier] = useState('')
+  const [filterBranch, setFilterBranch] = useState('')
+  const [filterReceiverBranch, setFilterReceiverBranch] = useState('')
   const [branches, setBranches] = useState([])
   const [userBranchName, setUserBranchName] = useState('')
   const [categories, setCategories] = useState([])
@@ -101,8 +103,10 @@ export default function PurchaseOrder () {
     const matchesStatus = !filterStatus || po.status === filterStatus
     const matchesOrderBy = !filterOrderBy || po.orderType === filterOrderBy
     const matchesSupplier = !filterSupplier || (po.supplier && po.supplier.toLowerCase().includes(filterSupplier.toLowerCase()))
+    const matchesBranch = !filterBranch || (po.branchName === filterBranch)
+    const matchesReceiverBranch = !filterReceiverBranch || (po.createdByBranch === filterReceiverBranch || po.branch === filterReceiverBranch)
     
-    return matchesQuery && matchesStatus && matchesOrderBy && matchesSupplier
+    return matchesQuery && matchesStatus && matchesOrderBy && matchesSupplier && matchesBranch && matchesReceiverBranch
   })
 
   // ===== FETCH BRANCHES, CATEGORIES, AND ITEMS =====
@@ -422,53 +426,94 @@ export default function PurchaseOrder () {
                         className="po-search-input"
                       />
                     </div>
+                    
+                    {/* Filter Section */}
+                    <div className="po-filters">
+                      <div className="filter-group">
+                        <label className="filter-label">Order Status:</label>
+                        <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="filter-select">
+                          <option value="">All Status</option>
+                          <option value="Pending">Pending</option>
+                          <option value="Received">Received</option>
+                          <option value="Cancelled">Cancelled</option>
+                        </select>
+                      </div>
+                      
+                      <div className="filter-group">
+                        <label className="filter-label">Order By:</label>
+                        <select value={filterOrderBy} onChange={e => { setFilterOrderBy(e.target.value); setFilterSupplier(''); setFilterBranch(''); }} className="filter-select">
+                          <option value="">All Types</option>
+                          <option value="Supplier">Supplier</option>
+                          <option value="Branch">Branch</option>
+                        </select>
+                      </div>
+                      
+                      {filterOrderBy === 'Supplier' && (
+                        <div className="filter-group">
+                          <label className="filter-label">Supplier:</label>
+                          <input 
+                            type="text"
+                            placeholder="Filter by supplier..."
+                            value={filterSupplier}
+                            onChange={e => setFilterSupplier(e.target.value)}
+                            className="filter-input"
+                          />
+                        </div>
+                      )}
+                      
+                      {filterOrderBy === 'Branch' && (
+                        <div className="filter-group">
+                          <label className="filter-label">Branch:</label>
+                          <select value={filterBranch} onChange={e => setFilterBranch(e.target.value)} className="filter-select">
+                            <option value="">All Branches</option>
+                            {branches && branches.length > 0 ? (
+                              branches.map(branch => (
+                                <option key={branch._id} value={branch.name || branch.branchName}>
+                                  {branch.name || branch.branchName}
+                                </option>
+                              ))
+                            ) : (
+                              <option disabled>Loading branches...</option>
+                            )}
+                          </select>
+                        </div>
+                      )}
+                      
+                      {filterOrderBy === 'Branch' && (
+                        <div className="filter-group">
+                          <label className="filter-label">Branch Received:</label>
+                          <select value={filterReceiverBranch} onChange={e => setFilterReceiverBranch(e.target.value)} className="filter-select">
+                            <option value="">All Branches</option>
+                            {branches && branches.length > 0 ? (
+                              branches.map(branch => (
+                                <option key={branch._id} value={branch.name || branch.branchName}>
+                                  {branch.name || branch.branchName}
+                                </option>
+                              ))
+                            ) : (
+                              <option disabled>Loading branches...</option>
+                            )}
+                          </select>
+                        </div>
+                      )}
+                      
+                      <button 
+                        className="btn-clear-filters"
+                        onClick={() => {
+                          setFilterStatus('')
+                          setFilterOrderBy('')
+                          setFilterSupplier('')
+                          setFilterBranch('')
+                          setFilterReceiverBranch('')
+                          setQuery('')
+                        }}
+                      >
+                        Clear Filters
+                      </button>
+                    </div>
+                    
                     <button className="btn-new-po" onClick={handleNewPO}>
                       + New Purchase Order
-                    </button>
-                  </div>
-                  
-                  {/* Filter Section */}
-                  <div className="po-filters">
-                    <div className="filter-group">
-                      <label className="filter-label">Order Status:</label>
-                      <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="filter-select">
-                        <option value="">All Status</option>
-                        <option value="Pending">Pending</option>
-                        <option value="Received">Received</option>
-                        <option value="Cancelled">Cancelled</option>
-                      </select>
-                    </div>
-                    
-                    <div className="filter-group">
-                      <label className="filter-label">Order By:</label>
-                      <select value={filterOrderBy} onChange={e => setFilterOrderBy(e.target.value)} className="filter-select">
-                        <option value="">All Types</option>
-                        <option value="Supplier">Supplier</option>
-                        <option value="Branch">Branch</option>
-                      </select>
-                    </div>
-                    
-                    <div className="filter-group">
-                      <label className="filter-label">Supplier:</label>
-                      <input 
-                        type="text"
-                        placeholder="Filter by supplier..."
-                        value={filterSupplier}
-                        onChange={e => setFilterSupplier(e.target.value)}
-                        className="filter-input"
-                      />
-                    </div>
-                    
-                    <button 
-                      className="btn-clear-filters"
-                      onClick={() => {
-                        setFilterStatus('')
-                        setFilterOrderBy('')
-                        setFilterSupplier('')
-                        setQuery('')
-                      }}
-                    >
-                      Clear Filters
                     </button>
                   </div>
                 </header>
