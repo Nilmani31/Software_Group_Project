@@ -1,15 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import Navbar from '../Components/Navbar';
 import Sidebar from '../Components/Sidebar';
-import { grns, users } from '../data/sample';
-import Modal from '../Components/Modal';
 import ChatAssistant from '../Components/ChatAssistant';
 import { useForm, useFieldArray } from 'react-hook-form';
+import * as grnService from '../services/grnService';
+import * as poService from '../services/poService';
 import './GoodReceived.css';
 import './Inventory.css';
 
 export default function GoodReceived() {
   const [list, setList] = useState([]);
+  const [poList, setPoList] = useState([]);
+  const [currentPOType, setCurrentPOType] = useState('Supplier');
   const [openCreate, setOpenCreate] = useState(false);
   const [openView, setOpenView] = useState(false);
   const [openDelete, setOpenDelete] = useState(false);
@@ -19,101 +21,57 @@ export default function GoodReceived() {
   const [editableGrn, setEditableGrn] = useState(null);
   const [query, setQuery] = useState('');
   const [imagePreview, setImagePreview] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [page, setPage] = useState(1);
 
   const { register, handleSubmit, control, reset, watch, setValue } = useForm({
     defaultValues: {
-      items: [{ id: '', name: '', unit: '', unitPrice: '', ordered: '', received: '', status: 'Not Received' }]
+      items: [{ itemId: '', itemName: '', unit: '', unitPrice: '', quantityOrdered: '', quantityReceived: '' }]
     }
   });
   const { fields, append, remove, replace } = useFieldArray({ control, name: "items" });
 
-  // Function to generate the next GRN number
-  const generateNextGRN = () => {
-    const currentYear = new Date().getFullYear();
-    
-    // Find the highest GRN number for the current year
-    const currentYearGRNs = list.filter(grn => {
-      const grnYear = grn.grn ? parseInt(grn.grn.split('-')[1]) : null;
-      return grnYear === currentYear;
-    });
-
-    let nextNumber = 1;
-    
-    if (currentYearGRNs.length > 0) {
-      // Extract numbers and find the maximum
-      const numbers = currentYearGRNs.map(grn => {
-        const parts = grn.grn.split('-');
-        return parts.length === 3 ? parseInt(parts[2]) : 0;
-      }).filter(num => !isNaN(num));
-      
-      if (numbers.length > 0) {
-        nextNumber = Math.max(...numbers) + 1;
-      }
-    }
-
-    // Format the number with leading zeros (001, 002, etc.)
-    const formattedNumber = nextNumber.toString().padStart(3, '0');
-    return `GRN-${currentYear}-${formattedNumber}`;
-  };
-
+  // Fetch GRNs from API
   useEffect(() => {
-    const processedGrns = grns.map(grn => {
-      const itemsWithStatus = grn.items.map(item => {
-        const received = parseInt(item.received, 10) || 0;
-        const ordered = parseInt(item.ordered, 10) || 0;
-        let status;
-        if (received === 0) {
-          status = 'Not Received';
-        } else if (received < ordered) {
-          status = 'Incomplete';
-        } else {
-          status = 'Complete';
+    const fetchGRNs = async () => {
+      try {
+        setLoading(true);
+        setError('');
+        const response = await grnService.getAllGRNs(page);
+        if (response.success) {
+          setList(response.data);
         }
-        return { ...item, status };
-      });
-      return { ...grn, items: itemsWithStatus };
-    });
-    setList(processedGrns);
-  }, []);
-
-  const employeeId_create = watch('employeeId');
-  useEffect(() => {
-    if (employeeId_create) {
-      const user = users.find(u => u.id === parseInt(employeeId_create, 10));
-      setValue('by', user ? user.name : '');
-    } else {
-      setValue('by', '');
-    }
-  }, [employeeId_create, setValue]);
-
-  const poNumber_create = watch('po');
-  useEffect(() => {
-    if (poNumber_create && poNumber_create !== 'Select PO...') {
-      // Find the GRN with matching PO number to get items
-      const matchingGrn = grns.find(g => g.po === poNumber_create);
-      if (matchingGrn && matchingGrn.items) {
-        // Populate items from the matching PO
-        const itemsFromPo = matchingGrn.items.map(item => ({
-          id: item.id || '',
-          name: item.name || '',
-          unit: item.unit || '',
-          unitPrice: item.unitPrice || '',
-          ordered: item.ordered || '',
-          received: item.received || '',
-          status: item.status || 'Not Received'
-        }));
-        replace(itemsFromPo);
+      } catch (err) {
+        setError('Failed to fetch GRNs: ' + err.message);
+        console.error(err);
+      } finally {
+        setLoading(false);
       }
-    }
-  }, [poNumber_create, replace]);
+    };
 
-  // Auto-generate GRN when modal opens
+    fetchGRNs();
+  }, [page]);
+
+  // Fetch POs from API when create modal opens
   useEffect(() => {
-    if (openCreate) {
-      const nextGRN = generateNextGRN();
-      setValue('grn', nextGRN);
-    }
-  }, [openCreate, setValue, list]); // Added list as dependency to ensure latest data
+    if (!openCreate) return;
+
+    const fetchPOs = async () => {
+      try {
+        const response = await poService.getAllPOs();
+        if (response.success) {
+          setPoList(response.data);
+        } else if (Array.isArray(response)) {
+          setPoList(response);
+        }
+      } catch (err) {
+        console.error('Error fetching POs:', err);
+      }
+    };
+
+    fetchPOs();
+  }, [openCreate]);
 
   const handleFileChange = (e) => {
     const f = e.target.files && e.target.files[0];
@@ -125,34 +83,128 @@ export default function GoodReceived() {
     }
   };
 
-  const onCreate = (data) => {
-    const newGrn = {
-      ...data,
-      id: list.length + 1,
-      grn: data.grn,
-      po: data.po,
-      supplierId: data.supplierId,
-      supplierName: data.supplierName,
-      billNumber: data.billNumber,
-      date: data.date,
-      employeeId: data.employeeId,
-      by: data.by,
-      items: data.items.map(item => ({
-        ...item,
-        id: item.id,
-        name: item.name,
-        unit: item.unit,
-        ordered: parseInt(item.ordered, 10) || 0,
-        unitPrice: parseInt(item.unitPrice, 10) || 0,
-        received: parseInt(item.received, 10) || 0,
-        status: item.status || 'Not Received'
-      })),
-      bill: imagePreview
-    };
-    setList(prevList => [newGrn, ...prevList]);
-    reset();
-    setImagePreview(null);
-    setOpenCreate(false);
+  const handlePOSelect = (poNumber) => {
+    const selectedPO = poList.find(po => (po.poNumber || po.id) === poNumber);
+    if (selectedPO) {
+      // Fill form fields with PO data
+      setValue('po', poNumber);
+      
+      // Determine if order is by Supplier or Branch
+      const orderType = selectedPO.orderType || selectedPO.orderBy || 'Supplier';
+      setCurrentPOType(orderType);
+      
+      let supplierNameValue = '';
+      
+      if (orderType === 'Branch') {
+        // Fill with branch name for branch-type orders
+        supplierNameValue = selectedPO.branch || selectedPO.branchName || '';
+      } else {
+        // Fill with supplier name for supplier-type orders
+        supplierNameValue = selectedPO.supplier || selectedPO.supplierName || '';
+      }
+      
+      setValue('supplierName', supplierNameValue);
+      setValue('date', new Date().toISOString().substring(0, 10));
+      setValue('receivedBy', localStorage.getItem('username') || '');
+      
+      // Populate items table from PO items
+      let poItems = [];
+      
+      if (selectedPO.items && Array.isArray(selectedPO.items)) {
+        // Handle array of items with individual properties
+        poItems = selectedPO.items.map(item => {
+          // If item is a string like "Item Name x Quantity", parse it
+          if (typeof item === 'string') {
+            const parts = item.split(' x ');
+            return {
+              itemId: '',
+              itemName: parts[0] || '',
+              unit: '',
+              unitPrice: '',
+              quantityOrdered: parts[1] ? parseInt(parts[1]) : '',
+              quantityReceived: ''
+            };
+          }
+          // If item is an object
+          return {
+            itemId: item._id || item.id || '',
+            itemName: item.itemName || item.name || '',
+            unit: item.unit || item.unitType || '',
+            unitPrice: item.unitPrice || item.price || '',
+            quantityOrdered: item.quantityOrdered || item.quantity || '',
+            quantityReceived: ''
+          };
+        });
+      }
+      
+      // If no items found, start with one empty item
+      if (poItems.length === 0) {
+        poItems = [{ itemId: '', itemName: '', unit: '', unitPrice: '', quantityOrdered: '', quantityReceived: '' }];
+      }
+      
+      replace(poItems);
+      
+      console.log('Selected PO:', selectedPO, 'Order Type:', orderType, 'Items:', poItems);
+    }
+  };
+
+  const onCreate = async (data) => {
+    try {
+      setLoading(true);
+      setError('');
+
+      // Validate items
+      if (!data.items || data.items.length === 0) {
+        setError('Please add at least one item to the GRN');
+        setLoading(false);
+        return;
+      }
+
+      // Check for empty item names
+      const emptyItems = data.items.filter(item => !item.itemName || item.itemName.trim() === '');
+      if (emptyItems.length > 0) {
+        setError('All items must have a name');
+        setLoading(false);
+        return;
+      }
+
+      const grnData = {
+        purchaseOrderId: data.purchaseOrderId || null,
+        items: data.items.map(item => ({
+          itemId: item.itemId || '',
+          itemName: item.itemName,
+          quantityOrdered: parseInt(item.quantityOrdered) || 0,
+          quantityReceived: parseInt(item.quantityReceived) || 0,
+          unitPrice: parseInt(item.unitPrice) || 0,
+          unit: item.unit || ''
+        })),
+        receivedDate: data.date || new Date().toISOString(),
+        receivedBy: data.receivedBy || null,
+        poNumber: data.po,
+        supplierName: data.supplierName
+      };
+
+      console.log('Sending GRN data to backend:', grnData);
+      const response = await grnService.createGRN(grnData);
+
+      if (response.success) {
+        // Add new GRN to the list
+        setList(prevList => [response.data, ...prevList]);
+        reset();
+        setImagePreview(null);
+        setOpenCreate(false);
+        setCurrentPOType('Supplier');
+        setError('');
+      } else {
+        setError(response.message || response.error || 'Failed to create GRN');
+      }
+    } catch (err) {
+      const errorMessage = err.message || 'Failed to create GRN';
+      setError('Error creating GRN: ' + errorMessage);
+      console.error('GRN creation error details:', err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleDeleteGrn = (grn) => {
@@ -160,53 +212,90 @@ export default function GoodReceived() {
     setOpenDelete(true);
   };
 
-  const confirmDelete = () => {
-    if (grnToDelete) {
-      setList(prevList => prevList.filter(grn => grn.id !== grnToDelete.id));
-      setOpenDelete(false);
-      setGrnToDelete(null);
-      setOpenView(false);
+  const confirmDelete = async () => {
+    if (grnToDelete && grnToDelete._id) {
+      try {
+        setLoading(true);
+        setError('');
+        const response = await grnService.deleteGRN(grnToDelete._id);
+
+        if (response.success) {
+          setList(prevList => prevList.filter(grn => grn._id !== grnToDelete._id));
+          setOpenDelete(false);
+          setGrnToDelete(null);
+          setOpenView(false);
+          setError('');
+        } else {
+          setError(response.message || 'Failed to delete GRN');
+        }
+      } catch (err) {
+        setError('Error deleting GRN: ' + err.message);
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
     }
   };
 
   const handleItemChange = (index, field, value) => {
     const newItems = [...editableItems];
-    newItems[index][field] = value;
+    newItems[index] = { ...newItems[index], [field]: value };
     setEditableItems(newItems);
   };
 
   const handleGrnChange = (field, value) => {
-    const newGrn = { ...editableGrn, [field]: value };
-    if (field === 'employeeId') {
-      const user = users.find(u => u.id === parseInt(value, 10));
-      newGrn.by = user ? user.name : '';
-    }
-    setEditableGrn(newGrn);
+    setEditableGrn(prev => ({ ...prev, [field]: value }));
   };
 
-  const handleSave = () => {
-    const newList = list.map(grn => {
-      if (selected && grn.id === selected.id) {
-        const updatedItems = editableItems.map(item => ({
-          ...item,
-          ordered: parseInt(item.ordered, 10) || 0,
-          received: parseInt(item.received, 10) || 0,
-          unitPrice: parseInt(item.unitPrice, 10) || 0
-        }));
+  const handleSave = async () => {
+    if (selected && selected._id && editableGrn) {
+      try {
+        setLoading(true);
+        setError('');
 
-        return { ...editableGrn, items: updatedItems };
+        const updateData = {
+          items: editableItems.map(item => ({
+            itemId: item.itemId,
+            itemName: item.itemName,
+            quantityOrdered: parseInt(item.quantityOrdered) || 0,
+            quantityReceived: parseInt(item.quantityReceived) || 0,
+            unitPrice: parseInt(item.unitPrice) || 0
+          })),
+          receivedDate: editableGrn.receivedDate,
+          receivedBy: editableGrn.receivedBy
+        };
+
+        const response = await grnService.updateGRN(selected._id, updateData);
+
+        if (response.success) {
+          // Update the list
+          setList(prevList =>
+            prevList.map(grn => 
+              grn._id === selected._id ? response.data : grn
+            )
+          );
+          setOpenView(false);
+          setError('');
+        } else {
+          setError(response.message || 'Failed to update GRN');
+        }
+      } catch (err) {
+        setError('Error updating GRN: ' + err.message);
+        console.error(err);
+      } finally {
+        setLoading(false);
       }
-      return grn;
-    });
-
-    setList(newList);
-    setOpenView(false);
+    }
   };
 
+  // Search functionality
   const filteredGrns = list.filter(g => {
     if (!query) return true;
     const q = query.toLowerCase();
-    return (g.grn && g.grn.toLowerCase().includes(q)) || (g.po && g.po.toLowerCase().includes(q));
+    return (
+      (g.grnNumber && g.grnNumber.toLowerCase().includes(q)) ||
+      (g.poNumber && g.poNumber.toLowerCase().includes(q))
+    );
   });
 
   const getItemStatusClass = (status) => {
@@ -247,74 +336,85 @@ export default function GoodReceived() {
                     </div>
                     <div className="inventory-actions">
                       <button className="btn btn-add" onClick={() => {
-                        reset({ items: [{ id: '', name: '', unit: '', unitPrice: '', ordered: '', received: '', status: 'Not Received' }] });
+                        reset({ items: [{ itemId: '', itemName: '', unit: '', unitPrice: '', quantityOrdered: '', quantityReceived: '' }] });
                         setImagePreview(null);
                         setOpenCreate(true);
-                      }}>+ New GRN</button>
+                      }} disabled={loading}>
+                        + New GRN
+                      </button>
                     </div>
                   </div>
                 </header>
 
+                {error && (
+                  <div style={{
+                    padding: '12px 16px',
+                    backgroundColor: '#fee',
+                    color: '#c00',
+                    borderRadius: '4px',
+                    marginBottom: '16px',
+                    fontSize: '14px'
+                  }}>
+                    {error}
+                  </div>
+                )}
+
                 <div className="inventory-main" style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column', height: '100%' }}>
-                  {filteredGrns.length === 0 ? (
+                  {loading && <div style={{ padding: '20px', textAlign: 'center' }}>Loading...</div>}
+                  {!loading && filteredGrns.length === 0 ? (
                     <div className="no-results">No GRNs found.</div>
                   ) : (
-                    <div className="list-wrap" style={{ flex: 1, overflow: 'auto' }}>
-                      <table className="inventory-table">
-                        <thead>
-                          <tr>
-                            <th scope="col">GRN</th>
-                            <th scope="col">PO</th>
-                            <th scope="col">Item ID</th>
-                            <th scope="col">Item Name</th>
-                            <th scope="col">Ordered</th>
-                            <th scope="col">Received</th>
-                            <th scope="col">Status</th>
-                            <th scope="col" style={{ textAlign: 'center' }}>Actions</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {filteredGrns.map(g => (
-                            g.items.map((item, itemIndex) => (
-                              <tr key={`${g.id}-${item.id}-${itemIndex}`} className="inventory-row">
-                                {itemIndex === 0 && (
-                                  <>
-                                    <td rowSpan={g.items.length} style={{ paddingLeft: '16px', verticalAlign: 'middle' }}>{g.grn}</td>
-                                    <td rowSpan={g.items.length} style={{ verticalAlign: 'middle' }}>{g.po}</td>
-                                  </>
-                                )}
-                                <td>{item.id}</td>
-                                <td>{item.name}</td>
-                                <td>{item.ordered}</td>
-                                <td>{item.received}</td>
+                    !loading && (
+                      <div className="list-wrap" style={{ flex: 1, overflow: 'auto' }}>
+                        <table className="inventory-table">
+                          <thead>
+                            <tr>
+                              <th scope="col">GRN Number</th>
+                              <th scope="col">PO Number</th>
+                              <th scope="col">Total Items</th>
+                              <th scope="col">Received Date</th>
+                              <th scope="col">Status</th>
+                              <th scope="col" style={{ textAlign: 'center' }}>Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {filteredGrns.map(g => (
+                              <tr key={g._id} className="inventory-row">
+                                <td>{g.grnNumber}</td>
+                                <td>{g.poNumber}</td>
+                                <td>{g.items ? g.items.length : 0}</td>
+                                <td>{new Date(g.receivedDate).toLocaleDateString()}</td>
                                 <td>
-                                  <span className={`badge ${getItemStatusClass(item.status)}`}>
-                                    {item.status}
+                                  <span style={{
+                                    padding: '4px 8px',
+                                    backgroundColor: '#e0f2fe',
+                                    color: '#0369a1',
+                                    borderRadius: '4px',
+                                    fontSize: '12px'
+                                  }}>
+                                    {g.status}
                                   </span>
                                 </td>
-                                {itemIndex === 0 && (
-                                  <td rowSpan={g.items.length} style={{ textAlign: 'center', verticalAlign: 'middle' }}>
-                                    <button
-                                      className="btn-view-details"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        const user = users.find(u => u.name === g.by);
-                                        setSelected(g);
-                                        setEditableItems(g.items.map(item => ({ ...item })));
-                                        setEditableGrn({ ...g, employeeId: user ? user.id : '' });
-                                        setOpenView(true);
-                                      }}
-                                    >
-                                      View Details
-                                    </button>
-                                  </td>
-                                )}
+                                <td style={{ textAlign: 'center' }}>
+                                  <button
+                                    className="btn-view-details"
+                                    onClick={() => {
+                                      setSelected(g);
+                                      setEditableItems(g.items || []);
+                                      setEditableGrn(g);
+                                      setOpenView(true);
+                                    }}
+                                    disabled={loading}
+                                  >
+                                    View Details
+                                  </button>
+                                </td>
                               </tr>
-                            ))
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )
                   )}
                 </div>
               </main>
@@ -323,315 +423,396 @@ export default function GoodReceived() {
         </main>
       </div>
 
-      <Modal title="Create GRN" open={openCreate} onClose={() => setOpenCreate(false)}>
-        <form onSubmit={handleSubmit(onCreate)} style={{ display: 'flex', flexDirection: 'column', gap: 12, maxHeight: '70vh', overflow: 'auto' }}>
-          <div style={{ display: 'flex', gap: 12 }}>
-            <div style={{ flex: 1 }}>
-              <label className="text-sm">GRN Number</label>
-              <input 
-                {...register('grn')} 
-                placeholder="GRN-2025-XXX" 
-                className="input" 
-                readOnly 
-                style={{ backgroundColor: '#f3f4f6', color: '#666' }}
-              />
-              <small style={{ color: '#666', fontSize: '12px' }}>Auto-generated</small>
-            </div>
-            <div style={{ flex: 1 }}>
-              <label className="text-sm">Purchase Order</label>
-              <select {...register('po')} className="select">
-                <option>Select PO...</option>
-                {[...new Set(grns.map(g => g.po))].map(po => (
-                  <option key={po} value={po}>{po}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', gap: 12 }}>
-            <div style={{ flex: 1 }}>
-              <label className="text-sm">Supplier ID</label>
-              <input {...register('supplierId')} placeholder="Enter Supplier ID" className="input" />
-            </div>
-            <div style={{ flex: 1 }}>
-              <label className="text-sm">Supplier Name</label>
-              <input {...register('supplierName')} placeholder="Enter Supplier Name" className="input" />
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', gap: 12 }}>
-            <div style={{ flex: 1 }}>
-              <label className="text-sm">Bill Number</label>
-              <input {...register('billNumber')} placeholder="Enter Bill Number" className="input" />
-            </div>
-            <div style={{ flex: 1 }}>
-              <label className="text-sm">Received Date</label>
-              <input {...register('date')} type="date" defaultValue={new Date().toISOString().substring(0, 10)} className="date" />
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', gap: 12 }}>
-            <div style={{ flex: 1 }}>
-              <label className="text-sm">Employee ID</label>
-              <input {...register('employeeId')} placeholder="Enter ID" className="input" />
-            </div>
-            <div style={{ flex: 1 }}>
-              <label className="text-sm">Received By</label>
-              <input {...register('by')} className="input" readOnly style={{ backgroundColor: '#f3f4f6' }} />
-            </div>
-          </div>
-
-          <div>
-            <label className="text-sm">Items</label>
-            
-            {/* Table headers for items */}
-            <div style={{ display: 'flex', gap: 8, marginBottom: 8, fontWeight: 'bold', fontSize: '14px' }}>
-              <div style={{ flex: 1 }}>Item ID</div>
-              <div style={{ flex: 2 }}>Item Name</div>
-              <div style={{ flex: 1 }}>Unit</div>
-              <div style={{ flex: 1 }}>Unit Price</div>
-              <div style={{ flex: 1 }}>Ordered Qty</div>
-              <div style={{ flex: 1 }}>Received Qty</div>
-              <div style={{ flex: 1.5 }}>Status</div>
-              <div style={{ flex: 0.5 }}>Action</div>
-            </div>
-
-            {fields.map((field, index) => (
-              <div key={field.id} style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
-                <input {...register(`items.${index}.id`)} placeholder="Item ID" className="input" style={{ flex: 1 }} />
-                <input {...register(`items.${index}.name`)} placeholder="Item Name" className="input" style={{ flex: 2 }} />
-                <input {...register(`items.${index}.unit`)} placeholder="Unit" className="input" style={{ flex: 1 }} />
-                <input {...register(`items.${index}.unitPrice`)} placeholder="Unit Price" type="number" className="input" style={{ flex: 1 }} />
-                <input {...register(`items.${index}.ordered`)} placeholder="Ordered Qty" type="number" className="input" style={{ flex: 1 }} />
-                <input {...register(`items.${index}.received`)} placeholder="Received Qty" type="number" className="input" style={{ flex: 1 }} />
-                
-                <select {...register(`items.${index}.status`)} className="select" style={{ flex: 1.5 }}>
-                  {statusOptions.map(option => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-
-                <button type="button" className="btn-danger" onClick={() => remove(index)} style={{ flex: 0.5 }}>
-                  &times;
-                </button>
+      {/* Create GRN Modal - Professional Design */}
+      {openCreate && (
+        <div className="modal-overlay-inventory" onClick={() => { setOpenCreate(false); setCurrentPOType('Supplier'); }}>
+          <div className="modal-content-inventory" onClick={e => e.stopPropagation()}>
+            <div className="modal-header-inventory">
+              <div className="modal-title-section-inventory">
+                <h2 className="modal-title-inventory">Create Goods Received Note</h2>
+                <p className="modal-subtitle-inventory">Add a new goods received note (GRN) from supplier</p>
               </div>
-            ))}
+              <button className="modal-close-btn-inventory" onClick={() => { setOpenCreate(false); setCurrentPOType('Supplier'); }} aria-label="Close">×</button>
+            </div>
+            <div className="modal-body-inventory">
+              <form onSubmit={handleSubmit(onCreate)} className="modal-form-inventory">
+                {error && (
+                  <div style={{
+                    padding: '12px 16px',
+                    backgroundColor: '#fee',
+                    color: '#c00',
+                    borderRadius: '6px',
+                    fontSize: '13px',
+                    marginBottom: '16px',
+                    border: '1px solid #fcc'
+                  }}>
+                    ⚠️ {error}
+                  </div>
+                )}
 
-            <button type="button" className="btn-white" onClick={() => append({ id: '', name: '', unit: '', unitPrice: '', ordered: '', received: '', status: 'Not Received' })}>
-              + Add Item
-            </button>
+                <h4 style={{ margin: '0 0 16px 0', fontSize: '14px', fontWeight: 700, color: '#667eea' }}>Goods Details</h4>
+                <div className="form-layout-inventory">
+                  <div className="form-group-inventory">
+                    <label className="form-label-inventory">Purchase Order Number</label>
+                    <select 
+                      {...register('po')} 
+                      onChange={(e) => handlePOSelect(e.target.value)}
+                      className="form-input-inventory"
+                    >
+                      <option value="">-- Select Purchase Order --</option>
+                      {poList && poList.length > 0 ? (
+                        poList
+                          .filter(po => po.status !== 'Cancelled')
+                          .map((po, idx) => {
+                            const orderType = po.orderType || po.orderBy || 'Supplier';
+                            const displayName = orderType === 'Branch' 
+                              ? (po.branch || po.branchName || 'N/A')
+                              : (po.supplier || po.supplierName || 'N/A');
+                            const status = po.status || 'Pending';
+                            return (
+                              <option key={idx} value={po.poNumber || po.id}>
+                                {po.poNumber || po.id} - {displayName} ({orderType}) - {status}
+                              </option>
+                            );
+                          })
+                      ) : (
+                        <option disabled>No purchase orders available</option>
+                      )}
+                    </select>
+                  </div>
+                  <div className="form-group-inventory">
+                    <label className="form-label-inventory">{currentPOType === 'Branch' ? 'Branch Name' : 'Supplier Name'}</label>
+                    <input {...register('supplierName')} placeholder={currentPOType === 'Branch' ? 'Auto-filled from PO Branch' : 'Auto-filled from PO Supplier'} className="form-input-inventory" />
+                  </div>
+                  <div className="form-group-inventory">
+                    <label className="form-label-inventory">Received Date</label>
+                    <input {...register('date')} type="date" defaultValue={new Date().toISOString().substring(0, 10)} className="form-input-inventory" />
+                  </div>
+                  <div className="form-group-inventory">
+                    <label className="form-label-inventory">Received By</label>
+                    <input {...register('receivedBy')} placeholder="Employee ID" className="form-input-inventory" />
+                  </div>
+                </div>
+
+                <h4 style={{ margin: '24px 0 16px 0', fontSize: '14px', fontWeight: 700, color: '#667eea' }}>Items Received</h4>
+                <div style={{ marginBottom: '16px' }}>
+                  <div style={{ 
+                    display: 'grid', 
+                    gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr 0.8fr', 
+                    gap: '8px', 
+                    marginBottom: '12px', 
+                    fontWeight: '600', 
+                    fontSize: '12px', 
+                    color: '#667eea',
+                    padding: '8px 12px',
+                    backgroundColor: '#f0f4ff',
+                    borderRadius: '6px',
+                    alignItems: 'center',
+                    width: '100%'
+                  }}>
+                    <div style={{ minWidth: 0 }}>Item Name</div>
+                    <div style={{ minWidth: 0 }}>Unit</div>
+                    <div style={{ minWidth: 0 }}>Unit Price</div>
+                    <div style={{ minWidth: 0 }}>Qty Ordered</div>
+                    <div style={{ minWidth: 0 }}>Qty Received</div>
+                    <div style={{ textAlign: 'center', minWidth: 0 }}>Action</div>
+                  </div>
+
+                  {fields.map((field, index) => (
+                    <div key={field.id} style={{ 
+                      display: 'grid', 
+                      gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr 0.8fr', 
+                      gap: '8px', 
+                      alignItems: 'center', 
+                      marginBottom: '8px',
+                      padding: '8px 12px',
+                      backgroundColor: '#ffffff',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '6px',
+                      transition: 'all 0.2s',
+                      width: '100%'
+                    }}>
+                      <input {...register(`items.${index}.itemName`)} placeholder="Item Name" className="form-input-inventory" style={{ fontSize: '13px', width: '100%', minWidth: 0 }} />
+                      <input {...register(`items.${index}.unit`)} placeholder="kg/units" className="form-input-inventory" style={{ fontSize: '13px', width: '100%', minWidth: 0 }} />
+                      <input {...register(`items.${index}.unitPrice`)} placeholder="Price" type="number" className="form-input-inventory" style={{ fontSize: '13px', width: '100%', minWidth: 0 }} />
+                      <input {...register(`items.${index}.quantityOrdered`)} placeholder="0" type="number" className="form-input-inventory" style={{ fontSize: '13px', width: '100%', minWidth: 0 }} />
+                      <input {...register(`items.${index}.quantityReceived`)} placeholder="0" type="number" className="form-input-inventory" style={{ fontSize: '13px', width: '100%', minWidth: 0 }} />
+                      <button 
+                        type="button" 
+                        onClick={() => remove(index)} 
+                        className="modal-btn-inventory cancel"
+                        style={{ padding: '6px 8px', fontSize: '11px', width: '100%', minWidth: 0 }}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+
+                  <button 
+                    type="button" 
+                    onClick={() => append({ itemId: '', itemName: '', unit: '', unitPrice: '', quantityOrdered: '', quantityReceived: '' })} 
+                    className="modal-btn-inventory cancel"
+                    style={{ marginTop: '8px', padding: '10px 16px' }}
+                  >
+                    + Add Item
+                  </button>
+                </div>
+
+                <div className="modal-footer-inventory" style={{ justifyContent: 'flex-end' }}>
+                  <button 
+                    type="submit" 
+                    className="modal-btn-inventory submit"
+                    disabled={loading}
+                  >
+                    {loading ? 'Creating...' : 'Create GRN'}
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
+        </div>
+      )}
 
-          <div>
-            <label className="text-sm">Add Bill</label>
-            <input id="billInput" {...register('bill')} type="file" accept="image/*" onChange={handleFileChange} style={{ display: 'none' }} />
-
-            <label htmlFor="billInput" className="file-drop" style={{ cursor: 'pointer', display: 'inline-block' }}>
-              {imagePreview ? (
-                <img src={imagePreview} alt="bill preview" style={{ maxWidth: 160, maxHeight: 120, objectFit: 'cover', borderRadius: 6 }} />
-              ) : (
-                'Drop Image Here or click to select'
+      {/* View/Edit GRN Modal - Professional Design */}
+      {openView && selected && editableGrn && (
+        <div className="modal-overlay-inventory" onClick={() => setOpenView(false)}>
+          <div className="modal-content-inventory" onClick={e => e.stopPropagation()}>
+            <div className="modal-header-inventory">
+              <div className="modal-title-section-inventory">
+                <h2 className="modal-title-inventory">GRN Details</h2>
+                <p className="modal-subtitle-inventory">View and manage goods received note information</p>
+              </div>
+              <button className="modal-close-btn-inventory" onClick={() => setOpenView(false)} aria-label="Close">×</button>
+            </div>
+            <div className="modal-body-inventory">
+              {error && (
+                <div style={{
+                  padding: '12px 16px',
+                  backgroundColor: '#fee',
+                  color: '#c00',
+                  borderRadius: '6px',
+                  fontSize: '13px',
+                  marginBottom: '16px',
+                  border: '1px solid #fcc'
+                }}>
+                  ⚠️ {error}
+                </div>
               )}
-            </label>
-          </div>
 
-          <div className="modal-actions" style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 'auto', paddingTop: 16 }}>
-            <button type="button" className="btn-white" onClick={() => setOpenCreate(false)}>
-              Cancel
-            </button>
-            <button type="submit" className="btn-black">
-              Create GRN
-            </button>
-          </div>
-        </form>
-      </Modal>
-
-      <Modal title="GRN Details" open={openView} onClose={() => setOpenView(false)}>
-        {selected && editableGrn && (
-          <div style={{ maxHeight: '70vh', overflow: 'auto' }}>
-            <div style={{ marginBottom: 16 }}>
-              <strong style={{ fontSize: '18px' }}>{selected.grn}</strong>
-            </div>
-
-            <div className="grn-details" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
-              <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <label className="text-sm">GRN Number</label>
-                <input 
-                  value={editableGrn.grn} 
-                  onChange={e => handleGrnChange('grn', e.target.value)} 
-                  className="input" 
-                  readOnly
-                  style={{ backgroundColor: '#f3f4f6' }}
-                />
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <label className="text-sm">PO Number</label>
-                <input value={editableGrn.po} onChange={e => handleGrnChange('po', e.target.value)} className="input" />
+              <div style={{ display: 'flex', gap: '12px', marginBottom: '24px', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <p style={{ margin: 0, fontSize: '12px', color: '#666', fontWeight: 600 }}>GRN Number</p>
+                  <h3 style={{ margin: '4px 0 0 0', fontSize: '18px', fontWeight: 700, color: '#1f2937' }}>{selected.grnNumber}</h3>
+                </div>
+                <div>
+                  <span style={{
+                    padding: '6px 12px',
+                    backgroundColor: '#e0f2fe',
+                    color: '#0369a1',
+                    borderRadius: '6px',
+                    fontSize: '12px',
+                    fontWeight: 600
+                  }}>
+                    {editableGrn.status}
+                  </span>
+                </div>
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <label className="text-sm">Supplier ID</label>
-                <input value={editableGrn.supplierId || ''} onChange={e => handleGrnChange('supplierId', e.target.value)} className="input" />
+              <h4 style={{ margin: '0 0 16px 0', fontSize: '14px', fontWeight: 700, color: '#667eea' }}>Receipt Information</h4>
+              <div className="form-layout-inventory">
+                <div className="form-group-inventory">
+                  <label className="form-label-inventory">GRN Number</label>
+                  <input 
+                    value={editableGrn.grnNumber} 
+                    className="form-input-inventory" 
+                    readOnly
+                    style={{ backgroundColor: '#f3f4f6', cursor: 'not-allowed' }}
+                  />
+                </div>
+                <div className="form-group-inventory">
+                  <label className="form-label-inventory">PO Number</label>
+                  <input 
+                    value={editableGrn.poNumber || ''} 
+                    onChange={e => handleGrnChange('poNumber', e.target.value)} 
+                    className="form-input-inventory" 
+                  />
+                </div>
+                <div className="form-group-inventory">
+                  <label className="form-label-inventory">Received Date</label>
+                  <input 
+                    type="date" 
+                    value={editableGrn.receivedDate ? editableGrn.receivedDate.substring(0, 10) : ''} 
+                    onChange={e => handleGrnChange('receivedDate', e.target.value)} 
+                    className="form-input-inventory" 
+                  />
+                </div>
+                <div className="form-group-inventory">
+                  <label className="form-label-inventory">Status</label>
+                  <input 
+                    value={editableGrn.status || ''} 
+                    className="form-input-inventory" 
+                    readOnly
+                    style={{ backgroundColor: '#f3f4f6', cursor: 'not-allowed' }}
+                  />
+                </div>
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <label className="text-sm">Supplier Name</label>
-                <input value={editableGrn.supplierName || ''} onChange={e => handleGrnChange('supplierName', e.target.value)} className="input" />
+              <h4 style={{ margin: '24px 0 16px 0', fontSize: '14px', fontWeight: 700, color: '#667eea' }}>Items Received</h4>
+              <div style={{ marginBottom: '16px', overflowX: 'auto' }}>
+                <div style={{ 
+                  display: 'grid', 
+                  gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr', 
+                  gap: '8px', 
+                  marginBottom: '12px', 
+                  fontWeight: '600', 
+                  fontSize: '12px', 
+                  color: '#667eea',
+                  padding: '8px 12px',
+                  backgroundColor: '#f0f4ff',
+                  borderRadius: '6px',
+                  alignItems: 'center',
+                  width: '100%'
+                }}>
+                  <div style={{ minWidth: 0 }}>Item Name</div>
+                  <div style={{ minWidth: 0 }}>Unit</div>
+                  <div style={{ minWidth: 0 }}>Unit Price</div>
+                  <div style={{ minWidth: 0 }}>Qty Ordered</div>
+                  <div style={{ minWidth: 0 }}>Qty Received</div>
+                </div>
+
+                {editableItems.map((item, index) => (
+                  <div key={index} style={{ 
+                    display: 'grid', 
+                    gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr', 
+                    gap: '8px', 
+                    alignItems: 'center', 
+                    marginBottom: '8px',
+                    padding: '8px 12px',
+                    backgroundColor: '#ffffff',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '6px',
+                    transition: 'all 0.2s',
+                    width: '100%'
+                  }}>
+                    <input
+                      type="text"
+                      value={item.itemName || ''}
+                      onChange={e => handleItemChange(index, 'itemName', e.target.value)}
+                      className="form-input-inventory"
+                      style={{ fontSize: '13px', width: '100%', minWidth: 0 }}
+                    />
+                    <input
+                      type="text"
+                      value={item.unit || ''}
+                      onChange={e => handleItemChange(index, 'unit', e.target.value)}
+                      className="form-input-inventory"
+                      style={{ fontSize: '13px', width: '100%', minWidth: 0 }}
+                    />
+                    <input
+                      type="number"
+                      value={item.unitPrice || ''}
+                      onChange={e => handleItemChange(index, 'unitPrice', e.target.value)}
+                      className="form-input-inventory"
+                      style={{ fontSize: '13px', width: '100%', minWidth: 0 }}
+                    />
+                    <input
+                      type="number"
+                      value={item.quantityOrdered || ''}
+                      onChange={e => handleItemChange(index, 'quantityOrdered', e.target.value)}
+                      className="form-input-inventory"
+                      style={{ fontSize: '13px', width: '100%', minWidth: 0 }}
+                    />
+                    <input
+                      type="number"
+                      value={item.quantityReceived || ''}
+                      onChange={e => handleItemChange(index, 'quantityReceived', e.target.value)}
+                      className="form-input-inventory"
+                      style={{ fontSize: '13px', width: '100%', minWidth: 0 }}
+                    />
+                  </div>
+                ))}
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <label className="text-sm">Bill Number</label>
-                <input value={editableGrn.billNumber || ''} onChange={e => handleGrnChange('billNumber', e.target.value)} className="input" />
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <label className="text-sm">Received Date</label>
-                <input type="date" value={editableGrn.date} onChange={e => handleGrnChange('date', e.target.value)} className="date" />
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <label className="text-sm">Employee ID</label>
-                <input value={editableGrn.employeeId} onChange={e => handleGrnChange('employeeId', e.target.value)} className="input" />
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <label className="text-sm">Received By</label>
-                <input value={editableGrn.by} className="input" readOnly style={{ backgroundColor: '#f3f4f6' }} />
-              </div>
-            </div>
-
-            {editableGrn.bill && (
-              <div style={{ marginTop: 12, marginBottom: 16 }}>
-                <label className="text-sm">Bill Image</label>
-                <img src={editableGrn.bill} alt="bill" style={{ maxWidth: '100%', borderRadius: 6, marginTop: 4 }} />
-              </div>
-            )}
-
-            <div>
-              <table className="grn-details-table">
-                <thead>
-                  <tr>
-                    <th>Item ID</th>
-                    <th>Item</th>
-                    <th>Unit</th>
-                    <th>Unit Price</th>
-                    <th>Ordered</th>
-                    <th>Received</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
-
-                <tbody>
-                  {editableItems.map((item, index) => (
-                    <tr key={item.id || index}>
-                      <td>
-                        <input
-                          type="text"
-                          value={item.id}
-                          onChange={e => handleItemChange(index, 'id', e.target.value)}
-                          className="input"
-                          style={{ width: 80 }}
-                        />
-                      </td>
-                      <td>
-                        <input
-                          type="text"
-                          value={item.name}
-                          onChange={e => handleItemChange(index, 'name', e.target.value)}
-                          className="input"
-                        />
-                      </td>
-                      <td>
-                        <input
-                          type="text"
-                          value={item.unit}
-                          onChange={e => handleItemChange(index, 'unit', e.target.value)}
-                          className="input"
-                          style={{ width: 60 }}
-                        />
-                      </td>
-                      <td>
-                        <input
-                          type="number"
-                          value={item.unitPrice}
-                          onChange={e => handleItemChange(index, 'unitPrice', e.target.value)}
-                          className="input"
-                          style={{ width: 80 }}
-                        />
-                      </td>
-                      <td>
-                        <input
-                          type="number"
-                          value={item.ordered}
-                          onChange={e => handleItemChange(index, 'ordered', e.target.value)}
-                          className="input"
-                          style={{ width: 80 }}
-                        />
-                      </td>
-                      <td>
-                        <input
-                          type="number"
-                          value={item.received}
-                          onChange={e => handleItemChange(index, 'received', e.target.value)}
-                          className="input"
-                          style={{ width: 80 }}
-                        />
-                      </td>
-                      <td>
-                        <select
-                          value={item.status}
-                          onChange={e => handleItemChange(index, 'status', e.target.value)}
-                          className="select"
-                          style={{ width: 120 }}
-                        >
-                          {statusOptions.map(option => (
-                            <option key={option.value} value={option.value}>
-                              {option.label}
-                            </option>
-                          ))}
-                        </select>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginTop: 16 }}>
-              <button 
-                className="btn-danger" 
-                onClick={() => handleDeleteGrn(selected)}
-              >
-                Delete GRN
-              </button>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button className="btn-white" onClick={() => setOpenView(false)}>Cancel</button>
-                <button className="btn-primary" onClick={handleSave}>Save</button>
+              <div className="modal-footer-inventory" style={{ justifyContent: 'space-between' }}>
+                <button 
+                  className="modal-btn-inventory cancel" 
+                  onClick={() => handleDeleteGrn(selected)}
+                  disabled={loading}
+                  style={{ backgroundColor: '#ef4444', borderColor: '#ef4444' }}
+                >
+                  Delete GRN
+                </button>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button 
+                    className="modal-btn-inventory cancel" 
+                    onClick={() => setOpenView(false)} 
+                    disabled={loading}
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    className="modal-btn-inventory submit" 
+                    onClick={handleSave} 
+                    disabled={loading}
+                  >
+                    {loading ? 'Saving...' : 'Save Changes'}
+                  </button>
+                </div>
               </div>
             </div>
           </div>
-        )}
-      </Modal>
+        </div>
+      )}
 
       {/* Delete Confirmation Modal */}
-      <Modal title="Delete GRN" open={openDelete} onClose={() => setOpenDelete(false)}>
-        <div style={{ padding: '16px 0' }}>
-          <p>Are you sure you want to delete GRN <strong>"{grnToDelete?.grn}"</strong>?</p>
-          <p style={{ color: '#666', fontSize: '14px', marginTop: '8px' }}>
-            This action cannot be undone and all associated data will be permanently removed.
-          </p>
+      {openDelete && (
+        <div className="modal-overlay-inventory" onClick={() => setOpenDelete(false)}>
+          <div className="modal-content-inventory" style={{ maxWidth: '400px' }} onClick={e => e.stopPropagation()}>
+            <div className="modal-header-inventory">
+              <div className="modal-title-section-inventory">
+                <h2 className="modal-title-inventory">Delete GRN</h2>
+                <p className="modal-subtitle-inventory">Confirm permanent deletion</p>
+              </div>
+              <button className="modal-close-btn-inventory" onClick={() => setOpenDelete(false)} aria-label="Close">×</button>
+            </div>
+            <div className="modal-body-inventory">
+              <div style={{ padding: '16px 0' }}>
+                <p style={{ marginBottom: '12px', fontSize: '14px', color: '#1f2937' }}>
+                  Are you sure you want to delete GRN <strong>"{grnToDelete?.grnNumber}"</strong>?
+                </p>
+                <div style={{
+                  padding: '12px',
+                  backgroundColor: '#fef2f2',
+                  border: '1px solid #fee2e2',
+                  borderRadius: '6px',
+                  color: '#7f1d1d',
+                  fontSize: '13px'
+                }}>
+                  ⚠️ This action cannot be undone. All associated data will be permanently removed.
+                </div>
+              </div>
+
+              <div className="modal-footer-inventory" style={{ justifyContent: 'flex-end' }}>
+                <button 
+                  className="modal-btn-inventory cancel" 
+                  onClick={() => setOpenDelete(false)} 
+                  disabled={loading}
+                >
+                  Cancel
+                </button>
+                <button 
+                  className="modal-btn-inventory submit"
+                  onClick={confirmDelete} 
+                  disabled={loading}
+                  style={{ backgroundColor: '#ef4444', borderColor: '#ef4444' }}
+                >
+                  {loading ? 'Deleting...' : 'Delete'}
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
-          <button className="btn-white" onClick={() => setOpenDelete(false)}>
-            Cancel
-          </button>
-          <button className="btn-danger" onClick={confirmDelete}>
-            Delete
-          </button>
-        </div>
-      </Modal>
+      )}
 
       <ChatAssistant />
     </div>

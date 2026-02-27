@@ -68,7 +68,7 @@ exports.createPO = async (req, res) => {
 
     const newPO = new PurchaseOrder({
       poNumber,
-      status: status || 'Pending',
+      status: status && ['Pending', 'Received', 'Cancelled'].includes(status) ? status : 'Pending',
       orderType,
       supplier: supplier || '',
       branch: branch || '',
@@ -88,6 +88,7 @@ exports.createPO = async (req, res) => {
       data: newPO
     });
   } catch (error) {
+    console.error('PO Creation Error:', error);
     res.status(500).json({
       success: false,
       message: error.message
@@ -101,10 +102,18 @@ exports.updatePO = async (req, res) => {
     const { poNumber } = req.params;
     const updateData = req.body;
 
+    // Validate status if it's being updated
+    if (updateData.status && !['Pending', 'Received', 'Cancelled'].includes(updateData.status)) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid status. Must be one of: Pending, Received, Cancelled`
+      });
+    }
+
     const po = await PurchaseOrder.findOneAndUpdate(
       { poNumber },
       { ...updateData, updatedAt: new Date() },
-      { new: true }
+      { new: true, runValidators: true }
     );
 
     if (!po) {
@@ -120,6 +129,7 @@ exports.updatePO = async (req, res) => {
       data: po
     });
   } catch (error) {
+    console.error('PO Update Error:', error);
     res.status(500).json({
       success: false,
       message: error.message

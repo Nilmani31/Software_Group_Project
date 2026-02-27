@@ -1,6 +1,8 @@
 const GoodsReceived = require('../models/goodsReceived');
 const Item = require('../models/items');
+const Stock = require('../models/stock');
 
+// View all Goods Received with intelligent summary
 async function viewGoodsReceived() {
     try {
         const grns = await GoodsReceived.find({})
@@ -32,6 +34,7 @@ async function viewGoodsReceived() {
     }
 }
 
+// Check specific item in goods received
 async function checkGoodsReceivedItem(itemName) {
     if (!itemName) {
         return '❌ Please specify which item to check. Example: "Show goods received for coffee"';
@@ -82,7 +85,109 @@ async function checkGoodsReceivedItem(itemName) {
     }
 }
 
+// Advanced: Get inventory reconciliation report
+async function getReconciliationReport() {
+    try {
+        const totalReceivedValue = await GoodsReceived.aggregate([
+            {
+                $group: {
+                    _id: null,
+                    totalValue: {
+                        $sum: {
+                            $sum: {
+                                $map: {
+                                    input: '$items',
+                                    as: 'item',
+                                    in: { $multiply: ['$$item.quantityReceived', '$$item.unitPrice'] }
+                                }
+                            }
+                        }
+                    },
+                    totalItems: { $sum: 1 }
+                }
+            }
+        ]);
+
+        const monthlyStats = await GoodsReceived.aggregate([
+            {
+                $group: {
+                    _id: {
+                        year: { $year: '$receivedDate' },
+                        month: { $month: '$receivedDate' }
+                    },
+                    count: { $sum: 1 }
+                }
+            },
+            { $sort: { '_id.year': -1, '_id.month': -1 } },
+            { $limit: 12 }
+        ]);
+
+        return {
+            totalValue: totalReceivedValue[0]?.totalValue || 0,
+            totalGRNs: totalReceivedValue[0]?.totalItems || 0,
+            monthlyStats
+        };
+    } catch (error) {
+        console.error('Error generating reconciliation report:', error);
+        throw error;
+    }
+}
+
+// Check for discrepancies between PO and GRN
+async function checkPOGRNDiscrepancies(poNumber) {
+    try {
+        const PurchaseOrder = require('../models/purchaseOrder');
+        const po = await PurchaseOrder.findOne({ poNumber });
+        
+        if (!po) {
+            return `❌ Purchase Order ${poNumber} not found`;
+        }
+
+        const grns = await GoodsReceived.find({ poNumber });
+
+        if (grns.length === 0) {
+            return `⚠️ No GRNs received for PO: ${poNumber}<br>` +
+                   `Expected items: ${po.items ? po.items.length : 0}`;
+        }
+
+        let response = `📊 <strong>PO-GRN Reconciliation: ${poNumber}</strong><br><br>`;
+        let discrepancies = 0;
+
+        po.items.forEach(poItem => {
+            let totalReceived = 0;
+            
+            grns.forEach(grn => {
+                const grnItem = grn.items.find(i => 
+                    i.itemName.toLowerCase() === poItem.itemName.toLowerCase()
+                );
+                if (grnItem) {
+                    totalReceived += grnItem.quantityReceived;
+                }
+            });
+
+            if (totalReceived !== poItem.quantity) {
+                discrepancies++;
+                const diff = poItem.quantity - totalReceived;
+                const icon = diff > 0 ? '⚠️' : '✓';
+                response += `${icon} <strong>${poItem.itemName}</strong><br>`;
+                response += `   Expected: ${poItem.quantity} | Received: ${totalReceived} | Difference: ${diff}<br>`;
+            }
+        });
+
+        if (discrepancies === 0) {
+            response += `✅ All items matched! PO fully received.`;
+        }
+
+        return response;
+    } catch (error) {
+        console.error('Error checking discrepancies:', error);
+        return `❌ Error: ${error.message}`;
+    }
+}
+
 module.exports = {
     viewGoodsReceived,
-    checkGoodsReceivedItem
+    checkGoodsReceivedItem,
+    getReconciliationReport,
+    checkPOGRNDiscrepancies
 };

@@ -11,11 +11,9 @@ const goodsReceivedSchema = new mongoose.Schema({
         ref: 'PurchaseOrder'
     },
     items: [{
-        itemId: {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: 'Item'
-        },
+        itemId: String,
         itemName: String,
+        unit: String,
         quantityOrdered: Number,
         quantityReceived: Number,
         unitPrice: Number
@@ -24,11 +22,9 @@ const goodsReceivedSchema = new mongoose.Schema({
         type: Date,
         default: Date.now
     },
-    receivedBy: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'User'
-    },
+    receivedBy: String,
     poNumber: String,
+    supplierName: String,
     status: {
         type: String,
         enum: ['RECEIVED'],

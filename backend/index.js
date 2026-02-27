@@ -27,6 +27,7 @@ const stockRouter = require('./routes/stock');
 const issueNotesRouter = require('./routes/issueNotes');
 const purchaseOrdersRouter = require('./routes/purchaseOrders');
 const chatRoutes = require('./routes/chat');
+const goodsReceivedRouter = require('./routes/goodsReceived');
 
 
 
@@ -93,6 +94,7 @@ app.use('/api/suppliers', suppliersRouter);
 app.use('/api/stock', stockRouter);
 app.use('/api/purchase-orders', purchaseOrdersRouter);
 app.use('/api/issue-notes', issueNotesRouter);
+app.use('/api/goods-received', goodsReceivedRouter);
 app.use('/api/chat', chatRoutes);
 
 // Error handling middleware
