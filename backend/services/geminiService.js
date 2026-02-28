@@ -2,6 +2,10 @@ const Groq = require('groq-sdk');
 const inventoryService = require('./inventoryService');
 const poService = require('./poService');
 const grnService = require('./grnService');
+const suppliersService = require('./suppliersService');
+const rolesService = require('./rolesService');
+const categoriesService = require('./categoriesService');
+const issueNotesService = require('./issueNotesService');
 
 class GeminiService {
     constructor() {
@@ -21,14 +25,37 @@ class GeminiService {
         return `You are an intelligent inventory management assistant. Your job is to help users manage inventory effectively.
 
 Available Functions you can call:
+
+INVENTORY & STOCK:
 1. checkStock(itemName) - Check stock levels for an item
 2. addStock(itemName, quantity) - Add stock 
 3. removeStock(itemName, quantity) - Remove/use stock
 4. getLowStockItems() - Show items below minimum stock
+
+PURCHASE ORDERS:
 5. viewAllPurchaseOrders() - Show all purchase orders
 6. getPendingPurchaseOrders() - Show pending orders only
+
+GOODS RECEIVED:
 7. viewGoodsReceived() - Show recent goods received
 8. checkGoodsReceivedItem(itemName) - Check GRN for specific item
+
+SUPPLIERS:
+9. viewAllSuppliers() - Show all suppliers
+10. getSupplierDetails(supplierName) - Get specific supplier info
+
+ROLES:
+11. viewAllRoles() - Show all roles
+12. getRoleDetails(roleName) - Get specific role details
+
+CATEGORIES:
+13. viewAllCategories() - Show all categories
+14. getCategoryDetails(categoryName) - Get specific category details
+
+ISSUE NOTES:
+15. viewRecentIssueNotes() - Show recent issue notes
+16. getIssueNoteDetails(issueNumber) - Get issue note details
+17. checkIssuedItems(itemName) - Check issued quantities of an item
 
 Based on what the user asks, identify which function(s) to call with extracted parameters.
 
@@ -39,17 +66,14 @@ IMPORTANT:
 - Use emojis and formatting for clarity
 - If unsure which function to call, ask the user for clarification
 - For stock operations, always ask for quantity if not provided
-- For "goods received" without specific item name, show all recent GRNs
-- For "low stock" queries combined with "purchase order", suggest checking both low stock items and pending orders
+- For listings (suppliers, roles, categories), show all results
 
 Examples:
 - "Do we have coffee?" → Call checkStock("coffee")
-- "Add 50 units of milk" → Call addStock("milk", 50)
-- "What's our low stock?" → Call getLowStockItems()
-- "Show pending orders" → Call getPendingPurchaseOrders()
-- "Show goods received" → Call viewGoodsReceived() to see recent GRNs
-- "Goods received for coffee?" → Call checkGoodsReceivedItem("coffee")
-- "Low stock items to purchase?" → Call getLowStockItems() followed by viewAllPurchaseOrders()`;
+- "Show suppliers" → Call viewAllSuppliers()
+- "Show all roles" → Call viewAllRoles()
+- "Show categories" → Call viewAllCategories()
+- "Show issue notes" → Call viewRecentIssueNotes()`;
     }
 
     async chat(userMessage) {
@@ -147,7 +171,11 @@ Examples:
             'add stock|add to|add \\d+': { name: 'addStock', extract: 'itemName,quantity' },
             'remove stock|use|remove \\d+': { name: 'removeStock', extract: 'itemName,quantity' },
             'goods received items|grn items|received items': { name: 'viewGoodsReceived', extract: null },
-            'goods received|grn|show received': { name: 'checkGoodsReceivedItem', extract: 'itemName' }
+            'goods received|grn|show received': { name: 'checkGoodsReceivedItem', extract: 'itemName' },
+            'supplier': { name: 'viewAllSuppliers', extract: 'supplierName' },
+            'role': { name: 'viewAllRoles', extract: 'roleName' },
+            'categor': { name: 'viewAllCategories', extract: 'categoryName' },
+            'issue': { name: 'viewRecentIssueNotes', extract: 'issueNumber' }
         };
 
         // Check which functions are mentioned
@@ -156,10 +184,50 @@ Examples:
             if (pattern.test(lowerMsg)) {
                 const params = this.extractParametersLocally(userMessage, funcInfo.name);
                 
-                // Special handling: if checkGoodsReceivedItem and no itemName found, use viewGoodsReceived instead
+                // Special handling for list vs detail queries
                 if (funcInfo.name === 'checkGoodsReceivedItem' && !params.itemName) {
                     functions.push({
                         name: 'viewGoodsReceived',
+                        params: {}
+                    });
+                } else if (funcInfo.name === 'viewAllSuppliers' && params.supplierName) {
+                    functions.push({
+                        name: 'getSupplierDetails',
+                        params
+                    });
+                } else if (funcInfo.name === 'viewAllSuppliers' && !params.supplierName) {
+                    functions.push({
+                        name: 'viewAllSuppliers',
+                        params: {}
+                    });
+                } else if (funcInfo.name === 'viewAllRoles' && params.roleName) {
+                    functions.push({
+                        name: 'getRoleDetails',
+                        params
+                    });
+                } else if (funcInfo.name === 'viewAllRoles' && !params.roleName) {
+                    functions.push({
+                        name: 'viewAllRoles',
+                        params: {}
+                    });
+                } else if (funcInfo.name === 'viewAllCategories' && params.categoryName) {
+                    functions.push({
+                        name: 'getCategoryDetails',
+                        params
+                    });
+                } else if (funcInfo.name === 'viewAllCategories' && !params.categoryName) {
+                    functions.push({
+                        name: 'viewAllCategories',
+                        params: {}
+                    });
+                } else if (funcInfo.name === 'viewRecentIssueNotes' && params.issueNumber) {
+                    functions.push({
+                        name: 'getIssueNoteDetails',
+                        params
+                    });
+                } else if (funcInfo.name === 'viewRecentIssueNotes' && !params.issueNumber) {
+                    functions.push({
+                        name: 'viewRecentIssueNotes',
                         params: {}
                     });
                 } else {
@@ -181,20 +249,91 @@ Examples:
         const lowerMsg = message.toLowerCase();
 
         // Extract item name
-        if (['checkStock', 'addStock', 'removeStock', 'checkGoodsReceivedItem'].includes(functionName)) {
-            // Look for quoted text
+        if (['checkStock', 'addStock', 'removeStock', 'checkGoodsReceivedItem', 'checkIssuedItems', 'viewAllSuppliers'].includes(functionName)) {
             const quoteMatch = message.match(/"([^"]+)"|'([^']+)'/);
             if (quoteMatch) {
-                params.itemName = quoteMatch[1] || quoteMatch[2];
+                if (functionName === 'viewAllSuppliers') {
+                    params.supplierName = quoteMatch[1] || quoteMatch[2];
+                } else if (functionName === 'checkIssuedItems') {
+                    params.itemName = quoteMatch[1] || quoteMatch[2];
+                } else {
+                    params.itemName = quoteMatch[1] || quoteMatch[2];
+                }
             } else {
-                // Extract after keywords
-                const itemKeywords = ['of', 'for', 'item', 'product'];
+                const itemKeywords = ['of', 'for', 'item', 'product', 'about'];
                 for (const keyword of itemKeywords) {
-                    const regex = new RegExp(`${keyword}\\s+([a-z0-9\\s]+?)(?:\\s+(?:units?|kg|liters?|g|box|packet|with))?$`, 'i');
+                    const regex = new RegExp(`${keyword}\\s+([a-z0-9\\s&'.]+?)(?:\\s+(?:units?|kg|liters?|g|box|packet|with|supplier))?$`, 'i');
                     const match = message.match(regex);
                     if (match) {
-                        params.itemName = match[1].trim();
+                        const extractedName = match[1].trim();
+                        if (functionName === 'viewAllSuppliers') {
+                            params.supplierName = extractedName;
+                        } else if (functionName === 'checkIssuedItems') {
+                            params.itemName = extractedName;
+                        } else {
+                            params.itemName = extractedName;
+                        }
                         break;
+                    }
+                }
+            }
+        }
+
+        // Extract supplier name
+        if (['getSupplierDetails', 'viewAllSuppliers'].includes(functionName)) {
+            if (!params.supplierName) {
+                const quoteMatch = message.match(/"([^"]+)"|'([^']+)'/);
+                if (quoteMatch) {
+                    params.supplierName = quoteMatch[1] || quoteMatch[2];
+                } else {
+                    const supplierMatch = message.match(/(?:about|for|tell me about|show|from)\s+([a-z0-9\s&'.]+?)(?:\s+supplier)?$/i);
+                    if (supplierMatch) {
+                        params.supplierName = supplierMatch[1].trim();
+                    }
+                }
+            }
+        }
+
+        // Extract role name
+        if (['getRoleDetails', 'viewAllRoles'].includes(functionName)) {
+            if (!params.roleName) {
+                const quoteMatch = message.match(/"([^"]+)"|'([^']+)'/);
+                if (quoteMatch) {
+                    params.roleName = quoteMatch[1] || quoteMatch[2];
+                } else {
+                    const roleMatch = message.match(/(?:about|for|tell me about|show|role)\s+([a-z0-9\s]+?)(?:\s+role)?$/i);
+                    if (roleMatch) {
+                        params.roleName = roleMatch[1].trim();
+                    }
+                }
+            }
+        }
+
+        // Extract category name
+        if (['getCategoryDetails', 'viewAllCategories'].includes(functionName)) {
+            if (!params.categoryName) {
+                const quoteMatch = message.match(/"([^"]+)"|'([^']+)'/);
+                if (quoteMatch) {
+                    params.categoryName = quoteMatch[1] || quoteMatch[2];
+                } else {
+                    const categoryMatch = message.match(/(?:about|for|tell me about|show|categor)\s+([a-z0-9\s]+?)(?:\s+categor)?$/i);
+                    if (categoryMatch) {
+                        params.categoryName = categoryMatch[1].trim();
+                    }
+                }
+            }
+        }
+
+        // Extract issue number
+        if (['getIssueNoteDetails', 'viewRecentIssueNotes'].includes(functionName)) {
+            if (!params.issueNumber) {
+                const quoteMatch = message.match(/"([^"]+)"|'([^']+)'/);
+                if (quoteMatch) {
+                    params.issueNumber = quoteMatch[1] || quoteMatch[2];
+                } else {
+                    const issueMatch = message.match(/(?:issue|note|notes?)\s+([a-z0-9\-]+)/i);
+                    if (issueMatch) {
+                        params.issueNumber = issueMatch[1].trim();
                     }
                 }
             }
@@ -250,6 +389,33 @@ Examples:
                         break;
                     case 'checkGoodsReceivedItem':
                         result = await grnService.checkGoodsReceivedItem(func.params.itemName);
+                        break;
+                    case 'viewAllSuppliers':
+                        result = await suppliersService.viewAllSuppliers();
+                        break;
+                    case 'getSupplierDetails':
+                        result = await suppliersService.getSupplierDetails(func.params.supplierName);
+                        break;
+                    case 'viewAllRoles':
+                        result = await rolesService.viewAllRoles();
+                        break;
+                    case 'getRoleDetails':
+                        result = await rolesService.getRoleDetails(func.params.roleName);
+                        break;
+                    case 'viewAllCategories':
+                        result = await categoriesService.viewAllCategories();
+                        break;
+                    case 'getCategoryDetails':
+                        result = await categoriesService.getCategoryDetails(func.params.categoryName);
+                        break;
+                    case 'viewRecentIssueNotes':
+                        result = await issueNotesService.viewRecentIssueNotes();
+                        break;
+                    case 'getIssueNoteDetails':
+                        result = await issueNotesService.getIssueNoteDetails(func.params.issueNumber);
+                        break;
+                    case 'checkIssuedItems':
+                        result = await issueNotesService.checkIssuedItems(func.params.itemName);
                         break;
                     default:
                         result = '❌ Function not recognized';

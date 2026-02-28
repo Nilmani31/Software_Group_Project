@@ -13,13 +13,13 @@ async function sendMessage(req, res) {
     try {
         console.log(`\n📨 User message: "${userMessage}"`);
 
-        // Get Gemini service instance
+        // Get Groq AI service instance
         const geminiService = await getGeminiService();
 
-        // Process message with Gemini
+        // Process message with Groq AI
         const response = await geminiService.chat(userMessage);
 
-        console.log(`✅ Gemini Response: ${response.intent}`);
+        console.log(`✅ Groq Response: ${response.intent}`);
         console.log(`📊 Executed: ${response.executedFunctions?.join(', ') || 'None'}\n`);
 
         res.json({
@@ -27,7 +27,7 @@ async function sendMessage(req, res) {
             message: response.message,
             intent: response.intent,
             offline: false,
-            powered: 'Google Gemini AI',
+            powered: 'Groq AI',
             timestamp: new Date().toISOString()
         });
 
@@ -37,7 +37,7 @@ async function sendMessage(req, res) {
             success: false,
             message: `Error: ${error.message}`,
             offline: false,
-            powered: 'Google Gemini AI'
+            powered: 'Groq AI'
         });
     }
 }

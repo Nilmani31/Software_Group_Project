@@ -686,8 +686,7 @@ export default function GoodReceived() {
                   padding: '8px 12px',
                   backgroundColor: '#f0f4ff',
                   borderRadius: '6px',
-                  alignItems: 'center',
-                  width: '100%'
+                  alignItems: 'center'
                 }}>
                   <div style={{ minWidth: 0 }}>Item Name</div>
                   <div style={{ minWidth: 0 }}>Unit</div>
@@ -707,8 +706,7 @@ export default function GoodReceived() {
                     backgroundColor: '#ffffff',
                     border: '1px solid #e5e7eb',
                     borderRadius: '6px',
-                    transition: 'all 0.2s',
-                    width: '100%'
+                    transition: 'all 0.2s'
                   }}>
                     <input
                       type="text"
@@ -753,44 +751,32 @@ export default function GoodReceived() {
                   </div>
                 ))}
               </div>
+            </div>
 
-              <div className="modal-footer-inventory" style={{ justifyContent: 'space-between' }}>
+            <div className="modal-footer-inventory" style={{ justifyContent: 'space-between' }}>
+              <button 
+                className="modal-btn-inventory cancel" 
+                onClick={() => handleDeleteGrn(selected)}
+                disabled={loading}
+                style={{ backgroundColor: '#ef4444', borderColor: '#ef4444' }}
+              >
+                Delete GRN
+              </button>
+              <div style={{ display: 'flex', gap: '8px' }}>
                 <button 
                   className="modal-btn-inventory cancel" 
-                  onClick={() => handleDeleteGrn(selected)}
+                  onClick={() => setOpenView(false)} 
                   disabled={loading}
-                  style={{ backgroundColor: '#ef4444', borderColor: '#ef4444' }}
                 >
-                  Delete GRN
+                  Cancel
                 </button>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <button 
-                    className="modal-btn-inventory cancel" 
-                    onClick={() => {
-                      if (isEditMode) {
-                        setIsEditMode(false);
-                      } else {
-                        setOpenView(false);
-                      }
-                    }}
-                    disabled={loading}
-                  >
-                    {isEditMode ? 'Cancel' : 'Close'}
-                  </button>
-                  <button 
-                    className="modal-btn-inventory submit" 
-                    onClick={() => {
-                      if (isEditMode) {
-                        handleSave();
-                      } else {
-                        setIsEditMode(true);
-                      }
-                    }}
-                    disabled={loading}
-                  >
-                    {isEditMode ? (loading ? 'Saving...' : 'Save Changes') : 'Edit'}
-                  </button>
-                </div>
+                <button 
+                  className="modal-btn-inventory submit" 
+                  onClick={handleSave} 
+                  disabled={loading}
+                >
+                  {loading ? 'Saving...' : 'Save Changes'}
+                </button>
               </div>
             </div>
           </div>

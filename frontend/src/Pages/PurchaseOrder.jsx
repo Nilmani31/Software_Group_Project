@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react'
 import Navbar from '../Components/Navbar'
 import Sidebar from '../Components/Sidebar'
 import ChatAssistant from '../Components/ChatAssistant'
+import DatePicker from 'react-datepicker'
+import 'react-datepicker/dist/react-datepicker.css'
 // Modal component replaced for Create PO to match Inventory design
 import './PurchaseOrder.css'
 
@@ -767,11 +769,33 @@ export default function PurchaseOrder () {
                   )}
                   <div className="form-group-inventory">
                     <label className="form-label-inventory">Order Date</label>
-                    <input type="date" value={poForm.orderDate} onChange={e => updateForm('orderDate', e.target.value)} className="form-input-inventory" />
+                    <DatePicker 
+                      selected={poForm.orderDate ? new Date(poForm.orderDate) : null}
+                      onChange={(date) => {
+                        const dateString = date ? date.toISOString().split('T')[0] : ''
+                        updateForm('orderDate', dateString)
+                      }}
+                      minDate={new Date()}
+                      dateFormat="yyyy/MM/dd"
+                      className="form-input-inventory"
+                      placeholderText="Select Order Date"
+                      wrapperClassName="datepicker-wrapper"
+                    />
                   </div>
                   <div className="form-group-inventory">
                     <label className="form-label-inventory">Expected Delivery Date</label>
-                    <input type="date" value={poForm.expectedDate} onChange={e => updateForm('expectedDate', e.target.value)} className="form-input-inventory" />
+                    <DatePicker 
+                      selected={poForm.expectedDate ? new Date(poForm.expectedDate) : null}
+                      onChange={(date) => {
+                        const dateString = date ? date.toISOString().split('T')[0] : ''
+                        updateForm('expectedDate', dateString)
+                      }}
+                      minDate={poForm.orderDate ? new Date(poForm.orderDate) : new Date()}
+                      dateFormat="yyyy/MM/dd"
+                      className="form-input-inventory"
+                      placeholderText="Select Expected Delivery Date"
+                      wrapperClassName="datepicker-wrapper"
+                    />
                   </div>
                 </div>
                 <div className="modal-footer-inventory" style={{ justifyContent:'flex-end' }}>
@@ -942,6 +966,78 @@ export default function PurchaseOrder () {
                 setOpenEdit(false)
                 setOpenView(true)
               }}>
+                <h4 style={{ margin: '0 0 12px 0', fontSize: '14px', fontWeight: 700, color: '#667eea' }}>Order Details</h4>
+                <div className="form-layout-inventory">
+                  <div className="form-group-inventory">
+                    <label className="form-label-inventory">Order By</label>
+                    <select value={editForm.orderBy} onChange={e => {
+                      setEditForm(prev => {
+                        if (e.target.value === 'Supplier') {
+                          return { ...prev, orderBy: e.target.value, branch: '' }
+                        } else {
+                          return { ...prev, orderBy: e.target.value, supplierName: '', phone: '' }
+                        }
+                      })
+                    }} className="form-input-inventory">
+                      <option>Supplier</option>
+                      <option>Branch</option>
+                    </select>
+                  </div>
+                  {editForm.orderBy === 'Supplier' ? (
+                    <>
+                      <div className="form-group-inventory">
+                        <label className="form-label-inventory">Supplier Name</label>
+                        <input type="text" value={editForm.supplierName} onChange={e => setEditForm(prev => ({ ...prev, supplierName: e.target.value }))} placeholder="Enter Supplier" className="form-input-inventory" />
+                      </div>
+                      <div className="form-group-inventory">
+                        <label className="form-label-inventory">Phone Number</label>
+                        <input type="tel" value={editForm.phone} onChange={e => setEditForm(prev => ({ ...prev, phone: e.target.value }))} placeholder="07x xxx xxxx" className="form-input-inventory" />
+                      </div>
+                    </>
+                  ) : (
+                    <div className="form-group-inventory">
+                      <label className="form-label-inventory">Branch</label>
+                      <select value={editForm.branch} onChange={e => setEditForm(prev => ({ ...prev, branch: e.target.value }))} className="form-input-inventory">
+                        <option value="">Select Branch</option>
+                        {branches.map(b => (
+                          <option key={b._id} value={b.name || b.branchName}>{b.name || b.branchName}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                  <div className="form-group-inventory">
+                    <label className="form-label-inventory">Order Date</label>
+                    <DatePicker 
+                      selected={editForm.orderDate ? new Date(editForm.orderDate) : null}
+                      onChange={(date) => {
+                        const dateString = date ? date.toISOString().split('T')[0] : ''
+                        setEditForm(prev => ({ ...prev, orderDate: dateString }))
+                      }}
+                      minDate={new Date()}
+                      dateFormat="yyyy/MM/dd"
+                      className="form-input-inventory"
+                      placeholderText="Select Order Date"
+                      wrapperClassName="datepicker-wrapper"
+                    />
+                  </div>
+                  <div className="form-group-inventory">
+                    <label className="form-label-inventory">Expected Delivery Date</label>
+                    <DatePicker 
+                      selected={editForm.expectedDate ? new Date(editForm.expectedDate) : null}
+                      onChange={(date) => {
+                        const dateString = date ? date.toISOString().split('T')[0] : ''
+                        setEditForm(prev => ({ ...prev, expectedDate: dateString }))
+                      }}
+                      minDate={editForm.orderDate ? new Date(editForm.orderDate) : new Date()}
+                      dateFormat="yyyy/MM/dd"
+                      className="form-input-inventory"
+                      placeholderText="Select Expected Delivery Date"
+                      wrapperClassName="datepicker-wrapper"
+                    />
+                  </div>
+                </div>
+
+                <h4 style={{ margin: '24px 0 12px 0', fontSize: '14px', fontWeight: 700, color: '#667eea' }}>Edit Items</h4>
                 <div className="form-layout-inventory">
                   <div className="form-group-inventory">
                     <label className="form-label-inventory">Category</label>

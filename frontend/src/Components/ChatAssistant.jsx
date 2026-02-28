@@ -21,7 +21,7 @@ const ChatAssistant = () => {
         suggestions: [
           { text: '⚠️ Show low stock alerts', query: 'What items are running low on stock?' },
           { text: '📈 Inventory summary', query: 'How many items are out of stock?' },
-          { text: '🔍 Check item', query: 'Is Laptop available?' }
+          { text: '🔍 Check item', query: 'Is Milk available?' }
         ]
       },
       '/inventory': {
@@ -111,7 +111,7 @@ const ChatAssistant = () => {
       name: 'Inventory System',
       greeting: "Hello! 👋 I'm your AI assistant for the CBBS Inventory System. Ask me about item availability!",
       suggestions: [
-        { text: '🔍 Check item', query: 'Is Laptop available?' },
+        { text: '🔍 Check item', query: 'Is Coffee available?' },
         { text: '📊 Stock status', query: 'Show low stock items' },
         { text: '⚠️ Alerts', query: 'What items need attention?' }
       ]
@@ -138,85 +138,6 @@ const ChatAssistant = () => {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
-
-  // Extract item name from user query
-  const extractItemName = (text) => {
-    let cleaned = text
-      .toLowerCase()
-      .replace(/^(is|do you have|check|search|find|get|is there|can i|available|stock|in|for\s|do\s|can\s)/gi, '')
-      .replace(/\?$/g, '')
-      .trim();
-    
-    return cleaned;
-  };
-
-  // Check if message is a stock query
-  const isStockQuery = (text) => {
-    const stockKeywords = ['stock', 'available', 'have', 'check', 'is there', 'quantity', 'inventory', 'in stock', 'do you have', 'can i', 'find'];
-    return stockKeywords.some(keyword => text.toLowerCase().includes(keyword));
-  };
-
-  // Fetch stock information from API
-  const fetchStockInfo = async (itemName) => {
-    try {
-      const response = await fetch(
-        `http://localhost:5000/api/stock/search/byname?itemName=${encodeURIComponent(itemName)}`,
-        {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json'
-          }
-        }
-      );
-      
-      const data = await response.json();
-      return data;
-    } catch (error) {
-      console.error('Error fetching stock info:', error);
-      return { found: false, error: error.message };
-    }
-  };
-
-  // Generate AI response based on stock data
-  const generateStockResponse = (stockData, itemName) => {
-    if (!stockData.found) {
-      return `I couldn't find any items matching "${itemName}". Could you please provide the item name again or check the spelling?`;
-    }
-
-    const results = stockData.results;
-    let response = '';
-
-    results.forEach((item, index) => {
-      response += `📦 <strong>${item.itemName}</strong> (SKU: ${item.sku})\n`;
-      
-      if (item.stocks.length === 0) {
-        response += '   No stock records found for this item.\n';
-      } else {
-        item.stocks.forEach(stock => {
-          const statusEmoji = {
-            'in-stock': '✅',
-            'low': '⚠️',
-            'critical': '🔴',
-            'out-of-stock': '❌'
-          }[stock.status] || '❓';
-
-          response += `   ${statusEmoji} <strong>${stock.branchName}</strong>: ${stock.quantity} ${stock.unitName}`;
-          
-          if (stock.status === 'out-of-stock') {
-            response += ' (OUT OF STOCK)';
-          } else if (stock.status === 'low') {
-            response += ` (Low - Min: ${stock.minStock})`;
-          } else if (stock.status === 'critical') {
-            response += ' (CRITICAL)';
-          }
-          response += '\n';
-        });
-      }
-      response += '\n';
-    });
-
-    return response;
-  };
 
   const handleSendMessage = async () => {
     if (!inputMessage.trim()) return;
