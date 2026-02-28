@@ -15,6 +15,7 @@ export default function GoodReceived() {
   const [openCreate, setOpenCreate] = useState(false);
   const [openView, setOpenView] = useState(false);
   const [openDelete, setOpenDelete] = useState(false);
+  const [isEditMode, setIsEditMode] = useState(false);
   const [grnToDelete, setGrnToDelete] = useState(null);
   const [selected, setSelected] = useState(null);
   const [editableItems, setEditableItems] = useState([]);
@@ -402,6 +403,7 @@ export default function GoodReceived() {
                                       setSelected(g);
                                       setEditableItems(g.items || []);
                                       setEditableGrn(g);
+                                      setIsEditMode(false);
                                       setOpenView(true);
                                     }}
                                     disabled={loading}
@@ -634,7 +636,9 @@ export default function GoodReceived() {
                   <input 
                     value={editableGrn.poNumber || ''} 
                     onChange={e => handleGrnChange('poNumber', e.target.value)} 
-                    className="form-input-inventory" 
+                    className="form-input-inventory"
+                    disabled={!isEditMode}
+                    style={!isEditMode ? { backgroundColor: '#f3f4f6', cursor: 'not-allowed' } : {}}
                   />
                 </div>
                 <div className="form-group-inventory">
@@ -643,22 +647,34 @@ export default function GoodReceived() {
                     type="date" 
                     value={editableGrn.receivedDate ? editableGrn.receivedDate.substring(0, 10) : ''} 
                     onChange={e => handleGrnChange('receivedDate', e.target.value)} 
-                    className="form-input-inventory" 
+                    className="form-input-inventory"
+                    disabled={!isEditMode}
+                    style={!isEditMode ? { backgroundColor: '#f3f4f6', cursor: 'not-allowed' } : {}}
                   />
                 </div>
                 <div className="form-group-inventory">
                   <label className="form-label-inventory">Status</label>
                   <input 
                     value={editableGrn.status || ''} 
-                    className="form-input-inventory" 
+                    className="form-input-inventory"
                     readOnly
                     style={{ backgroundColor: '#f3f4f6', cursor: 'not-allowed' }}
+                  />
+                </div>
+                <div className="form-group-inventory">
+                  <label className="form-label-inventory">Received By</label>
+                  <input 
+                    value={editableGrn.receivedBy || ''} 
+                    onChange={e => handleGrnChange('receivedBy', e.target.value)}
+                    className="form-input-inventory"
+                    disabled={!isEditMode}
+                    style={!isEditMode ? { backgroundColor: '#f3f4f6', cursor: 'not-allowed' } : {}}
                   />
                 </div>
               </div>
 
               <h4 style={{ margin: '24px 0 16px 0', fontSize: '14px', fontWeight: 700, color: '#667eea' }}>Items Received</h4>
-              <div style={{ marginBottom: '16px', overflowX: 'auto' }}>
+              <div style={{ marginBottom: '16px' }}>
                 <div style={{ 
                   display: 'grid', 
                   gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr', 
@@ -699,35 +715,40 @@ export default function GoodReceived() {
                       value={item.itemName || ''}
                       onChange={e => handleItemChange(index, 'itemName', e.target.value)}
                       className="form-input-inventory"
-                      style={{ fontSize: '13px', width: '100%', minWidth: 0 }}
+                      disabled={!isEditMode}
+                      style={{ fontSize: '13px', width: '100%', minWidth: 0, ...(!isEditMode ? { backgroundColor: '#f3f4f6', cursor: 'not-allowed' } : {}) }}
                     />
                     <input
                       type="text"
                       value={item.unit || ''}
                       onChange={e => handleItemChange(index, 'unit', e.target.value)}
                       className="form-input-inventory"
-                      style={{ fontSize: '13px', width: '100%', minWidth: 0 }}
+                      disabled={!isEditMode}
+                      style={{ fontSize: '13px', width: '100%', minWidth: 0, ...(!isEditMode ? { backgroundColor: '#f3f4f6', cursor: 'not-allowed' } : {}) }}
                     />
                     <input
                       type="number"
                       value={item.unitPrice || ''}
                       onChange={e => handleItemChange(index, 'unitPrice', e.target.value)}
                       className="form-input-inventory"
-                      style={{ fontSize: '13px', width: '100%', minWidth: 0 }}
+                      disabled={!isEditMode}
+                      style={{ fontSize: '13px', width: '100%', minWidth: 0, ...(!isEditMode ? { backgroundColor: '#f3f4f6', cursor: 'not-allowed' } : {}) }}
                     />
                     <input
                       type="number"
                       value={item.quantityOrdered || ''}
                       onChange={e => handleItemChange(index, 'quantityOrdered', e.target.value)}
                       className="form-input-inventory"
-                      style={{ fontSize: '13px', width: '100%', minWidth: 0 }}
+                      disabled={!isEditMode}
+                      style={{ fontSize: '13px', width: '100%', minWidth: 0, ...(!isEditMode ? { backgroundColor: '#f3f4f6', cursor: 'not-allowed' } : {}) }}
                     />
                     <input
                       type="number"
                       value={item.quantityReceived || ''}
                       onChange={e => handleItemChange(index, 'quantityReceived', e.target.value)}
                       className="form-input-inventory"
-                      style={{ fontSize: '13px', width: '100%', minWidth: 0 }}
+                      disabled={!isEditMode}
+                      style={{ fontSize: '13px', width: '100%', minWidth: 0, ...(!isEditMode ? { backgroundColor: '#f3f4f6', cursor: 'not-allowed' } : {}) }}
                     />
                   </div>
                 ))}
@@ -745,17 +766,29 @@ export default function GoodReceived() {
                 <div style={{ display: 'flex', gap: '8px' }}>
                   <button 
                     className="modal-btn-inventory cancel" 
-                    onClick={() => setOpenView(false)} 
+                    onClick={() => {
+                      if (isEditMode) {
+                        setIsEditMode(false);
+                      } else {
+                        setOpenView(false);
+                      }
+                    }}
                     disabled={loading}
                   >
-                    Cancel
+                    {isEditMode ? 'Cancel' : 'Close'}
                   </button>
                   <button 
                     className="modal-btn-inventory submit" 
-                    onClick={handleSave} 
+                    onClick={() => {
+                      if (isEditMode) {
+                        handleSave();
+                      } else {
+                        setIsEditMode(true);
+                      }
+                    }}
                     disabled={loading}
                   >
-                    {loading ? 'Saving...' : 'Save Changes'}
+                    {isEditMode ? (loading ? 'Saving...' : 'Save Changes') : 'Edit'}
                   </button>
                 </div>
               </div>

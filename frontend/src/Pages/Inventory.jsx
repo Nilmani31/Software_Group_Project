@@ -1262,6 +1262,8 @@ const Inventory = () => {
           </div>
         </div>
       )}
+
+      <ChatAssistant />
     </div>
   );
 };
