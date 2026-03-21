@@ -2,8 +2,9 @@ import React, { useState, useMemo, useEffect } from 'react';
 import Navbar from '../Components/Navbar';
 import Sidebar from '../Components/Sidebar';
 import ChatAssistant from '../Components/ChatAssistant';
+import FindItemByImageModal from '../Components/FindItemByImageModal';
 import './Inventory.css';
-import { FaTimes, FaEdit, FaTrash } from 'react-icons/fa';
+import { FaTimes, FaEdit, FaTrash, FaImage } from 'react-icons/fa';
 
 // Helper function to generate SKU with first 3 letters of category name
 const generateSKU = (categoryName, existingSkus = []) => {
@@ -59,6 +60,7 @@ const Inventory = () => {
   const [categoryFilter, setCategoryFilter] = useState('All Categories');
   const [branchFilter, setBranchFilter] = useState('All Branch');
   const [showModal, setShowModal] = useState(false);
+  const [showFindByImageModal, setShowFindByImageModal] = useState(false);
   const [imagePreview, setImagePreview] = useState(null);
   const [formData, setFormData] = useState({
     name: '',
@@ -191,6 +193,31 @@ const Inventory = () => {
     setFormData(prev => ({
       ...prev,
       sku: '' // SKU will be generated when category is selected
+    }));
+    setShowModal(true);
+  };
+
+  const handleFindByImage = () => {
+    setShowFindByImageModal(true);
+  };
+
+  const handleCloseFindByImageModal = () => {
+    setShowFindByImageModal(false);
+  };
+
+  const handleAddAsNewItemFromImage = (imageData) => {
+    // Set the image preview and open the Add New Item modal
+    setImagePreview(imageData);
+    setShowFindByImageModal(false);
+    // Clear form and reset SKU
+    setFormData(prev => ({
+      ...prev,
+      name: '',
+      category: '',
+      unit: 'kg',
+      minStock: '',
+      maxStock: '',
+      sku: ''
     }));
     setShowModal(true);
   };
@@ -532,6 +559,9 @@ const Inventory = () => {
                     </div>
 
                     <div className="inventory-actions">
+                      <button className="btn btn-find" onClick={handleFindByImage}>
+                        <FaImage /> Find by Image
+                      </button>
                       <button className="btn btn-add" onClick={handleOpenModal}>+ Add new Item</button>
                     </div>
                   </div>
@@ -1262,6 +1292,13 @@ const Inventory = () => {
           </div>
         </div>
       )}
+
+      {/* Find Item by Image Modal */}
+      <FindItemByImageModal
+        isOpen={showFindByImageModal}
+        onClose={handleCloseFindByImageModal}
+        onAddAsNew={handleAddAsNewItemFromImage}
+      />
 
       <ChatAssistant />
     </div>
