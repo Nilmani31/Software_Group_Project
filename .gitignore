@@ -27,3 +27,40 @@ node_modules/
 .env
 dist/
 build/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+*.egg-info/
+.eggs/
+
+# Qdrant
+qdrant_storage/
+*.qdrant
+
+# VS Code
+.vscode/
+*.code-workspace
+
+# IDE
+.idea/
+*.swp
+*.swo
+*~
+
+# Windows
+Thumbs.db
+*.lnk
+
+# Logs
+*.log
+
+# Lock files (optional - uncomment if needed)
+# package-lock.json
+# yarn.lock
