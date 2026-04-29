@@ -1,0 +1,60 @@
+const { searchByImage } = require("../services/imageSearchService");
+
+const findItemsByImage = async (req, res, next) => {
+	console.log(`\n${'═'.repeat(60)}`);
+	console.log(`📸 RECEIVED IMAGE SEARCH REQUEST`);
+	console.log(`${'═'.repeat(60)}`);
+	
+	try {
+		// STEP 1: Check if file exists
+		console.log(`\n1️⃣  Checking request...`);
+		console.log(`   Method: ${req.method}`);
+		console.log(`   URL: ${req.url}`);
+		console.log(`   Body fields: ${Object.keys(req.body).join(', ')}`);
+		
+		if (!req.file) {
+			console.warn(`⚠️ No file found in request`);
+			console.warn(`   Expected field name: 'image'`);
+			console.warn(`   Multer status: ${req.file ? 'OK' : 'NO FILE'}`);
+			return res.status(400).json({
+				error: "ImageRequired",
+				message: "Please upload an image file with field name 'image'.",
+			});
+		}
+
+		// STEP 2: Log file details
+		console.log(`\n2️⃣  File received from Multer...`);
+		console.log(`   Filename: ${req.file.originalname}`);
+		console.log(`   Size: ${req.file.size} bytes`);
+		console.log(`   MIME: ${req.file.mimetype}`);
+		console.log(`   Buffer: ${req.file.buffer ? req.file.buffer.length + ' bytes' : 'NO BUFFER'}`);
+		
+		// STEP 3: Call service
+		console.log(`\n3️⃣  Calling imageSearchService.searchByImage()...`);
+		const mlResponse = await searchByImage(req.file);
+
+		// STEP 4: Return success
+		console.log(`\n4️⃣  Sending response to client...`);
+		console.log(`   Status: 200 OK`);
+		console.log(`   Results count: ${mlResponse.count}`);
+		
+		console.log(`\n${'═'.repeat(60)}`);
+		console.log(`✅ IMAGE SEARCH REQUEST COMPLETED SUCCESSFULLY`);
+		console.log(`${'═'.repeat(60)}\n`);
+		
+		return res.status(200).json({
+			results: mlResponse.results || [],
+			count: mlResponse.count || 0,
+		});
+	} catch (error) {
+		console.error(`\n❌ ERROR IN CONTROLLER`);
+		console.error(`   Error: ${error.message}`);
+		console.error(`   Stack: ${error.stack}`);
+		console.log(`${'═'.repeat(60)}\n`);
+		return next(error);
+	}
+};
+
+module.exports = {
+	findItemsByImage,
+};
