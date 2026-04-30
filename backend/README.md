@@ -270,3 +270,6 @@ For issues or questions, please check:
 ---
 
 Happy coding! 🚀
+
+
+* Add the unit price to the inventory table and display the quantity in the popup window within the inventory section.
