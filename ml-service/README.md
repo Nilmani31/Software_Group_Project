@@ -31,6 +31,67 @@ Qdrant Vector Database (Port 6333)
 
 ---
 
+## Quick Setup Guide
+
+### Step 1: Setup Qdrant Database (REQUIRED)
+
+#### Option A: Download & Run Qdrant Executable (Windows/macOS/Linux)
+
+1. **Download Qdrant:**
+   - Go to: https://github.com/qdrant/qdrant/releases
+   - Download the latest release for your OS:
+     - **Windows:** `qdrant-x86_64-pc-windows-gnu.exe`
+     - **macOS:** `qdrant-x86_64-apple-darwin` or `qdrant-aarch64-apple-darwin` (Apple Silicon)
+     - **Linux:** `qdrant-x86_64-unknown-linux-gnu`
+
+2. **Create Qdrant directory:**
+   ```bash
+   mkdir qdrant
+   cd qdrant
+   ```
+
+3. **Extract/Move executable:**
+   - **Windows:** Move the `.exe` file to the `qdrant` folder
+   - **macOS/Linux:** 
+     ```bash
+     chmod +x qdrant-x86_64-unknown-linux-gnu
+     mv qdrant-x86_64-unknown-linux-gnu qdrant
+     ```
+
+4. **Create required folder:**
+   ```bash
+   mkdir storage
+   ```
+
+5. **Run Qdrant:**
+   - **Windows:**
+     ```powershell
+     .\qdrant.exe
+     ```
+   - **macOS/Linux:**
+     ```bash
+     ./qdrant
+     ```
+
+   **Expected output:**
+   ```
+   2024-XX-XX ... Server is running on 0.0.0.0:6333
+   ```
+
+6. **Verify it's running:**
+   - Open browser: http://localhost:6333/health
+   - Should return: `{"status":"ok"}`
+
+#### Option B: Using Docker (Recommended)
+
+```bash
+docker run -p 6333:6333 -v qdrant_storage:/qdrant/storage qdrant/qdrant
+```
+
+**Note:** Keep Qdrant running in a separate terminal/process throughout development.
+
+---
+
 ## Installation & Setup
 
 ### 1. Create Virtual Environment
@@ -58,19 +119,49 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 4. Create `.env` file
+### 4. Create `.env` file (if it doesn't exist)
 
-Copy `.env.example` to `.env`:
-```bash
-cp .env.example .env
-```
-
-Edit `.env` with your configuration:
+Create `ml-service/.env`:
 ```env
-SERVICE_NAME=ml-service
 QDRANT_URL=http://localhost:6333
 QDRANT_COLLECTION=inventory_items
 QDRANT_TOP_K=5
+QDRANT_API_KEY=
+```
+
+### 5. Initialize Qdrant Collection
+
+Before running the service for the first time, create the collection:
+
+```bash
+# From project root directory
+python init_qdrant.py
+```
+
+**Expected output:**
+```
+Creating collection 'inventory_items'...
+✅ Collection 'inventory_items' created successfully!
+   Vector size: 512 (CLIP ViT-B-32)
+   Distance metric: COSINE
+```
+
+### 6. (Optional) Populate Test Data
+
+Add sample items to Qdrant for testing:
+
+```bash
+# From project root directory
+python populate_qdrant.py
+```
+
+**Expected output:**
+```
+📝 Creating test items in Qdrant collection 'inventory_items'...
+  ✅ Added: Test Item 1
+  ✅ Added: Test Item 2
+✅ Successfully populated 2 test items!
+Collection is now ready for image search testing.
 ```
 
 ---
@@ -210,38 +301,56 @@ ml-service/
 
 ## Troubleshooting
 
-### Issue: "Collection `inventory_items` doesn't exist!"
+### Issue: "Collection `inventory_items` doesn't exist!" (500 Error)
 
-**Solution:** Initialize the Qdrant collection:
+**Cause:** Qdrant is running but the collection wasn't initialized.
+
+**Solution:**
+1. Make sure Qdrant is running (see Quick Setup Guide)
+2. Initialize the collection:
+   ```bash
+   python init_qdrant.py
+   ```
+3. Restart the ML service
+
+### Issue: "Connection refused to localhost:6333" (500 Error)
+
+**Cause:** Qdrant service is not running.
+
+**Solution:** Start Qdrant:
+- **Windows:** Run `qdrant.exe` in the qdrant folder
+- **macOS/Linux:** Run `./qdrant` in the qdrant folder
+- **Docker:** `docker run -p 6333:6333 qdrant/qdrant`
+
+**Verify it's running:**
 ```bash
-# From project root
-python init_qdrant.py
+curl http://localhost:6333/health
 ```
+
+Should return: `{"status":"ok"}`
 
 ### Issue: "CLIP model stuck loading"
 
-**Solution:** The first load downloads 605 MB. Make sure you have:
-- Stable internet connection
+**Cause:** First load downloads 605 MB model file.
+
+**Solution:** 
+- Requires stable internet connection
 - At least 2 GB free disk space
-- 5-10 minutes wait time
+- Wait 5-10 minutes for model download
+- Monitor: Look for `✅ CLIP model loaded successfully!`
 
-### Issue: "Connection refused to localhost:6333"
-
-**Solution:** Qdrant is not running. Start it:
-```bash
-# If you have Qdrant executable
-qdrant.exe
-
-# Or using Docker
-docker run -p 6333:6333 qdrant/qdrant
-```
-
-### Issue: Slow image search response
+### Issue: "Slow image search response" or "Timeout"
 
 **Possible causes:**
-- First request after startup (CLIP model initializing)
-- Large image file (optimize to < 5 MB)
+- First request (CLIP model initializing)
+- Large image file (recommend < 5 MB)
 - Qdrant database has many items (normal, expected)
+- Both services running on same machine with limited resources
+
+**Solution:**
+- Ensure both Qdrant and ML Service have resources
+- Optimize images to < 5 MB
+- Check CPU/RAM availability
 
 ---
 

@@ -1,6 +1,5 @@
 const axios = require("axios");
 const FormData = require("form-data");
-const { Readable } = require("stream");
 
 const searchByImage = async (file) => {
 	const mlServiceUrl = process.env.ML_SERVICE_URL;
@@ -28,8 +27,7 @@ const searchByImage = async (file) => {
 	// STEP 3: Create FormData
 	console.log(`\n3️⃣  Creating FormData...`);
 	const formData = new FormData();
-	const stream = Readable.from(file.buffer);
-	formData.append("image", stream, {
+	formData.append("image", file.buffer, {
 		filename: file.originalname || "image.jpg",
 		contentType: file.mimetype,
 	});
@@ -54,12 +52,6 @@ const searchByImage = async (file) => {
 			{
 				headers: {
 					...formData.getHeaders(),
-					"Content-Length": await new Promise((resolve, reject) => {
-						formData.getLength((err, length) => {
-							if (err) reject(err);
-							else resolve(length);
-						});
-					}),
 				},
 				timeout: 120000,
 				maxContentLength: Infinity,
