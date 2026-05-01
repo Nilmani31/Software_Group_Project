@@ -78,8 +78,6 @@ const stockSchema = new mongoose.Schema({
 });
 
 // Create compound index for efficient queries
-stockSchema.index({ itemId: 1, branchId: 1 }, { unique: true });
-
 // Update the updatedAt field before saving
 stockSchema.pre('save', function(next) {
   this.updatedAt = Date.now();

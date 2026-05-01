@@ -26,6 +26,11 @@ const itemUnitSchema = new mongoose.Schema({
     enum: ['pcs', 'kg', 'ltr', 'box', 'pack', 'meter', 'dozen'],
     default: 'pcs',
   },
+  unitValue: {
+    type: Number,
+    required: true,
+    default: 1,
+  },
   unitsPerPack: {
     type: Number,
     required: true,

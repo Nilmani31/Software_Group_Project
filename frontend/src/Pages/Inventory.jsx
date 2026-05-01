@@ -98,7 +98,7 @@ const Inventory = () => {
   // Fetch items from database
   const fetchItems = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/items');
+      const response = await fetch('http://localhost:5005/api/items');
       const data = await response.json();
       setItems(Array.isArray(data) ? data : []);
       setLoading(false);
@@ -111,7 +111,7 @@ const Inventory = () => {
   // Fetch categories from database
   const fetchCategories = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/categories');
+      const response = await fetch('http://localhost:5005/api/categories');
       const data = await response.json();
       if (Array.isArray(data)) {
         setCategories(data); // Store full objects
@@ -130,7 +130,7 @@ const Inventory = () => {
   // Fetch branches from database
   const fetchBranches = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/branches');
+      const response = await fetch('http://localhost:5005/api/branches');
       const data = await response.json();
       // Handle both array and { success, data } response formats
       const branchesArray = Array.isArray(data) ? data : (data.data ? data.data : []);
@@ -157,11 +157,18 @@ const Inventory = () => {
   // Fetch stock data for a specific item
   const fetchStockData = async (itemId) => {
     try {
-      const response = await fetch(`http://localhost:5000/api/items/stock/${itemId}`);
+      const response = await fetch(`http://localhost:5005/api/items/stock/${itemId}`);
       if (response.ok) {
         const data = await response.json();
         console.log('Stock data fetched:', data);
-        setStockData(Array.isArray(data) ? data : []);
+        if (data && data.branchInventory) {
+          // Map totalQuantity to quantity for the UI components
+          setStockData(data.branchInventory.map(b => ({ ...b, quantity: b.totalQuantity })));
+        } else if (data && data.branchStocks) {
+          setStockData(data.branchStocks);
+        } else {
+          setStockData(Array.isArray(data) ? data : []);
+        }
       } else {
         // If no stock data endpoint, set empty
         console.log('No stock data found for item:', itemId);
@@ -229,6 +236,8 @@ const Inventory = () => {
       name: '',
       category: '',
       unit: 'kg',
+      unitValue: 1,
+      unitPrice: '',
       minStock: '',
       maxStock: '',
       branch: 'Colombo',
@@ -288,7 +297,7 @@ const Inventory = () => {
     
     setSubmitLoading(true);
     try {
-      const response = await fetch('http://localhost:5000/api/items', {
+      const response = await fetch('http://localhost:5005/api/items', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -296,6 +305,7 @@ const Inventory = () => {
           name: formData.name,
           category: categoryId,
           unit: formData.unit,
+          unitPrice: parseFloat(formData.unitPrice) || 0,
           minStock: parseInt(formData.minStock) || 0,
           maxStock: parseInt(formData.maxStock) || 0,
           branch: formData.branch,
@@ -343,6 +353,8 @@ const Inventory = () => {
         name: selectedItem.name,
         category: categoryValue,
         unit: selectedItem.unit,
+        unitValue: selectedItem.unitValue || 1,
+        unitPrice: selectedItem.unitPrice || '',
         quantity: selectedItem.quantity || 0,
         minStock: selectedItem.minStock || '',
         maxStock: selectedItem.maxStock || '',
@@ -365,6 +377,8 @@ const Inventory = () => {
       name: '',
       category: '',
       unit: 'kg',
+      unitValue: 1,
+      unitPrice: '',
       quantity: 0,
       minStock: '',
       maxStock: '',
@@ -376,7 +390,7 @@ const Inventory = () => {
   const handleDeleteItem = async () => {
     if (window.confirm(`Are you sure you want to delete ${selectedItem.name}?`)) {
       try {
-        const response = await fetch(`http://localhost:5000/api/items/${selectedItem._id}`, {
+        const response = await fetch(`http://localhost:5005/api/items/${selectedItem._id}`, {
           method: 'DELETE'
         });
         const result = await response.json();
@@ -460,13 +474,14 @@ const Inventory = () => {
     setSubmitLoading(true);
     try {
       // First, update the item
-      const response = await fetch(`http://localhost:5000/api/items/${selectedItem._id}`, {
+      const response = await fetch(`http://localhost:5005/api/items/${selectedItem._id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: editFormData.name,
           category: categoryId,
           unit: editFormData.unit,
+          unitPrice: parseFloat(editFormData.unitPrice) || 0,
           quantity: parseInt(editFormData.quantity) || 0,
           minStock: parseInt(editFormData.minStock) || 0,
           maxStock: parseInt(editFormData.maxStock) || 0,
@@ -481,7 +496,7 @@ const Inventory = () => {
         // Now save the stock quantities for each branch
         if (editableStockData && editableStockData.length > 0) {
           for (const stock of editableStockData) {
-            await fetch(`http://localhost:5000/api/stock/${stock._id}`, {
+            await fetch(`http://localhost:5005/api/stock/${stock._id}`, {
               method: 'PUT',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -576,10 +591,11 @@ const Inventory = () => {
                         <thead style={{ position: 'sticky', top: 0, zIndex: 2 }}>
                           <tr>
                             <th style={{ width: '12%', left: 0, background: 'inherit' }}>Item ID</th>
-                            <th style={{ width: '20%' }}>Name</th>
-                            <th style={{ width: '18%' }}>Category</th>
-                            <th style={{ width: '15%', textAlign: 'center' }}>Quantity</th>
-                            <th style={{ width: '15%', textAlign: 'center' }}>Unit</th>
+                            <th style={{ width: '18%' }}>Name</th>
+                            <th style={{ width: '15%' }}>Category</th>
+                            <th style={{ width: '12%', textAlign: 'center' }}>Quantity</th>
+                            <th style={{ width: '10%', textAlign: 'center' }}>Unit</th>
+                            <th style={{ width: '13%', textAlign: 'center' }}>Unit Price</th>
                             <th style={{ width: '20%', textAlign: 'center' }}>Status</th>
                           </tr>
                         </thead>
@@ -591,16 +607,17 @@ const Inventory = () => {
                             }
                             return (
                               <tr 
-                                key={item._id || item.id} 
+                                key={item.uniqueId || item._id || item.id} 
                                 className="inventory-row"
                                 onClick={() => handleRowClick(item)}
                                 style={{ cursor: 'pointer' }}
                               >
                                 <td style={{ width: '12%', paddingLeft: '16px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={item.sku || item.itemId}>{item.sku || item.itemId || item._id}</td>
-                                <td style={{ width: '20%' }}>{item.name}</td>
-                                <td style={{ width: '18%' }}>{categoryDisplay}</td>
-                                <td style={{ width: '15%', textAlign: 'center' }}>{item.quantity || item.qty || 0}</td>
-                                <td style={{ width: '15%', textAlign: 'center' }}>{item.unit || '-'}</td>
+                                <td style={{ width: '18%' }}>{item.name}</td>
+                                <td style={{ width: '15%' }}>{categoryDisplay}</td>
+                                <td style={{ width: '12%', textAlign: 'center' }}>{item.quantity || item.qty || 0}</td>
+                                <td style={{ width: '10%', textAlign: 'center' }}>{item.unit || '-'}</td>
+                                <td style={{ width: '13%', textAlign: 'center' }}>Rs {item.unitPrice ? parseFloat(item.unitPrice).toFixed(2) : '0.00'}</td>
                                 <td style={{ width: '20%', textAlign: 'center' }}>
                                   <span className={`badge ${getStatusClass(item.status)}`}>
                                     {item.status === 'normal' ? '✅ Normal' : item.status === 'low' ? '⚠️ Low' : '❌ Out'}
@@ -688,6 +705,37 @@ const Inventory = () => {
                         <option value="ltr">ltr</option>
                         <option value="pcs">pcs</option>
                       </select>
+                    </div>
+
+                    {/* Unit Value */}
+                    <div className="form-group-inventory">
+                      <label className="form-label-inventory">Unit Amount</label>
+                      <input
+                        type="number"
+                        name="unitValue"
+                        placeholder="e.g. 5, 10, 20"
+                        value={formData.unitValue || ''}
+                        onChange={handleInputChange}
+                        className="form-input-inventory"
+                        min="1"
+                        required
+                      />
+                    </div>
+
+                    {/* Unit Price */}
+                    <div className="form-group-inventory">
+                      <label className="form-label-inventory">Unit Price (Rs)</label>
+                      <input
+                        type="number"
+                        name="unitPrice"
+                        placeholder="0.00"
+                        value={formData.unitPrice || ''}
+                        onChange={handleInputChange}
+                        className="form-input-inventory"
+                        step="0.01"
+                        min="0"
+                        required
+                      />
                     </div>
 
                     {/* SKU - Read Only */}
@@ -869,6 +917,23 @@ const Inventory = () => {
                 <span className="item-info-label">Unit :</span>
                 <span className="item-info-value">{selectedItem.unit || '-'}</span>
               </div>
+              <div className="item-info-row">
+                <span className="item-info-label">Unit Price :</span>
+                <span className="item-info-value">Rs {selectedItem.unitPrice ? parseFloat(selectedItem.unitPrice).toFixed(2) : '0.00'}</span>
+              </div>
+              <div className="item-info-row">
+                <span className="item-info-label">Total Price :</span>
+                <span className="item-info-value" style={{ fontWeight: 'bold', color: '#667eea' }}>
+                  Rs {
+                    (
+                      (stockData && stockData.length > 0 
+                        ? stockData.reduce((total, stock) => total + (stock.quantity || 0), 0)
+                        : (selectedItem.qty || selectedItem.quantity || 0)) 
+                      * (parseFloat(selectedItem.unitPrice) || 0)
+                    ).toFixed(2)
+                  }
+                </span>
+              </div>
             </div>
 
             {/* Stock Section */}
@@ -987,6 +1052,37 @@ const Inventory = () => {
                         <option value="ltr">ltr</option>
                         <option value="pcs">pcs</option>
                       </select>
+                    </div>
+
+                    {/* Unit Value */}
+                    <div className="edit-form-group">
+                      <label className="edit-form-label">Unit Amount</label>
+                      <input
+                        type="number"
+                        name="unitValue"
+                        placeholder="e.g. 5, 10, 20"
+                        value={editFormData.unitValue || ''}
+                        onChange={handleEditInputChange}
+                        className="edit-form-input"
+                        min="1"
+                        required
+                      />
+                    </div>
+
+                    {/* Unit Price */}
+                    <div className="edit-form-group">
+                      <label className="edit-form-label">Unit Price (Rs)</label>
+                      <input
+                        type="number"
+                        name="unitPrice"
+                        placeholder="0.00"
+                        value={editFormData.unitPrice || ''}
+                        onChange={handleEditInputChange}
+                        className="edit-form-input"
+                        step="0.01"
+                        min="0"
+                        required
+                      />
                     </div>
 
                     {/* SKU */}
