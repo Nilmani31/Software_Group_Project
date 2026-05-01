@@ -25,6 +25,7 @@ export default function GoodReceived() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [page, setPage] = useState(1);
+  const [inventoryItems, setInventoryItems] = useState([]);
 
   const { register, handleSubmit, control, reset, watch, setValue } = useForm({
     defaultValues: {
@@ -53,6 +54,20 @@ export default function GoodReceived() {
 
     fetchGRNs();
   }, [page]);
+
+  // Fetch Inventory Items
+  useEffect(() => {
+    const fetchInventoryItems = async () => {
+      try {
+        const response = await fetch('http://localhost:5005/api/items');
+        const data = await response.json();
+        setInventoryItems(Array.isArray(data) ? data : []);
+      } catch (err) {
+        console.error('Error fetching inventory items:', err);
+      }
+    };
+    fetchInventoryItems();
+  }, []);
 
   // Fetch POs from API when create modal opens
   useEffect(() => {
@@ -534,7 +549,28 @@ export default function GoodReceived() {
                       transition: 'all 0.2s',
                       width: '100%'
                     }}>
-                      <input {...register(`items.${index}.itemName`)} placeholder="Item Name" className="form-input-inventory" style={{ fontSize: '13px', width: '100%', minWidth: 0 }} />
+                      <select
+                        {...register(`items.${index}.itemName`)}
+                        className="form-input-inventory"
+                        style={{ fontSize: '13px', width: '100%', minWidth: 0, padding: '4px' }}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setValue(`items.${index}.itemName`, val);
+                          const selectedItem = inventoryItems.find(i => i.name === val);
+                          if (selectedItem) {
+                            setValue(`items.${index}.itemId`, selectedItem.originalId || selectedItem._id);
+                            setValue(`items.${index}.unit`, selectedItem.unit || 'kg');
+                            setValue(`items.${index}.unitPrice`, selectedItem.unitPrice || 0);
+                          }
+                        }}
+                      >
+                        <option value="">Select Item</option>
+                        {inventoryItems.map((invItem) => (
+                          <option key={invItem.uniqueId || invItem._id} value={invItem.name}>
+                            {invItem.name} ({invItem.unit})
+                          </option>
+                        ))}
+                      </select>
                       <input {...register(`items.${index}.unit`)} placeholder="kg/units" className="form-input-inventory" style={{ fontSize: '13px', width: '100%', minWidth: 0 }} />
                       <input {...register(`items.${index}.unitPrice`)} placeholder="Price" type="number" className="form-input-inventory" style={{ fontSize: '13px', width: '100%', minWidth: 0 }} />
                       <input {...register(`items.${index}.quantityOrdered`)} placeholder="0" type="number" className="form-input-inventory" style={{ fontSize: '13px', width: '100%', minWidth: 0 }} />
@@ -708,14 +744,29 @@ export default function GoodReceived() {
                     borderRadius: '6px',
                     transition: 'all 0.2s'
                   }}>
-                    <input
-                      type="text"
+                    <select
                       value={item.itemName || ''}
-                      onChange={e => handleItemChange(index, 'itemName', e.target.value)}
+                      onChange={e => {
+                        const val = e.target.value;
+                        const selectedItem = inventoryItems.find(i => i.name === val);
+                        handleItemChange(index, 'itemName', val);
+                        if (selectedItem) {
+                          handleItemChange(index, 'itemId', selectedItem.originalId || selectedItem._id);
+                          handleItemChange(index, 'unit', selectedItem.unit || 'kg');
+                          handleItemChange(index, 'unitPrice', selectedItem.unitPrice || 0);
+                        }
+                      }}
                       className="form-input-inventory"
                       disabled={!isEditMode}
-                      style={{ fontSize: '13px', width: '100%', minWidth: 0, ...(!isEditMode ? { backgroundColor: '#f3f4f6', cursor: 'not-allowed' } : {}) }}
-                    />
+                      style={{ fontSize: '13px', width: '100%', minWidth: 0, padding: '4px', ...(!isEditMode ? { backgroundColor: '#f3f4f6', cursor: 'not-allowed' } : {}) }}
+                    >
+                      <option value="">Select Item</option>
+                      {inventoryItems.map((invItem) => (
+                        <option key={invItem.uniqueId || invItem._id} value={invItem.name}>
+                          {invItem.name} ({invItem.unit})
+                        </option>
+                      ))}
+                    </select>
                     <input
                       type="text"
                       value={item.unit || ''}

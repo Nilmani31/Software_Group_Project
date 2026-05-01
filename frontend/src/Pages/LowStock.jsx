@@ -21,7 +21,7 @@ const LowStock = () => {
 
   // Fetch low stock items from backend
   useEffect(() => {
-    fetch('http://localhost:5000/api/items/low-stock')
+    fetch('http://localhost:5005/api/items/low-stock')
       .then(res => res.json())
       .then(data => {
         if (Array.isArray(data)) {
@@ -49,7 +49,7 @@ const LowStock = () => {
 
   // Fetch supplier list from backend
   useEffect(() => {
-    fetch('http://localhost:5000/api/suppliers')
+    fetch('http://localhost:5005/api/suppliers')
       .then(res => res.json())
       .then(result => {
         if (result && result.success && Array.isArray(result.data)) {

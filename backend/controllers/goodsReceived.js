@@ -109,15 +109,96 @@ exports.createGRN = async (req, res) => {
 
     await newGRN.save();
 
-    // Update item stock only if itemId is provided
+    // Update item stock
+    const Branch = require('../models/branches');
+    const ItemUnit = require('../models/itemUnits');
+
     for (const item of items) {
-      if (item.quantityReceived > 0 && item.itemId && item.itemId.trim() !== '') {
+      if (item.quantityReceived > 0) {
         try {
-          await Stock.findOneAndUpdate(
-            { itemId: item.itemId },
-            { $inc: { quantity: item.quantityReceived } },
-            { upsert: true, new: true }
-          );
+          let targetItemId = item.itemId;
+          
+          // If no itemId provided, try to find by itemName (since PO stores items as strings)
+          if (!targetItemId || targetItemId.trim() === '') {
+            const foundItem = await Item.findOne({ name: new RegExp(`^${item.itemName.trim()}$`, 'i') });
+            if (foundItem) {
+              targetItemId = foundItem._id;
+              // Also update the GRN item to save the ID for future reference
+              item.itemId = foundItem._id.toString();
+            }
+          }
+
+          if (targetItemId) {
+            // Parse unit string (e.g. "5kg" -> 5, "kg")
+            let parsedUnitValue = 1;
+            let parsedUnitName = item.unit || 'kg';
+            if (item.unit) {
+              const match = item.unit.match(/^(\d+(\.\d+)?)\s*(.*)$/);
+              if (match) {
+                parsedUnitValue = parseFloat(match[1]);
+                parsedUnitName = match[3] || 'kg';
+              } else {
+                parsedUnitName = item.unit; // fallback if no number found
+              }
+            }
+
+            // Find or Create the exact ItemUnit
+            let targetItemUnitId = null;
+            let foundUnit = await ItemUnit.findOne({ 
+              itemId: targetItemId, 
+              unit: parsedUnitName, 
+              unitValue: parsedUnitValue, 
+              unitPrice: item.unitPrice || 0
+            });
+
+            if (!foundUnit) {
+              const itemNameStr = item.itemName || 'Item';
+              const newUnitName = parsedUnitValue > 1 ? `${parsedUnitValue}${parsedUnitName}` : parsedUnitName;
+              foundUnit = new ItemUnit({
+                itemId: targetItemId,
+                name: `${itemNameStr} - ${newUnitName}`,
+                unit: parsedUnitName,
+                unitValue: parsedUnitValue,
+                unitPrice: item.unitPrice || 0,
+                unitsPerPack: 1,
+                description: `Created from GRN for ${itemNameStr}`
+              });
+              try {
+                await foundUnit.save();
+                console.log(`Created new ItemUnit from GRN: ${foundUnit._id} for ${foundUnit.name}`);
+              } catch (saveErr) {
+                // If it fails (e.g. duplicate name index), append a timestamp or price to name
+                foundUnit.name = `${itemNameStr} - ${newUnitName} (Rs${item.unitPrice})`;
+                await foundUnit.save();
+                console.log(`Created new ItemUnit from GRN (with price in name): ${foundUnit._id}`);
+              }
+            }
+            targetItemUnitId = foundUnit._id;
+
+            // Find branch
+            const branchQuery = branch ? { branchName: new RegExp(branch, 'i') } : { branchName: /colombo/i };
+            let branchObj = await Branch.findOne(branchQuery) || await Branch.findOne();
+            let targetBranchId = branchObj ? branchObj._id : null;
+
+            if (targetItemUnitId && targetBranchId) {
+              await Stock.findOneAndUpdate(
+                { itemId: targetItemId, itemUnitId: targetItemUnitId, branchId: targetBranchId },
+                { $inc: { quantity: item.quantityReceived } },
+                { upsert: true, new: true }
+              );
+              console.log(`Stock updated correctly for ${item.itemName} (+${item.quantityReceived})`);
+            } else {
+              // Fallback
+              await Stock.findOneAndUpdate(
+                { itemId: targetItemId },
+                { $inc: { quantity: item.quantityReceived } },
+                { upsert: true, new: true }
+              );
+              console.log(`Stock updated (fallback) for ${item.itemName} (+${item.quantityReceived})`);
+            }
+          } else {
+            console.warn(`Could not find item in DB to update stock for: ${item.itemName}`);
+          }
         } catch (stockErr) {
           console.error(`Failed to update stock for item ${item.itemName}:`, stockErr.message);
         }
@@ -185,14 +266,85 @@ exports.updateGRN = async (req, res) => {
     }
 
     // Add new stock adjustments
+    const Branch = require('../models/branches');
+    const ItemUnit = require('../models/itemUnits');
+    const Item = require('../models/items');
+
     for (const item of items) {
-      if (item.quantityReceived > 0 && item.itemId && item.itemId.trim() !== '') {
+      if (item.quantityReceived > 0) {
         try {
-          await Stock.findOneAndUpdate(
-            { itemId: item.itemId },
-            { $inc: { quantity: item.quantityReceived } },
-            { upsert: true }
-          );
+          let targetItemId = item.itemId;
+          
+          if (!targetItemId || targetItemId.trim() === '') {
+            const foundItem = await Item.findOne({ name: new RegExp(`^${item.itemName.trim()}$`, 'i') });
+            if (foundItem) {
+              targetItemId = foundItem._id;
+              item.itemId = foundItem._id.toString();
+            }
+          }
+
+          if (targetItemId) {
+            // Parse unit string (e.g. "5kg" -> 5, "kg")
+            let parsedUnitValue = 1;
+            let parsedUnitName = item.unit || 'kg';
+            if (item.unit) {
+              const match = item.unit.match(/^(\d+(\.\d+)?)\s*(.*)$/);
+              if (match) {
+                parsedUnitValue = parseFloat(match[1]);
+                parsedUnitName = match[3] || 'kg';
+              } else {
+                parsedUnitName = item.unit;
+              }
+            }
+
+            // Find or Create the exact ItemUnit
+            let targetItemUnitId = null;
+            let foundUnit = await ItemUnit.findOne({ 
+              itemId: targetItemId, 
+              unit: parsedUnitName, 
+              unitValue: parsedUnitValue, 
+              unitPrice: item.unitPrice || 0
+            });
+
+            if (!foundUnit) {
+              const itemNameStr = item.itemName || 'Item';
+              const newUnitName = parsedUnitValue > 1 ? `${parsedUnitValue}${parsedUnitName}` : parsedUnitName;
+              foundUnit = new ItemUnit({
+                itemId: targetItemId,
+                name: `${itemNameStr} - ${newUnitName}`,
+                unit: parsedUnitName,
+                unitValue: parsedUnitValue,
+                unitPrice: item.unitPrice || 0,
+                unitsPerPack: 1,
+                description: `Created from GRN for ${itemNameStr}`
+              });
+              try {
+                await foundUnit.save();
+              } catch (saveErr) {
+                foundUnit.name = `${itemNameStr} - ${newUnitName} (Rs${item.unitPrice})`;
+                await foundUnit.save();
+              }
+            }
+            targetItemUnitId = foundUnit._id;
+
+            const branchQuery = grn.branch ? { branchName: new RegExp(grn.branch, 'i') } : { branchName: /colombo/i };
+            let branchObj = await Branch.findOne(branchQuery) || await Branch.findOne();
+            let targetBranchId = branchObj ? branchObj._id : null;
+
+            if (targetItemUnitId && targetBranchId) {
+              await Stock.findOneAndUpdate(
+                { itemId: targetItemId, itemUnitId: targetItemUnitId, branchId: targetBranchId },
+                { $inc: { quantity: item.quantityReceived } },
+                { upsert: true }
+              );
+            } else {
+              await Stock.findOneAndUpdate(
+                { itemId: targetItemId },
+                { $inc: { quantity: item.quantityReceived } },
+                { upsert: true }
+              );
+            }
+          }
         } catch (err) {
           console.error(`Failed to update stock for item ${item.itemName}:`, err.message);
         }

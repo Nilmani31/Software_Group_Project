@@ -36,7 +36,7 @@ export default function Categories() {
   // Fetch categories from database
   const fetchCategories = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/categories');
+      const response = await fetch('http://localhost:5005/api/categories');
       const data = await response.json(); // Backend returns array directly or { success: true, data: [] }? 
       // Based on my backend code: res.status(200).json(categories); -> It returns an array directly.
       if (Array.isArray(data)) {
@@ -62,7 +62,7 @@ export default function Categories() {
     }
     setFormLoading(true);
     try {
-      const response = await fetch('http://localhost:5000/api/categories', {
+      const response = await fetch('http://localhost:5005/api/categories', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -96,7 +96,7 @@ export default function Categories() {
     }
     setFormLoading(true);
     try {
-      const response = await fetch(`http://localhost:5000/api/categories/${editing.id}`, {
+      const response = await fetch(`http://localhost:5005/api/categories/${editing.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -124,7 +124,7 @@ export default function Categories() {
   // Handle Delete Category
   const handleDeleteCategory = async (id) => {
       try {
-        const response = await fetch(`http://localhost:5000/api/categories/${id}`, {
+        const response = await fetch(`http://localhost:5005/api/categories/${id}`, {
           method: 'DELETE'
         });
         if (response.ok) {
@@ -142,7 +142,7 @@ export default function Categories() {
   // Fetch roles from database
   const fetchRoles = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/roles');
+      const response = await fetch('http://localhost:5005/api/roles');
       const data = await response.json();
       if (data.success && data.data) {
         const formattedRoles = data.data.map(role => ({
@@ -168,7 +168,7 @@ export default function Categories() {
     }
     setFormLoading(true);
     try {
-      const response = await fetch('http://localhost:5000/api/roles', {
+      const response = await fetch('http://localhost:5005/api/roles', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -202,7 +202,7 @@ export default function Categories() {
     }
     setFormLoading(true);
     try {
-      const response = await fetch(`http://localhost:5000/api/roles/${editing.id}`, {
+      const response = await fetch(`http://localhost:5005/api/roles/${editing.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -230,7 +230,7 @@ export default function Categories() {
   const handleDeleteRole = async (id) => {
     if (window.confirm('Are you sure you want to delete this role?')) {
       try {
-        const response = await fetch(`http://localhost:5000/api/roles/${id}`, {
+        const response = await fetch(`http://localhost:5005/api/roles/${id}`, {
           method: 'DELETE'
         });
         const data = await response.json();

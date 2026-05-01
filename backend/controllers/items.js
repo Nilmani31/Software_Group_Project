@@ -3,6 +3,7 @@ const Category = require('../models/categories');
 const ItemUnit = require('../models/itemUnits');
 const Branch = require('../models/branches');
 const Stock = require('../models/stock');
+const GoodsReceived = require('../models/goodsReceived');
 
 // Get all inventory items with populated fields
 exports.getAllItems = async (req, res) => {
@@ -10,6 +11,22 @@ exports.getAllItems = async (req, res) => {
     const items = await Item.find()
       .populate('category', 'name')
       .select('-__v');
+      
+    // Fetch GRN history to determine which items/units have been received
+    const grns = await GoodsReceived.find({}, 'items.itemId items.unitPrice');
+    const receivedItemIds = new Set();
+    const receivedUnits = new Set();
+    
+    grns.forEach(grn => {
+      if (grn.items && grn.items.length > 0) {
+        grn.items.forEach(gItem => {
+          if (gItem.itemId) {
+            receivedItemIds.add(gItem.itemId.toString());
+            receivedUnits.add(`${gItem.itemId.toString()}_${gItem.unitPrice || 0}`);
+          }
+        });
+      }
+    });
     
     // For each item, fetch total stock quantity and calculate status
     const itemsWithStatus = await Promise.all(items.map(async (item) => {
@@ -20,12 +37,8 @@ exports.getAllItems = async (req, res) => {
         .populate('branchId', 'name branchName _id');
       const totalQuantity = stockRecords.reduce((sum, stock) => sum + (stock.quantity || 0), 0);
       
-      // Add branch stocks array
-      itemObj.branchStocks = stockRecords.map(stock => ({
-        branchId: stock.branchId._id,
-        branchName: stock.branchId.name || stock.branchId.branchName,
-        quantity: stock.quantity
-      }));
+      // Find ALL ItemUnits for this item
+      const itemUnits = await ItemUnit.find({ itemId: item._id });
       
       // Convert category object to just the name string
       if (itemObj.category && typeof itemObj.category === 'object') {
@@ -37,25 +50,66 @@ exports.getAllItems = async (req, res) => {
         itemObj.branch = itemObj.branch.branchName || itemObj.branch.name || String(itemObj.branch._id);
       }
       
-      // Set quantity from database
-      itemObj.quantity = totalQuantity;
-      itemObj.minStock = itemObj.minStock || 0;
-      
-      // Calculate status based on actual quantity vs minStock
-      if (totalQuantity === 0) {
-        itemObj.status = 'out';
-      } else if (totalQuantity > 0 && totalQuantity < itemObj.minStock) {
-        itemObj.status = 'low';
+      if (itemUnits && itemUnits.length > 0) {
+        return itemUnits.map(unit => {
+          // Calculate stock specifically for this unit
+          const unitStockRecords = stockRecords.filter(s => String(s.itemUnitId) === String(unit._id));
+          const unitTotalQuantity = unitStockRecords.reduce((sum, stock) => sum + (stock.quantity || 0), 0);
+          
+          let unitStatus = 'normal';
+          if (unitTotalQuantity === 0) {
+            unitStatus = 'out';
+          } else if (unitTotalQuantity > 0 && unitTotalQuantity < itemObj.minStock) {
+            unitStatus = 'low';
+          }
+          
+          // Build the unit display using unitValue and unit
+          let displayUnit = unit.unit || itemObj.unit || 'kg';
+          if (unit.unitValue !== undefined && unit.unitValue !== null) {
+            displayUnit = `${unit.unitValue}${displayUnit}`;
+          }
+
+          return {
+            ...itemObj,
+            uniqueId: `${item._id}_${unit._id}`,
+            name: itemObj.name,
+            unitPrice: unit.unitPrice || 0,
+            unit: displayUnit,
+            itemUnitId: unit._id,
+            quantity: unitTotalQuantity,
+            status: unitStatus
+          };
+        });
       } else {
-        itemObj.status = 'normal';
+        let fallbackStatus = 'normal';
+        if (totalQuantity === 0) {
+          fallbackStatus = 'out';
+        } else if (totalQuantity > 0 && totalQuantity < itemObj.minStock) {
+          fallbackStatus = 'low';
+        }
+        itemObj.uniqueId = item._id.toString();
+        itemObj.unitPrice = 0;
+        itemObj.unit = itemObj.unit || 'kg';
+        itemObj.quantity = totalQuantity;
+        itemObj.status = fallbackStatus;
+        return [itemObj];
       }
-      
-      itemObj.unit = itemObj.unit || 'kg';
-      return itemObj;
     }));
     
-    console.log('📊 Fetching all items, total items:', itemsWithStatus.length);
-    res.json(itemsWithStatus);
+    // Flatten and filter: only show items that have stock OR have been received via GRN
+    let flattenedItems = itemsWithStatus.flat();
+    flattenedItems = flattenedItems.filter(item => {
+      // Always show if it has stock
+      if (item.quantity > 0) return true;
+      // If out of stock, only show if it was part of a GRN history
+      if (item.itemUnitId && item.unitPrice !== undefined) {
+         return receivedUnits.has(`${item._id.toString()}_${item.unitPrice}`);
+      }
+      return receivedItemIds.has(item._id.toString());
+    });
+    
+    console.log('📊 Fetching all items, total items:', flattenedItems.length);
+    res.json(flattenedItems);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -76,6 +130,10 @@ exports.getLowStockItems = async (req, res) => {
       const stockRecords = await Stock.find({ itemId: item._id });
       const totalQuantity = stockRecords.reduce((sum, stock) => sum + (stock.quantity || 0), 0);
       
+      // Get unit price from ItemUnit
+      const itemUnit = await ItemUnit.findOne({ itemId: item._id });
+      itemObj.unitPrice = itemUnit ? itemUnit.unitPrice : 0;
+
       // Convert category object to just the name string
       if (itemObj.category && typeof itemObj.category === 'object') {
         itemObj.categoryName = itemObj.category.name;
@@ -178,12 +236,14 @@ exports.createItem = async (req, res) => {
     // AUTOMATICALLY CREATE ITEMUNITS AND STOCKS
     try {
       // Create default ItemUnit for the item
+      const unitVal = req.body.unitAmount || req.body.unitValue || 1;
       const defaultUnit = new ItemUnit({
-        name: `${item.name} - ${item.unit}`,
+        name: `${item.name} - ${unitVal}${item.unit}`,
         itemId: item._id,
         unit: item.unit,
+        unitValue: unitVal,
         unitsPerPack: 1,
-        unitPrice: 100, // Default price - can be updated later
+        unitPrice: req.body.unitPrice || 100, // Use provided unitPrice or default
         description: `${item.name} in ${item.unit}`
       });
       await defaultUnit.save();
@@ -276,6 +336,38 @@ exports.updateItem = async (req, res) => {
       } catch (stockError) {
         console.warn('⚠️  Warning: Could not update stocks:', stockError.message);
         // Don't fail item update if stocks fail
+      }
+    }
+    
+    // UPDATE OR CREATE ITEMUNIT
+    if (req.body.unitPrice !== undefined || req.body.unitAmount !== undefined || req.body.unit !== undefined || req.body.unitValue !== undefined) {
+      try {
+        let itemUnit = await ItemUnit.findOne({ itemId: item._id });
+        const newUnitValue = req.body.unitAmount || req.body.unitValue || (itemUnit ? itemUnit.unitValue : 1);
+        const newUnit = req.body.unit || item.unit;
+        
+        if (itemUnit) {
+          if (req.body.unitPrice !== undefined) itemUnit.unitPrice = req.body.unitPrice;
+          itemUnit.unitValue = newUnitValue;
+          itemUnit.unit = newUnit;
+          itemUnit.name = `${item.name} - ${newUnitValue}${newUnit}`;
+          await itemUnit.save();
+          console.log('✅ ItemUnit updated');
+        } else {
+          itemUnit = new ItemUnit({
+            name: `${item.name} - ${newUnitValue}${newUnit}`,
+            itemId: item._id,
+            unit: newUnit,
+            unitValue: newUnitValue,
+            unitsPerPack: 1,
+            unitPrice: req.body.unitPrice || 0,
+            description: `${item.name} in ${newUnit}`
+          });
+          await itemUnit.save();
+          console.log('✅ ItemUnit created');
+        }
+      } catch (unitError) {
+        console.warn('⚠️  Warning: Could not update/create ItemUnit:', unitError.message);
       }
     }
     
