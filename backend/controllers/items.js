@@ -96,17 +96,7 @@ exports.getAllItems = async (req, res) => {
       }
     }));
     
-    // Flatten and filter: only show items that have stock OR have been received via GRN
-    let flattenedItems = itemsWithStatus.flat();
-    flattenedItems = flattenedItems.filter(item => {
-      // Always show if it has stock
-      if (item.quantity > 0) return true;
-      // If out of stock, only show if it was part of a GRN history
-      if (item.itemUnitId && item.unitPrice !== undefined) {
-         return receivedUnits.has(`${item._id.toString()}_${item.unitPrice}`);
-      }
-      return receivedItemIds.has(item._id.toString());
-    });
+    const flattenedItems = itemsWithStatus.flat();
     
     console.log('📊 Fetching all items, total items:', flattenedItems.length);
     res.json(flattenedItems);
@@ -175,102 +165,128 @@ exports.getLowStockItems = async (req, res) => {
 // Create a new item
 exports.createItem = async (req, res) => {
   try {
-    const { itemId, sku, image, ...itemData } = req.body;
+    const { itemId, sku, image, name, ...itemData } = req.body;
     
-    console.log('📝 Creating item with data:', { sku, itemId, hasImage: !!image, imageLength: image?.length || 0 });
+    console.log('📝 Creating item with data:', { sku, itemId, name, hasImage: !!image, imageLength: image?.length || 0 });
     
     // Limit image size to 5MB (base64 encoded)
     if (image && image.length > 5242880) {
       return res.status(400).json({ error: 'Image too large. Maximum size is 5MB.' });
     }
-    
-    let finalSku = sku;
-    
-    // Auto-generate SKU if not provided or empty
-    if (!finalSku) {
-      try {
-        // Get the category name
-        const category = await Category.findById(itemData.category);
-        if (category) {
-          // Get first 3 letters of category name
-          const initials = category.name
-            .substring(0, 3)
-            .toUpperCase();
-          
-          // Find all items with this category to get the next number
-          const prefix = `SKU-${initials}-`;
-          const existingItems = await Item.find({ sku: { $regex: `^${prefix}`, $options: 'i' } });
-          
-          // Find the highest number
-          let maxNumber = 0;
-          existingItems.forEach(item => {
-            const numberStr = item.sku.replace(new RegExp(`^${prefix}`, 'i'), '');
-            const number = parseInt(numberStr, 10);
-            if (!isNaN(number) && number > maxNumber) {
-              maxNumber = number;
-            }
-          });
-          
-          // Generate next number with padding (001, 002, etc.)
-          const nextNumber = String(maxNumber + 1).padStart(3, '0');
-          finalSku = `${prefix}${nextNumber}`;
+
+    // Check if an item with this exact name already exists
+    const escapedName = name ? name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') : '';
+    let item = escapedName ? await Item.findOne({ name: new RegExp(`^${escapedName}$`, 'i') }) : null;
+    let isNewItem = false;
+
+    if (!item) {
+      isNewItem = true;
+      let finalSku = sku;
+      
+      // Auto-generate SKU if not provided or empty
+      if (!finalSku) {
+        try {
+          // Get the category name
+          const category = await Category.findById(itemData.category);
+          if (category) {
+            // Get first 3 letters of category name
+            const initials = category.name
+              .substring(0, 3)
+              .toUpperCase();
+            
+            // Find all items with this category to get the next number
+            const prefix = `SKU-${initials}-`;
+            const existingItems = await Item.find({ sku: { $regex: `^${prefix}`, $options: 'i' } });
+            
+            // Find the highest number
+            let maxNumber = 0;
+            existingItems.forEach(existingItem => {
+              const numberStr = existingItem.sku.replace(new RegExp(`^${prefix}`, 'i'), '');
+              const number = parseInt(numberStr, 10);
+              if (!isNaN(number) && number > maxNumber) {
+                maxNumber = number;
+              }
+            });
+            
+            // Generate next number with padding (001, 002, etc.)
+            const nextNumber = String(maxNumber + 1).padStart(3, '0');
+            finalSku = `${prefix}${nextNumber}`;
+          }
+        } catch (err) {
+          console.warn('⚠️ Could not auto-generate SKU:', err.message);
         }
-      } catch (err) {
-        console.warn('⚠️ Could not auto-generate SKU:', err.message);
       }
+      
+      // If SKU is provided, use it. Otherwise let itemId auto-generate
+      const itemPayload = {
+        ...itemData,
+        name,
+        ...(finalSku && { sku: finalSku }),
+        ...(itemId && { itemId }),
+        ...(image && image.length <= 5242880 ? { image } : { image: '' })
+      };
+      
+      item = new Item(itemPayload);
+      await item.save();
+      console.log('✅ Item saved:', { _id: item._id, sku: item.sku, itemId: item.itemId, name: item.name, hasImage: !!item.image });
+    } else {
+      console.log(`♻️ Found existing item '${name}', adding new unit variation instead of duplicating.`);
     }
-    
-    // If SKU is provided, use it. Otherwise let itemId auto-generate
-    const itemPayload = {
-      ...itemData,
-      ...(finalSku && { sku: finalSku }),
-      ...(itemId && { itemId }),
-      ...(image && image.length <= 5242880 ? { image } : { image: '' })
-    };
-    
-    const item = new Item(itemPayload);
-    await item.save();
-    
-    console.log('✅ Item saved:', { _id: item._id, sku: item.sku, itemId: item.itemId, name: item.name, hasImage: !!item.image });
 
     // AUTOMATICALLY CREATE ITEMUNITS AND STOCKS
+    let defaultUnit;
     try {
-      // Create default ItemUnit for the item
       const unitVal = req.body.unitAmount || req.body.unitValue || 1;
-      const defaultUnit = new ItemUnit({
-        name: `${item.name} - ${unitVal}${item.unit}`,
-        itemId: item._id,
-        unit: item.unit,
-        unitValue: unitVal,
-        unitsPerPack: 1,
-        unitPrice: req.body.unitPrice || 100, // Use provided unitPrice or default
-        description: `${item.name} in ${item.unit}`
-      });
-      await defaultUnit.save();
-      console.log('✅ Default ItemUnit created:', defaultUnit._id);
-
-      // Create stock records for each branch
-      const branches = await Branch.find();
-      console.log(`📍 Creating stock for ${branches.length} branches...`);
-
-      for (const branch of branches) {
-        const stock = new Stock({
+      const parsedUnitName = req.body.unit || item.unit || 'kg';
+      const providedPrice = req.body.unitPrice || 100;
+      
+      // Check if this EXACT ItemUnit already exists
+      const existingUnit = await ItemUnit.findOne({
           itemId: item._id,
-          itemUnitId: defaultUnit._id,
-          branchId: branch._id,
-          quantity: itemData.quantity || 0,
-          minStock: itemData.minStock || 0,
-          maxStock: itemData.maxStock || 100,
-          status: itemData.quantity > 0 ? 'in-stock' : 'out-of-stock'
-        });
-        await stock.save();
-        console.log(`✅ Stock created for branch: ${branch.branchName}`);
-      }
+          unit: parsedUnitName,
+          unitValue: unitVal,
+          unitPrice: providedPrice
+      });
+      
+      if (existingUnit) {
+          if (!isNewItem) {
+              return res.status(400).json({ error: `An item variation with this exact unit amount and price already exists.` });
+          }
+          defaultUnit = existingUnit;
+      } else {
+          defaultUnit = new ItemUnit({
+            name: `${item.name} - ${unitVal}${parsedUnitName}`,
+            itemId: item._id,
+            unit: parsedUnitName,
+            unitValue: unitVal,
+            unitsPerPack: 1,
+            unitPrice: providedPrice,
+            description: `${item.name} in ${parsedUnitName}`
+          });
+          await defaultUnit.save();
+          console.log('✅ ItemUnit created:', defaultUnit._id);
 
-      console.log('✅ ItemUnits and Stocks automatically created');
+          // Create stock records for each branch
+          const branches = await Branch.find();
+          console.log(`📍 Creating stock for ${branches.length} branches...`);
+
+          for (const branch of branches) {
+            const stock = new Stock({
+              itemId: item._id,
+              itemUnitId: defaultUnit._id,
+              branchId: branch._id,
+              quantity: isNewItem ? (itemData.quantity || 0) : 0, // 0 for newly added units to existing items
+              minStock: itemData.minStock || 0,
+              maxStock: itemData.maxStock || 100,
+              status: (isNewItem && itemData.quantity > 0) ? 'in-stock' : 'out-of-stock'
+            });
+            await stock.save();
+            console.log(`✅ Stock created for branch: ${branch.branchName}`);
+          }
+          console.log('✅ ItemUnits and Stocks automatically created');
+      }
     } catch (unitsError) {
       console.warn('⚠️  Warning: Could not auto-create ItemUnits/Stocks:', unitsError.message);
-      // Don't fail the item creation if units fail
     }
     
     // Populate and transform for consistent response

@@ -216,8 +216,9 @@ export default function PurchaseOrder () {
   const updateLine = (key, val) => {
     setLine(prev => ({ ...prev, [key]: val }))
     if (key === 'item' && val) {
-      const selected = itemsWithStock.find(item => item.name === val)
+      const selected = itemsWithStock.find(item => `${item.name} - ${item.unit}` === val)
       setSelectedItemForCreate(selected || null)
+      setLine(prev => ({ ...prev, qty: 1 }))
     } else if (key === 'category') {
       setSelectedItemForCreate(null)
     }
@@ -276,8 +277,9 @@ export default function PurchaseOrder () {
   const updateEditLine = (key, val) => {
     setEditLine(prev => ({ ...prev, [key]: val }))
     if (key === 'item' && val) {
-      const selected = itemsWithStock.find(item => item.name === val)
+      const selected = itemsWithStock.find(item => `${item.name} - ${item.unit}` === val)
       setSelectedItemForCreate(selected || null)
+      setEditLine(prev => ({ ...prev, qty: 1 }))
     } else if (key === 'category') {
       setSelectedItemForCreate(null)
     }
@@ -627,8 +629,8 @@ export default function PurchaseOrder () {
                           return itemCategory === line.category;
                         })
                         .map((item, idx) => (
-                          <option key={idx} value={item.name}>
-                            {item.name}
+                          <option key={idx} value={`${item.name} - ${item.unit}`}>
+                            {item.name} - {item.unit}
                           </option>
                         ))}
                     </select>
@@ -642,18 +644,11 @@ export default function PurchaseOrder () {
                           <thead>
                             <tr>
                               <th>Branch Name</th>
-                              <th>Available Quantity</th>
                             </tr>
                           </thead>
                           <tbody>
                             {branches && branches.map((branch, idx) => {
-                              const branchId = branch._id?.toString() || String(branch._id);
-                              const branchStock = selectedItemForCreate.branchStocks?.find(s => {
-                                const stockBranchId = s.branchId?.toString() || String(s.branchId);
-                                return stockBranchId === branchId;
-                              });
                               const branchName = branch.name || branch.branchName;
-                              const quantity = branchStock ? branchStock.quantity : 0;
                               return (
                                 <tr 
                                   key={idx} 
@@ -677,7 +672,6 @@ export default function PurchaseOrder () {
                                   title={`Click to order from ${branchName}`}
                                 >
                                   <td>{branchName}</td>
-                                  <td>{quantity}</td>
                                 </tr>
                               );
                             })}
@@ -687,12 +681,8 @@ export default function PurchaseOrder () {
                     </div>
                   )}
 
-                  <div className="form-group-inventory">
-                    <label className="form-label-inventory">Quantity</label>
-                    <input value={line.qty} onChange={e => updateLine('qty', e.target.value)} placeholder="Qty" type="number" min="1" step="1" className="form-input-inventory" />
-                  </div>
-                  <div className="form-group-inventory" style={{ alignSelf:'end' }}>
-                    <button type="button" className="modal-btn-inventory cancel" onClick={addToCart}>Add to cart</button>
+                  <div className="form-group-inventory" style={{ alignSelf:'end', marginTop: '12px', gridColumn: '1 / -1' }}>
+                    <button type="button" className="modal-btn-inventory cancel" onClick={addToCart}>Add item to order list</button>
                   </div>
                 </div>
                 {cartVisible && (
@@ -700,27 +690,27 @@ export default function PurchaseOrder () {
                     <table className="po-detail-table">
                       <thead>
                         {poForm.orderBy === 'Supplier' ? (
-                          <tr><th>Item Name</th><th>Quantity</th><th style={{width:'120px'}}>Actions</th></tr>
+                          <tr><th>Item Name</th><th style={{width:'120px'}}>Actions</th></tr>
                         ) : (
-                          <tr><th>Branch Name</th><th>Item Name</th><th>Quantity</th><th style={{width:'120px'}}>Actions</th></tr>
+                          <tr><th>Branch Name</th><th>Item Name</th><th style={{width:'120px'}}>Actions</th></tr>
                         )}
                       </thead>
                       <tbody>
                         {cart.length === 0 ? (
                           poForm.orderBy === 'Supplier' ? (
-                            <tr><td colSpan={3} style={{ color:'#6b7280' }}>No items added yet</td></tr>
+                            <tr><td colSpan={2} style={{ color:'#6b7280' }}>No items added yet</td></tr>
                           ) : (
-                            <tr><td colSpan={4} style={{ color:'#6b7280' }}>No items added yet</td></tr>
+                            <tr><td colSpan={3} style={{ color:'#6b7280' }}>No items added yet</td></tr>
                           )
                         ) : (
                           cart.map((ci, i) => (
                             poForm.orderBy === 'Supplier' ? (
-                              <tr key={i}><td>{ci.item}</td><td>{ci.qty}</td><td style={{display:'flex',gap:6}}>
+                              <tr key={i}><td>{ci.item}</td><td style={{display:'flex',gap:6}}>
                                 <button type="button" className="modal-btn-inventory cancel" style={{padding:'6px 10px'}} onClick={() => editExistingCreateItem(i)}>Edit</button>
                                 <button type="button" className="modal-btn-inventory cancel" style={{padding:'6px 10px'}} onClick={() => removeCreateItem(i)}>Remove</button>
                               </td></tr>
                             ) : (
-                              <tr key={i}><td>{ci.item}</td><td>{ci.qty}</td><td style={{display:'flex',gap:6}}>
+                              <tr key={i}><td>{ci.branch}</td><td>{ci.item}</td><td style={{display:'flex',gap:6}}>
                                 <button type="button" className="modal-btn-inventory cancel" style={{padding:'6px 10px'}} onClick={() => editExistingCreateItem(i)}>Edit</button>
                                 <button type="button" className="modal-btn-inventory cancel" style={{padding:'6px 10px'}} onClick={() => removeCreateItem(i)}>Remove</button>
                               </td></tr>
@@ -858,7 +848,6 @@ export default function PurchaseOrder () {
                     <tr>
                       {selected.orderType === 'Branch' && <th>Selected Branch</th>}
                       <th>Item Name</th>
-                      <th>Quantity</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -868,7 +857,6 @@ export default function PurchaseOrder () {
                         <tr key={i}>
                           {selected.orderType === 'Branch' && <td>{selected.branch}</td>}
                           <td>{parts[0]}</td>
-                          <td>{parts[1] || ''}</td>
                         </tr>
                       )
                     })}
@@ -1060,8 +1048,8 @@ export default function PurchaseOrder () {
                           return itemCategory === editLine.category;
                         })
                         .map((item, idx) => (
-                          <option key={idx} value={item.name}>
-                            {item.name}
+                          <option key={idx} value={`${item.name} - ${item.unit}`}>
+                            {item.name} - {item.unit}
                           </option>
                         ))}
                     </select>
@@ -1075,18 +1063,11 @@ export default function PurchaseOrder () {
                           <thead>
                             <tr>
                               <th>Branch Name</th>
-                              <th>Available Quantity</th>
                             </tr>
                           </thead>
                           <tbody>
                             {branches && branches.map((branch, idx) => {
-                              const branchId = branch._id?.toString() || String(branch._id);
-                              const branchStock = selectedItemForCreate.branchStocks?.find(s => {
-                                const stockBranchId = s.branchId?.toString() || String(s.branchId);
-                                return stockBranchId === branchId;
-                              });
                               const branchName = branch.name || branch.branchName;
-                              const quantity = branchStock ? branchStock.quantity : 0;
                               return (
                                 <tr 
                                   key={idx} 
@@ -1110,7 +1091,6 @@ export default function PurchaseOrder () {
                                   title={`Click to order from ${branchName}`}
                                 >
                                   <td>{branchName}</td>
-                                  <td>{quantity}</td>
                                 </tr>
                               );
                             })}
@@ -1120,12 +1100,8 @@ export default function PurchaseOrder () {
                     </div>
                   )}
 
-                  <div className="form-group-inventory">
-                    <label className="form-label-inventory">Quantity</label>
-                    <input value={editLine.qty} onChange={e => updateEditLine('qty', e.target.value)} placeholder="Qty" type="number" min="1" step="1" className="form-input-inventory" />
-                  </div>
-                  <div className="form-group-inventory" style={{ alignSelf: 'end' }}>
-                    <button type="button" className="modal-btn-inventory cancel" onClick={addToEditCart}>Add</button>
+                  <div className="form-group-inventory" style={{ alignSelf: 'end', marginTop: '12px', gridColumn: '1 / -1' }}>
+                    <button type="button" className="modal-btn-inventory cancel" onClick={addToEditCart}>Add item to order list</button>
                   </div>
                 </div>
 
@@ -1134,27 +1110,27 @@ export default function PurchaseOrder () {
                     <table className="po-detail-table">
                       <thead>
                         {editForm.orderBy === 'Supplier' ? (
-                          <tr><th>Item Name</th><th>Quantity</th><th style={{width:'120px'}}>Actions</th></tr>
+                          <tr><th>Item Name</th><th style={{width:'120px'}}>Actions</th></tr>
                         ) : (
-                          <tr><th>Branch Name</th><th>Item Name</th><th>Quantity</th><th style={{width:'120px'}}>Actions</th></tr>
+                          <tr><th>Branch Name</th><th>Item Name</th><th style={{width:'120px'}}>Actions</th></tr>
                         )}
                       </thead>
                       <tbody>
                         {editCart.length === 0 ? (
                           editForm.orderBy === 'Supplier' ? (
-                            <tr><td colSpan={3} style={{ color:'#6b7280' }}>No items added yet</td></tr>
+                            <tr><td colSpan={2} style={{ color:'#6b7280' }}>No items added yet</td></tr>
                           ) : (
-                            <tr><td colSpan={4} style={{ color:'#6b7280' }}>No items added yet</td></tr>
+                            <tr><td colSpan={3} style={{ color:'#6b7280' }}>No items added yet</td></tr>
                           )
                         ) : (
                           editCart.map((ci, i) => (
                             editForm.orderBy === 'Supplier' ? (
-                              <tr key={i}><td>{ci.item}</td><td>{ci.qty}</td><td style={{display:'flex',gap:6}}>
+                              <tr key={i}><td>{ci.item}</td><td style={{display:'flex',gap:6}}>
                                 <button type="button" className="modal-btn-inventory cancel" style={{padding:'6px 10px'}} onClick={() => editExistingEditItem(i)}>Edit</button>
                                 <button type="button" className="modal-btn-inventory cancel" style={{padding:'6px 10px'}} onClick={() => removeEditItem(i)}>Remove</button>
                               </td></tr>
                             ) : (
-                              <tr key={i}><td>{ci.branch || editForm.branch}</td><td>{ci.item}</td><td>{ci.qty}</td><td style={{display:'flex',gap:6}}>
+                              <tr key={i}><td>{ci.branch || editForm.branch}</td><td>{ci.item}</td><td style={{display:'flex',gap:6}}>
                                 <button type="button" className="modal-btn-inventory cancel" style={{padding:'6px 10px'}} onClick={() => editExistingEditItem(i)}>Edit</button>
                                 <button type="button" className="modal-btn-inventory cancel" style={{padding:'6px 10px'}} onClick={() => removeEditItem(i)}>Remove</button>
                               </td></tr>

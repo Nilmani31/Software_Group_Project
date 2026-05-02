@@ -24,9 +24,8 @@ const itemSchema = new mongoose.Schema({
 		required: true,
 		unique: true,
 		default: function() {
-			// Simple auto-generated barcode (could be replaced with a real barcode generator)
-			const base = this.itemId || (this.category ? this.category.toString() : '') + (this.name ? this.name : '') + Date.now();
-			return Buffer.from(base).toString('hex').slice(0, 12).toUpperCase();
+			// Generate a unique 12-digit numeric barcode
+			return Math.floor(100000000000 + Math.random() * 900000000000).toString();
 		}
 	},
 	name: {
