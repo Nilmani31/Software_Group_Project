@@ -116,7 +116,7 @@ export default function PurchaseOrder () {
     const fetchData = async () => {
       try {
         // Fetch branches
-        const branchRes = await fetch('http://localhost:5005/api/branches');
+        const branchRes = await fetch('http://localhost:5000/api/branches');
         const branchResult = await branchRes.json();
         let branchData = [];
         if (branchResult.success && Array.isArray(branchResult.data)) {
@@ -147,21 +147,21 @@ export default function PurchaseOrder () {
         }
 
         // Fetch categories
-        const catRes = await fetch('http://localhost:5005/api/categories');
+        const catRes = await fetch('http://localhost:5000/api/categories');
         const catData = await catRes.json();
         if (Array.isArray(catData)) {
           setCategories(catData);
         }
 
         // Fetch items with stock
-        const itemRes = await fetch('http://localhost:5005/api/items');
+        const itemRes = await fetch('http://localhost:5000/api/items');
         const itemData = await itemRes.json();
         if (Array.isArray(itemData)) {
           setItemsWithStock(itemData);
         }
 
         // Fetch purchase orders from backend
-        const poRes = await fetch('http://localhost:5005/api/purchase-orders');
+        const poRes = await fetch('http://localhost:5000/api/purchase-orders');
         const poData = await poRes.json();
         if (poData.success && Array.isArray(poData.data)) {
           setPos(poData.data);
@@ -377,7 +377,7 @@ export default function PurchaseOrder () {
     
     try {
       // Send PO to backend API
-      const response = await fetch('http://localhost:5005/api/purchase-orders', {
+      const response = await fetch('http://localhost:5000/api/purchase-orders', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -1190,7 +1190,7 @@ export default function PurchaseOrder () {
               
               try {
                 // Send cancel request to backend API
-                const response = await fetch(`http://localhost:5005/api/purchase-orders/${selected.poNumber}/cancel`, {
+                const response = await fetch(`http://localhost:5000/api/purchase-orders/${selected.poNumber}/cancel`, {
                   method: 'PATCH',
                   headers: {
                     'Content-Type': 'application/json'
