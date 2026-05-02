@@ -222,9 +222,47 @@ async function removeStock(itemName, quantity) {
     }
 }
 
+async function getOutOfStockItems() {
+    try {
+        const outOfStockItems = await Stock.find({
+            quantity: 0
+        }).populate('itemId', 'name').populate('branchId', 'name');
+
+        if (outOfStockItems.length === 0) {
+            return '✅ <strong>Great News!</strong><br>No items are out of stock. All items have inventory.';
+        }
+
+        const uniqueItems = new Map();
+        for (const stock of outOfStockItems) {
+            const itemName = stock.itemId?.name || 'Unknown';
+            if (!uniqueItems.has(itemName)) {
+                uniqueItems.set(itemName, []);
+            }
+            uniqueItems.get(itemName).push(stock.branchId?.name || 'Unknown Branch');
+        }
+
+        let response = `🔴 <strong>OUT OF STOCK ITEMS (${uniqueItems.size} items)</strong><br><br>`;
+        
+        let index = 1;
+        for (const [itemName, branches] of uniqueItems) {
+            response += `${index}. <strong>${itemName}</strong><br>`;
+            response += `   Out of stock in: ${branches.join(', ')}<br><br>`;
+            index++;
+        }
+
+        response += `<strong>⚠️ URGENT: Reorder these items immediately!</strong>`;
+        return response;
+
+    } catch (error) {
+        console.error('Error getting out of stock items:', error);
+        return `❌ Error: ${error.message}`;
+    }
+}
+
 module.exports = {
     checkStock,
     getLowStockItems,
+    getOutOfStockItems,
     addStock,
     removeStock
 };

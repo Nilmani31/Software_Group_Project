@@ -1,4 +1,5 @@
 const Groq = require('groq-sdk');
+const nlpUtils = require('./nlpUtils');
 const inventoryService = require('./inventoryService');
 const poService = require('./poService');
 const grnService = require('./grnService');
@@ -19,6 +20,104 @@ class GeminiService {
         // Rate limiting for quota management  
         this.lastRequestTime = 0;
         this.minInterval = 10000; // 10 seconds between requests (Groq is generous)
+        
+        // Cache for valid items, suppliers, roles, categories
+        this.validItems = [];
+        this.validSuppliers = [];
+        this.validRoles = [];
+        this.validCategories = [];
+        this.cacheTime = Date.now();
+        this.cacheExpiry = 5 * 60 * 1000; // 5 minutes
+    }
+    
+    /**
+     * Load and cache valid items, suppliers, roles, and categories for fuzzy matching
+     */
+    async loadValidEntities() {
+        try {
+            const now = Date.now();
+            // Only refresh cache every 5 minutes
+            if (now - this.cacheTime < this.cacheExpiry && this.validItems.length > 0) {
+                return;
+            }
+            
+            // Load items
+            const itemsResult = await inventoryService.getLowStockItems();
+            if (itemsResult) {
+                this.validItems = this.extractItemNames(itemsResult);
+            }
+            
+            // Load suppliers
+            const suppliersResult = await suppliersService.viewAllSuppliers();
+            if (suppliersResult) {
+                this.validSuppliers = this.extractEntityNames(suppliersResult, 'supplier');
+            }
+            
+            // Load roles
+            const rolesResult = await rolesService.viewAllRoles();
+            if (rolesResult) {
+                this.validRoles = this.extractEntityNames(rolesResult, 'role');
+            }
+            
+            // Load categories
+            const categoriesResult = await categoriesService.viewAllCategories();
+            if (categoriesResult) {
+                this.validCategories = this.extractEntityNames(categoriesResult, 'category');
+            }
+            
+            this.cacheTime = now;
+            console.log(`✅ NLP Cache loaded: ${this.validItems.length} items, ${this.validSuppliers.length} suppliers, ${this.validRoles.length} roles, ${this.validCategories.length} categories`);
+        } catch (error) {
+            console.error('Error loading valid entities:', error);
+        }
+    }
+    
+    /**
+     * Extract item names from results
+     */
+    extractItemNames(result) {
+        const items = [];
+        if (typeof result === 'string') {
+            // Parse string results
+            const matches = result.match(/(?:Item|Name|Product):\s*([^\n,]+)/gi);
+            if (matches) {
+                matches.forEach(match => {
+                    const name = match.split(':')[1].trim();
+                    if (name && name.length > 0) items.push(name);
+                });
+            }
+        } else if (Array.isArray(result)) {
+            result.forEach(item => {
+                if (item.itemName) items.push(item.itemName);
+                if (item.name) items.push(item.name);
+            });
+        }
+        return [...new Set(items)]; // Remove duplicates
+    }
+    
+    /**
+     * Extract entity names from results
+     */
+    extractEntityNames(result, type = 'supplier') {
+        const entities = [];
+        if (typeof result === 'string') {
+            // Parse string results
+            const matches = result.match(/(?:Name|Supplier|Category|Role):\s*([^\n,]+)/gi);
+            if (matches) {
+                matches.forEach(match => {
+                    const name = match.split(':')[1].trim();
+                    if (name && name.length > 0) entities.push(name);
+                });
+            }
+        } else if (Array.isArray(result)) {
+            result.forEach(entity => {
+                if (entity.name) entities.push(entity.name);
+                if (entity.supplierName) entities.push(entity.supplierName);
+                if (entity.categoryName) entities.push(entity.categoryName);
+                if (entity.roleName) entities.push(entity.roleName);
+            });
+        }
+        return [...new Set(entities)]; // Remove duplicates
     }
 
     getSystemPrompt() {
@@ -78,6 +177,9 @@ Examples:
 
     async chat(userMessage) {
         try {
+            // Load valid entities for fuzzy matching (cached)
+            await this.loadValidEntities();
+            
             // Rate limiting for quota management (Groq is generous - 10s is enough)
             const now = Date.now();
             const timeSinceLastRequest = now - this.lastRequestTime;
@@ -98,16 +200,25 @@ Examples:
 
             this.lastRequestTime = now;
             
-            // Parse functions locally
-            const functions = this.parseFunctionsLocally(userMessage);
+            // Expand abbreviations in user message
+            const expandedMessage = nlpUtils.expandAbbreviations(userMessage);
+            if (expandedMessage !== userMessage) {
+                console.log(`🔤 Expanded abbreviations: "${userMessage}" → "${expandedMessage}"`);
+            }
+            
+            // Parse functions locally with improved NLP
+            const functions = this.parseFunctionsLocally(expandedMessage);
+            
+            // Detect intent with confidence scoring
+            const intentDetection = nlpUtils.detectIntent(expandedMessage, null);
             
             let results = [];
-            let intent = 'CONVERSATION';
+            let intent = intentDetection.intent;
 
             // Execute the identified functions (no API call)
             if (functions.length > 0) {
                 results = await this.executeFunctions(functions);
-                intent = functions[0]?.name || 'CONVERSATION';
+                intent = functions[0]?.name || intentDetection.intent;
                 console.log(`📊 Execution Results:`, results);
             }
 
@@ -139,6 +250,7 @@ Examples:
                 success: true,
                 message: responseText,
                 intent: intent,
+                confidence: intentDetection.confidence,
                 offline: false,
                 timestamp: new Date().toISOString(),
                 executedFunctions: functions.map(f => f.name)
@@ -157,25 +269,28 @@ Examples:
     }
 
     parseFunctionsLocally(userMessage) {
-        // LOCAL function parsing - NO API CALL
+        // IMPROVED LOCAL function parsing with NLP utilities
         // Detects keywords in user message to identify what to execute
         const functions = [];
         const lowerMsg = userMessage.toLowerCase();
+        const tokens = nlpUtils.tokenize(userMessage);
 
-        // Keywords mapping - Order matters! More specific patterns first
+        // Keywords mapping with stemmed versions - Order matters! More specific patterns first
         const functionMap = {
             'pending order|pending purchase': { name: 'getPendingPurchaseOrders', extract: null },
-            'purchase order|purchase\\s+order': { name: 'viewAllPurchaseOrders', extract: null },
-            'low stock|low on|running low|critical stock|reorder': { name: 'getLowStockItems', extract: null },
-            'check stock|available|how much|do we have': { name: 'checkStock', extract: 'itemName' },
-            'add stock|add to|add \\d+': { name: 'addStock', extract: 'itemName,quantity' },
-            'remove stock|use|remove \\d+': { name: 'removeStock', extract: 'itemName,quantity' },
-            'goods received items|grn items|received items': { name: 'viewGoodsReceived', extract: null },
-            'goods received|grn|show received': { name: 'checkGoodsReceivedItem', extract: 'itemName' },
-            'supplier': { name: 'viewAllSuppliers', extract: 'supplierName' },
-            'role': { name: 'viewAllRoles', extract: 'roleName' },
-            'categor': { name: 'viewAllCategories', extract: 'categoryName' },
-            'issue': { name: 'viewRecentIssueNotes', extract: 'issueNumber' }
+            'purchase order|purchase\\s+order|po': { name: 'viewAllPurchaseOrders', extract: null },
+            'how many.*out of stock|items.*out of stock|count.*out of stock|out of stock': { name: 'getOutOfStockItems', extract: null },
+            'out of stock|out of stok|no stock|zero stock|empty|none left': { name: 'getLowStockItems', extract: null },
+            'low stock|low on|running low|critical stock|reorder|below|urgent': { name: 'getLowStockItems', extract: null },
+            'check stock|available|how much|do we have|stock level|inventory|in stock': { name: 'checkStock', extract: 'itemName' },
+            'add stock|add to|add \\d+|receive|incoming|stock in|receive item': { name: 'addStock', extract: 'itemName,quantity' },
+            'remove stock|use|remove \\d+|issue|consume|take out|subtract': { name: 'removeStock', extract: 'itemName,quantity' },
+            'goods received items|grn items|received items|goods receipt': { name: 'viewGoodsReceived', extract: null },
+            'goods received|grn|show received|received': { name: 'checkGoodsReceivedItem', extract: 'itemName' },
+            'supplier|vendor|supplier list': { name: 'viewAllSuppliers', extract: 'supplierName' },
+            'role|position|user role': { name: 'viewAllRoles', extract: 'roleName' },
+            'categor|type|group': { name: 'viewAllCategories', extract: 'categoryName' },
+            'issue note|issue|issued': { name: 'viewRecentIssueNotes', extract: 'issueNumber' }
         };
 
         // Check which functions are mentioned
@@ -244,81 +359,108 @@ Examples:
     }
 
     extractParametersLocally(message, functionName) {
-        // LOCAL parameter extraction - NO API CALL
+        // IMPROVED LOCAL parameter extraction with NLP utilities and fuzzy matching
         const params = {};
         const lowerMsg = message.toLowerCase();
 
-        // Extract item name
-        if (['checkStock', 'addStock', 'removeStock', 'checkGoodsReceivedItem', 'checkIssuedItems', 'viewAllSuppliers'].includes(functionName)) {
+        // Extract item name with fuzzy matching
+        if (['checkStock', 'addStock', 'removeStock', 'checkGoodsReceivedItem', 'checkIssuedItems'].includes(functionName)) {
+            // First try quoted text
             const quoteMatch = message.match(/"([^"]+)"|'([^']+)'/);
             if (quoteMatch) {
-                if (functionName === 'viewAllSuppliers') {
-                    params.supplierName = quoteMatch[1] || quoteMatch[2];
-                } else if (functionName === 'checkIssuedItems') {
-                    params.itemName = quoteMatch[1] || quoteMatch[2];
-                } else {
-                    params.itemName = quoteMatch[1] || quoteMatch[2];
-                }
+                params.itemName = quoteMatch[1] || quoteMatch[2];
+                console.log(`📌 Quoted item extracted: "${params.itemName}"`);
             } else {
-                const itemKeywords = ['of', 'for', 'item', 'product', 'about'];
-                for (const keyword of itemKeywords) {
-                    const regex = new RegExp(`${keyword}\\s+([a-z0-9\\s&'.]+?)(?:\\s+(?:units?|kg|liters?|g|box|packet|with|supplier))?$`, 'i');
-                    const match = message.match(regex);
-                    if (match) {
-                        const extractedName = match[1].trim();
-                        if (functionName === 'viewAllSuppliers') {
-                            params.supplierName = extractedName;
-                        } else if (functionName === 'checkIssuedItems') {
-                            params.itemName = extractedName;
+                // Extract potential item names from message
+                const itemExtraction = nlpUtils.extractItemNames(message);
+                console.log(`🔍 Item extraction results:`, itemExtraction);
+                
+                if (itemExtraction.length > 0) {
+                    const userItemName = itemExtraction[0].name;
+                    console.log(`📍 Top candidate: "${userItemName}" (confidence: ${(itemExtraction[0].confidence * 100).toFixed(0)}%)`);
+                    
+                    // Try fuzzy matching against valid items if available
+                    if (this.validItems.length > 0) {
+                        const matches = nlpUtils.fuzzyMatch(userItemName, this.validItems, 0.6);
+                        if (matches.length > 0) {
+                            params.itemName = matches[0].item;
+                            if (matches[0].score < 1.0) {
+                                console.log(`🔀 Fuzzy matched: "${userItemName}" → "${matches[0].item}" (similarity: ${(matches[0].score * 100).toFixed(0)}%, type: ${matches[0].type})`);
+                            } else {
+                                console.log(`✅ Exact match found: "${matches[0].item}"`);
+                            }
                         } else {
-                            params.itemName = extractedName;
+                            params.itemName = userItemName;
+                            console.log(`⚠️ No fuzzy match found, using original: "${userItemName}"`);
                         }
-                        break;
+                    } else {
+                        params.itemName = userItemName;
+                        console.log(`⏭️ Cache not loaded, using extracted name: "${userItemName}"`);
                     }
+                } else {
+                    console.log(`⚠️ No item names extracted from message`);
                 }
             }
         }
 
-        // Extract supplier name
+        // Extract supplier name with fuzzy matching
         if (['getSupplierDetails', 'viewAllSuppliers'].includes(functionName)) {
             if (!params.supplierName) {
                 const quoteMatch = message.match(/"([^"]+)"|'([^']+)'/);
                 if (quoteMatch) {
                     params.supplierName = quoteMatch[1] || quoteMatch[2];
                 } else {
-                    const supplierMatch = message.match(/(?:about|for|tell me about|show|from)\s+([a-z0-9\s&'.]+?)(?:\s+supplier)?$/i);
-                    if (supplierMatch) {
-                        params.supplierName = supplierMatch[1].trim();
+                    const supplierEntity = nlpUtils.extractEntity(message, 'supplier');
+                    if (supplierEntity) {
+                        // Try fuzzy matching
+                        if (this.validSuppliers.length > 0) {
+                            const matches = nlpUtils.fuzzyMatch(supplierEntity, this.validSuppliers, 0.6);
+                            params.supplierName = matches.length > 0 ? matches[0].item : supplierEntity;
+                        } else {
+                            params.supplierName = supplierEntity;
+                        }
                     }
                 }
             }
         }
 
-        // Extract role name
+        // Extract role name with fuzzy matching
         if (['getRoleDetails', 'viewAllRoles'].includes(functionName)) {
             if (!params.roleName) {
                 const quoteMatch = message.match(/"([^"]+)"|'([^']+)'/);
                 if (quoteMatch) {
                     params.roleName = quoteMatch[1] || quoteMatch[2];
                 } else {
-                    const roleMatch = message.match(/(?:about|for|tell me about|show|role)\s+([a-z0-9\s]+?)(?:\s+role)?$/i);
-                    if (roleMatch) {
-                        params.roleName = roleMatch[1].trim();
+                    const roleEntity = nlpUtils.extractEntity(message, 'role');
+                    if (roleEntity) {
+                        // Try fuzzy matching
+                        if (this.validRoles.length > 0) {
+                            const matches = nlpUtils.fuzzyMatch(roleEntity, this.validRoles, 0.6);
+                            params.roleName = matches.length > 0 ? matches[0].item : roleEntity;
+                        } else {
+                            params.roleName = roleEntity;
+                        }
                     }
                 }
             }
         }
 
-        // Extract category name
+        // Extract category name with fuzzy matching
         if (['getCategoryDetails', 'viewAllCategories'].includes(functionName)) {
             if (!params.categoryName) {
                 const quoteMatch = message.match(/"([^"]+)"|'([^']+)'/);
                 if (quoteMatch) {
                     params.categoryName = quoteMatch[1] || quoteMatch[2];
                 } else {
-                    const categoryMatch = message.match(/(?:about|for|tell me about|show|categor)\s+([a-z0-9\s]+?)(?:\s+categor)?$/i);
-                    if (categoryMatch) {
-                        params.categoryName = categoryMatch[1].trim();
+                    const categoryEntity = nlpUtils.extractEntity(message, 'category');
+                    if (categoryEntity) {
+                        // Try fuzzy matching
+                        if (this.validCategories.length > 0) {
+                            const matches = nlpUtils.fuzzyMatch(categoryEntity, this.validCategories, 0.6);
+                            params.categoryName = matches.length > 0 ? matches[0].item : categoryEntity;
+                        } else {
+                            params.categoryName = categoryEntity;
+                        }
                     }
                 }
             }
@@ -339,11 +481,12 @@ Examples:
             }
         }
 
-        // Extract quantity
+        // Extract quantities using NLP utility
         if (['addStock', 'removeStock'].includes(functionName)) {
-            const numberMatch = message.match(/(\d+(?:\.\d+)?)\s*(?:kg|units?|liters?|g|pound|box|packet)/i);
-            if (numberMatch) {
-                params.quantity = parseInt(numberMatch[1]);
+            const quantities = nlpUtils.extractQuantities(message);
+            if (quantities.length > 0) {
+                params.quantity = quantities[0].amount;
+                params.unit = quantities[0].unit;
             }
         }
 
@@ -377,6 +520,9 @@ Examples:
                         break;
                     case 'getLowStockItems':
                         result = await inventoryService.getLowStockItems();
+                        break;
+                    case 'getOutOfStockItems':
+                        result = await inventoryService.getOutOfStockItems();
                         break;
                     case 'viewAllPurchaseOrders':
                         result = await poService.viewAllPurchaseOrders();

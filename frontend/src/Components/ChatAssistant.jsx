@@ -190,7 +190,7 @@ const ChatAssistant = () => {
       
       const errorMsg = {
         id: Date.now() + 1,
-        text: '⚠️ Chat service is not running. Make sure Node.js backend is running on port 5000.',
+        text: '⚠️ Chat service is not running. Make sure Node.js backend is running on port 5005.',
         sender: 'ai',
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       };
