@@ -35,14 +35,19 @@ __pycache__/
 *.so
 .Python
 venv/
+.venv/
 env/
 ENV/
 *.egg-info/
 .eggs/
+pip-log.txt
+pip-delete-this-directory.txt
 
 # Qdrant
 qdrant_storage/
 *.qdrant
+qdrant/storage/
+qdrant/snapshots/
 
 # VS Code
 .vscode/

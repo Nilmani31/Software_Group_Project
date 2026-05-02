@@ -9,7 +9,7 @@ const FindItemByImageModal = ({ isOpen, onClose, onAddAsNew }) => {
   const [searchResults, setSearchResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [useTestEndpoint, setUseTestEndpoint] = useState(true);
+  const [useTestEndpoint, setUseTestEndpoint] = useState(true); // DEFAULT TO TEST MODE
 
   const handleImageUpload = (e) => {
     const file = e.target.files[0];
@@ -36,7 +36,11 @@ const FindItemByImageModal = ({ isOpen, onClose, onAddAsNew }) => {
       const formData = new FormData();
       formData.append('image', selectedImage);
 
-      const endpoint = useTestEndpoint ? 'http://localhost:5000/api/image-search/test' : 'http://localhost:5000/api/image-search/search';
+      // Use full URL to backend instead of relative path
+      const endpoint = useTestEndpoint 
+        ? 'http://localhost:5000/api/image-search/test' 
+        : 'http://localhost:5000/api/image-search/search';
+      
       console.log('🔍 Starting image search...');
       console.log(`📤 Endpoint: ${endpoint} ${useTestEndpoint ? '(TEST MODE)' : ''}`);
       console.log('📁 File:', selectedImage.name, selectedImage.size, 'bytes');
