@@ -4,7 +4,7 @@ const axios = require('axios');
 
 const testImageSearch = async () => {
   const imagePath = 'C:\\Users\\nethm\\Downloads\\c.jpg';
-  
+
   try {
     const form = new FormData();
     const fileStream = fs.createReadStream(imagePath);

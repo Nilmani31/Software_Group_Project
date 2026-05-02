@@ -32,6 +32,7 @@ const purchaseOrdersRouter = require('./routes/purchaseOrders');
 const chatRoutes = require('./routes/chat');
 const goodsReceivedRouter = require('./routes/goodsReceived');
 const imageSearchRouter = require('./routes/imageSearch');
+const dashboardRouter = require('./routes/dashboard');
 
 
 
@@ -47,7 +48,7 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 const connectDB = async () => {
   try {
     const conn = await mongoose.connect(process.env.MONGODB_URI);
-    
+
     console.log(`✅ MongoDB Connected: ${conn.connection.host}`);
     console.log(`📊 Database Name: ${conn.connection.name}`);
   } catch (error) {
@@ -92,7 +93,7 @@ app.get('/api/debug/env', (req, res) => {
   console.log(`   ML_SERVICE_URL = ${process.env.ML_SERVICE_URL}`);
   console.log(`   IMAGE_UPLOAD_MAX_MB = ${process.env.IMAGE_UPLOAD_MAX_MB}`);
   console.log(`   NODE_ENV = ${process.env.NODE_ENV}`);
-  
+
   res.json({
     ML_SERVICE_URL: process.env.ML_SERVICE_URL,
     IMAGE_UPLOAD_MAX_MB: process.env.IMAGE_UPLOAD_MAX_MB,
@@ -115,6 +116,7 @@ app.use('/api/issue-notes', issueNotesRouter);
 app.use('/api/goods-received', goodsReceivedRouter);
 app.use('/api/chat', chatRoutes);
 app.use('/api/image-search', imageSearchRouter);
+app.use('/api/dashboard', dashboardRouter);
 
 // Error handling middleware
 app.use((err, req, res, next) => {

@@ -552,7 +552,8 @@ export default function GoodReceived() {
                       <select
                         {...register(`items.${index}.itemName`)}
                         className="form-input-inventory"
-                        style={{ fontSize: '13px', width: '100%', minWidth: 0, padding: '4px' }}
+                        style={{ fontSize: '13px', width: '100%', minWidth: 0, padding: '4px', backgroundColor: watch('po') ? '#f3f4f6' : 'white', pointerEvents: watch('po') ? 'none' : 'auto' }}
+                        readOnly={!!watch('po')}
                         onChange={(e) => {
                           const val = e.target.value;
                           setValue(`items.${index}.itemName`, val);
@@ -571,29 +572,36 @@ export default function GoodReceived() {
                           </option>
                         ))}
                       </select>
-                      <input {...register(`items.${index}.unit`)} placeholder="kg/units" className="form-input-inventory" style={{ fontSize: '13px', width: '100%', minWidth: 0 }} />
-                      <input {...register(`items.${index}.unitPrice`)} placeholder="Price" type="number" className="form-input-inventory" style={{ fontSize: '13px', width: '100%', minWidth: 0 }} />
-                      <input {...register(`items.${index}.quantityOrdered`)} placeholder="0" type="number" className="form-input-inventory" style={{ fontSize: '13px', width: '100%', minWidth: 0 }} />
+                      <input {...register(`items.${index}.unit`)} placeholder="kg/units" className="form-input-inventory" style={{ fontSize: '13px', width: '100%', minWidth: 0, backgroundColor: watch('po') ? '#f3f4f6' : 'white', pointerEvents: watch('po') ? 'none' : 'auto' }} readOnly={!!watch('po')} />
+                      <input {...register(`items.${index}.unitPrice`)} placeholder="Price" type="number" step="0.01" className="form-input-inventory" style={{ fontSize: '13px', width: '100%', minWidth: 0 }} />
+                      <input {...register(`items.${index}.quantityOrdered`)} placeholder="0" type="number" className="form-input-inventory" style={{ fontSize: '13px', width: '100%', minWidth: 0, backgroundColor: watch('po') ? '#f3f4f6' : 'white', pointerEvents: watch('po') ? 'none' : 'auto' }} readOnly={!!watch('po')} />
                       <input {...register(`items.${index}.quantityReceived`)} placeholder="0" type="number" className="form-input-inventory" style={{ fontSize: '13px', width: '100%', minWidth: 0 }} />
-                      <button 
-                        type="button" 
-                        onClick={() => remove(index)} 
-                        className="modal-btn-inventory cancel"
-                        style={{ padding: '6px 8px', fontSize: '11px', width: '100%', minWidth: 0 }}
-                      >
-                        Remove
-                      </button>
+                      {!watch('po') && (
+                        <button 
+                          type="button" 
+                          onClick={() => remove(index)} 
+                          className="modal-btn-inventory cancel"
+                          style={{ padding: '6px 8px', fontSize: '11px', width: '100%', minWidth: 0 }}
+                        >
+                          Remove
+                        </button>
+                      )}
+                      {!!watch('po') && (
+                        <div style={{ textAlign: 'center', fontSize: '12px', color: '#64748b' }}>Locked</div>
+                      )}
                     </div>
                   ))}
 
-                  <button 
-                    type="button" 
-                    onClick={() => append({ itemId: '', itemName: '', unit: '', unitPrice: '', quantityOrdered: '', quantityReceived: '' })} 
-                    className="modal-btn-inventory cancel"
-                    style={{ marginTop: '8px', padding: '10px 16px' }}
-                  >
-                    + Add Item
-                  </button>
+                  {!watch('po') && (
+                    <button 
+                      type="button" 
+                      onClick={() => append({ itemId: '', itemName: '', unit: '', unitPrice: '', quantityOrdered: '', quantityReceived: '' })} 
+                      className="modal-btn-inventory cancel"
+                      style={{ marginTop: '8px', padding: '10px 16px' }}
+                    >
+                      + Add Item
+                    </button>
+                  )}
                 </div>
 
                 <div className="modal-footer-inventory" style={{ justifyContent: 'flex-end' }}>

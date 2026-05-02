@@ -722,21 +722,6 @@ const Inventory = () => {
                       />
                     </div>
 
-                    {/* Unit Price */}
-                    <div className="form-group-inventory">
-                      <label className="form-label-inventory">Unit Price (Rs)</label>
-                      <input
-                        type="number"
-                        name="unitPrice"
-                        placeholder="0.00"
-                        value={formData.unitPrice || ''}
-                        onChange={handleInputChange}
-                        className="form-input-inventory"
-                        step="0.01"
-                        min="0"
-                        required
-                      />
-                    </div>
 
                     {/* SKU - Read Only */}
                     <div className="form-group-inventory">
@@ -1069,21 +1054,6 @@ const Inventory = () => {
                       />
                     </div>
 
-                    {/* Unit Price */}
-                    <div className="edit-form-group">
-                      <label className="edit-form-label">Unit Price (Rs)</label>
-                      <input
-                        type="number"
-                        name="unitPrice"
-                        placeholder="0.00"
-                        value={editFormData.unitPrice || ''}
-                        onChange={handleEditInputChange}
-                        className="edit-form-input"
-                        step="0.01"
-                        min="0"
-                        required
-                      />
-                    </div>
 
                     {/* SKU */}
                     <div className="edit-form-group">

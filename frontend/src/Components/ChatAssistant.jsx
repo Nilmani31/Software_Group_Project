@@ -13,7 +13,7 @@ const ChatAssistant = () => {
   // Get current page info
   const getCurrentPageInfo = () => {
     const path = location.pathname;
-    
+
     const pageMap = {
       '/dashboard': {
         name: 'Dashboard',
@@ -187,7 +187,7 @@ const ChatAssistant = () => {
     } catch (error) {
       console.error('Chat Error:', error);
       setIsTyping(false);
-      
+
       const errorMsg = {
         id: Date.now() + 1,
         text: '⚠️ Chat service is not running. Make sure Node.js backend is running on port 5005.',
@@ -217,7 +217,7 @@ const ChatAssistant = () => {
   return (
     <>
       {/* Floating Chat Icon */}
-      <div 
+      <div
         className={`chat-float-button ${isOpen ? 'active' : ''}`}
         onClick={() => setIsOpen(!isOpen)}
         title={pageInfo.name}
@@ -236,7 +236,7 @@ const ChatAssistant = () => {
                 <span className="status">{pageInfo.name}</span>
               </div>
             </div>
-            <button 
+            <button
               className="minimize-btn"
               onClick={() => setIsOpen(false)}
             >
@@ -257,7 +257,7 @@ const ChatAssistant = () => {
                 </div>
               </div>
             ))}
-            
+
             {isTyping && (
               <div className="message ai typing">
                 <div className="message-content">
@@ -275,7 +275,7 @@ const ChatAssistant = () => {
           <div className="chat-input-area">
             <div className="quick-actions">
               {pageInfo.suggestions.map((suggestion, index) => (
-                <button 
+                <button
                   key={index}
                   className="quick-btn"
                   onClick={() => handleQuickAction(suggestion.query)}
@@ -285,7 +285,7 @@ const ChatAssistant = () => {
                 </button>
               ))}
             </div>
-            
+
             <div className="chat-input">
               <input
                 type="text"
@@ -295,7 +295,7 @@ const ChatAssistant = () => {
                 placeholder="Ask about item availability..."
                 className="message-input"
               />
-              <button 
+              <button
                 className="send-btn"
                 onClick={handleSendMessage}
                 disabled={!inputMessage.trim()}

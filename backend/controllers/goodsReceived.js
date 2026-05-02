@@ -114,7 +114,7 @@ exports.createGRN = async (req, res) => {
     const ItemUnit = require('../models/itemUnits');
 
     for (const item of items) {
-      if (item.quantityReceived > 0) {
+      if (item.quantityReceived >= 0) {
         try {
           let targetItemId = item.itemId;
           

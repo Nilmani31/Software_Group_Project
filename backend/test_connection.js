@@ -2,7 +2,7 @@ const axios = require('axios');
 
 async function testConnection() {
   console.log('🧪 Testing ML Service connectivity...\n');
-  
+
   try {
     console.log('1. Testing health endpoint...');
     const response = await axios.get('http://localhost:8000/health', { timeout: 5005 });

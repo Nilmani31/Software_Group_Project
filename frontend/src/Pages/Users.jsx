@@ -104,6 +104,7 @@ export default function Users() {
     e.preventDefault();
     setAddLoading(true);
     try {
+<<<<<<< Updated upstream
       const requestBody = {
         username: addForm.username,
         email: addForm.email,
@@ -120,6 +121,8 @@ export default function Users() {
       console.log('Password type:', typeof requestBody.password);
       console.log('Password length:', requestBody.password ? requestBody.password.length : 0);
       
+=======
+>>>>>>> Stashed changes
       const response = await fetch('http://localhost:5005/api/users/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

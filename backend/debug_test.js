@@ -16,7 +16,7 @@ async function debugImageSearch() {
     console.log(`   ML_SERVICE_URL: ${envResponse.data.ML_SERVICE_URL}`);
     console.log(`   IMAGE_UPLOAD_MAX_MB: ${envResponse.data.IMAGE_UPLOAD_MAX_MB}`);
     console.log(`   NODE_ENV: ${envResponse.data.NODE_ENV}`);
-    
+
     if (!envResponse.data.ML_SERVICE_URL) {
       console.error('❌ ERROR: ML_SERVICE_URL is undefined!');
       console.error('   Fix: Check backend/.env file');
@@ -51,7 +51,7 @@ async function debugImageSearch() {
   console.log('\n\nSTEP 3: Test Image Upload to FastAPI Directly');
   console.log('─────────────────────────────────────────────');
   const imagePath = 'C:\\Users\\nethm\\Downloads\\c.png';
-  
+
   if (!fs.existsSync(imagePath)) {
     console.error(`❌ Image file not found: ${imagePath}`);
     return;
@@ -65,7 +65,7 @@ async function debugImageSearch() {
     console.log(`Sending image: c.png`);
     console.log(`Endpoint: http://127.0.0.1:8000/embed-and-search`);
     console.log(`Timeout: 120000ms`);
-    
+
     const mlResponse = await axios.post(
       'http://127.0.0.1:8000/embed-and-search',
       form,
@@ -89,7 +89,7 @@ async function debugImageSearch() {
   // STEP 4: Test through Node backend
   console.log('\n\nSTEP 4: Test Through Node Backend Route');
   console.log('─────────────────────────────────────────────');
-  
+
   try {
     const form = new FormData();
     const fileStream = fs.createReadStream(imagePath);

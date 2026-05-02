@@ -51,6 +51,13 @@ exports.getAllItems = async (req, res) => {
       }
       
       if (itemUnits && itemUnits.length > 0) {
+        // Group by physical unit signature to detect multiple prices for the same unit
+        const unitSignatures = {};
+        itemUnits.forEach(u => {
+          const sig = `${u.unitValue}_${u.unit}`;
+          unitSignatures[sig] = (unitSignatures[sig] || 0) + 1;
+        });
+
         return itemUnits.map(unit => {
           // Calculate stock specifically for this unit
           const unitStockRecords = stockRecords.filter(s => String(s.itemUnitId) === String(unit._id));
@@ -69,10 +76,17 @@ exports.getAllItems = async (req, res) => {
             displayUnit = `${unit.unitValue}${displayUnit}`;
           }
 
+          // Differentiate name if there are multiple prices for the same physical unit
+          let distinctName = itemObj.name;
+          const sig = `${unit.unitValue}_${unit.unit}`;
+          if (unitSignatures[sig] > 1) {
+            distinctName = `${itemObj.name} (Rs${unit.unitPrice || 0})`;
+          }
+
           return {
             ...itemObj,
             uniqueId: `${item._id}_${unit._id}`,
-            name: itemObj.name,
+            name: distinctName,
             unitPrice: unit.unitPrice || 0,
             unit: displayUnit,
             itemUnitId: unit._id,
@@ -238,7 +252,7 @@ exports.createItem = async (req, res) => {
     try {
       const unitVal = req.body.unitAmount || req.body.unitValue || 1;
       const parsedUnitName = req.body.unit || item.unit || 'kg';
-      const providedPrice = req.body.unitPrice || 100;
+      const providedPrice = req.body.unitPrice || 0;
       
       // Check if this EXACT ItemUnit already exists
       const existingUnit = await ItemUnit.findOne({
