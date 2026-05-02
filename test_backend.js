@@ -10,9 +10,9 @@ const testImageSearch = async () => {
     const fileStream = fs.createReadStream(imagePath);
     form.append('image', fileStream);
 
-    console.log('Sending image to http://localhost:5005/api/image-search/search...');
+    console.log('Sending image to http://localhost:5000/api/image-search/search...');
     const response = await axios.post(
-      'http://localhost:5005/api/image-search/search',
+      'http://localhost:5000/api/image-search/search',
       form,
       {
         headers: form.getHeaders(),

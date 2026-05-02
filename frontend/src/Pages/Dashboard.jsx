@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import "./Dashboard.css";
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5005/api';
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 
 const COLORS = ['#4f46e5', '#f59e0b']; // In Stock (Blue), Low Stock (Amber)
 

@@ -4,7 +4,7 @@ async function testBackend() {
   console.log('🧪 Testing backend health...\n');
 
   try {
-    const response = await axios.get('http://localhost:5005/api/health', { timeout: 5005 });
+    const response = await axios.get('http://localhost:5000/api/health', { timeout: 5000 });
     console.log('✅ Backend is running!');
     console.log('Response:', response.data);
   } catch (error) {

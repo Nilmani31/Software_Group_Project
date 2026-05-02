@@ -20,7 +20,7 @@ const IssueNote = () => {
       try {
         setLoading(true);
         setError('');
-        const response = await fetch('http://localhost:5005/api/issue-notes');
+        const response = await fetch('http://localhost:5000/api/issue-notes');
         if (!response.ok) {
           throw new Error('Failed to fetch issue notes');
         }
@@ -109,7 +109,7 @@ const IssueNote = () => {
   // Fetch issue notes from API
   const fetchIssueNotes = async () => {
     try {
-      const response = await fetch('http://localhost:5005/api/issue-notes');
+      const response = await fetch('http://localhost:5000/api/issue-notes');
       const data = await response.json();
       console.log('Fetched issue notes from API:', data);
       
@@ -163,7 +163,7 @@ const IssueNote = () => {
   // Fetch branches from API
   const fetchBranches = async () => {
     try {
-      const response = await fetch('http://localhost:5005/api/branches');
+      const response = await fetch('http://localhost:5000/api/branches');
       const data = await response.json();
       
       console.log('Branches API response:', data);
@@ -182,7 +182,7 @@ const IssueNote = () => {
   // Fetch items from API
   const fetchItems = async () => {
     try {
-      const response = await fetch('http://localhost:5005/api/items');
+      const response = await fetch('http://localhost:5000/api/items');
       const data = await response.json();
       const itemsArray = Array.isArray(data) ? data : [];
       console.log('Fetched items:', itemsArray.length);
@@ -195,7 +195,7 @@ const IssueNote = () => {
   // Fetch users from API
   const fetchUsers = async () => {
     try {
-      const response = await fetch('http://localhost:5005/api/users');
+      const response = await fetch('http://localhost:5000/api/users');
       const data = await response.json();
       const usersArray = data.success && data.data ? data.data : (Array.isArray(data) ? data : []);
       console.log('Fetched users:', usersArray.length, usersArray);
@@ -308,7 +308,7 @@ const IssueNote = () => {
   const handleApprove = async () => {
     if (activeTab === "issueNotes" && selectedItem._original) {
       try {
-        const response = await fetch(`http://localhost:5005/api/issue-notes/${selectedItem._original._id}/approve`, {
+        const response = await fetch(`http://localhost:5000/api/issue-notes/${selectedItem._original._id}/approve`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json'
@@ -356,7 +356,7 @@ const IssueNote = () => {
   const handleReject = async () => {
     if (activeTab === "issueNotes" && selectedItem._original) {
       try {
-        const response = await fetch(`http://localhost:5005/api/issue-notes/${selectedItem._original._id}/reject`, {
+        const response = await fetch(`http://localhost:5000/api/issue-notes/${selectedItem._original._id}/reject`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json'
@@ -1023,7 +1023,7 @@ const IssueNote = () => {
     console.log("Sending to API:", JSON.stringify(issueNoteData, null, 2));
 
     try {
-      const response = await fetch('http://localhost:5005/api/issue-notes', {
+      const response = await fetch('http://localhost:5000/api/issue-notes', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'

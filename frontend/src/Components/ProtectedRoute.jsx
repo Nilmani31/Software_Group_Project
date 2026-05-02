@@ -24,11 +24,18 @@ export default function ProtectedRoute({ children, path }) {
     return <Navigate to="/login" replace />;
   }
 
+  // Extract the role name (e.g., 'ROLE_ADMIN' -> 'ADMIN')
+  const userRole = roleId ? roleId.replace('ROLE_', '') : '';
+
   // Get allowed roles for this page
   const allowedRoles = pagePermissions[path] || [];
 
-  // If user role is not in allowed roles, redirect to dashboard
-  if (!allowedRoles.includes(roleId)) {
+  // If user role is not in allowed roles, redirect
+  if (!allowedRoles.includes(userRole)) {
+    // Prevent infinite redirect loop if they don't even have dashboard access
+    if (path === '/dashboard') {
+      return <Navigate to="/login" replace />;
+    }
     return <Navigate to="/dashboard" replace />;
   }
 

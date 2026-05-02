@@ -34,7 +34,7 @@ This is the backend API for the Inventory Management System built with Node.js, 
    - Update the MongoDB connection string:
    ```
    MONGODB_URI=your_mongodb_connection_string_here
-   PORT=5005
+   PORT=5000
    NODE_ENV=development
    ```
 
@@ -65,7 +65,7 @@ npm start
 
 ### Base URL
 ```
-http://localhost:5005
+http://localhost:5000
 ```
 
 ### Health Check
@@ -86,7 +86,7 @@ http://localhost:5005
 
 ### Get All Inventory Items
 ```javascript
-fetch('http://localhost:5005/api/inventory')
+fetch('http://localhost:5000/api/inventory')
   .then(response => response.json())
   .then(data => console.log(data));
 ```
@@ -104,7 +104,7 @@ const newItem = {
   description: 'Product description'
 };
 
-fetch('http://localhost:5005/api/inventory', {
+fetch('http://localhost:5000/api/inventory', {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json',
@@ -207,8 +207,8 @@ The API returns standardized error responses:
 ## Testing the API
 
 1. **Start the server**: `npm start`
-2. **Check health**: Visit `http://localhost:5005/health`
-3. **Get inventory**: Visit `http://localhost:5005/api/inventory`
+2. **Check health**: Visit `http://localhost:5000/health`
+3. **Get inventory**: Visit `http://localhost:5000/api/inventory`
 4. **Use a REST client** like Postman or Thunder Client to test POST/PUT/DELETE operations
 
 ## Connecting to Frontend
@@ -217,7 +217,7 @@ Update your React frontend to use the API:
 
 ```javascript
 // In your React components
-const API_BASE_URL = 'http://localhost:5005/api';
+const API_BASE_URL = 'http://localhost:5000/api';
 
 // Fetch inventory
 const fetchInventory = async () => {
@@ -254,7 +254,7 @@ For production deployment:
 
 2. **Port Already in Use**
    - Change the PORT in `.env` file
-   - Kill process using the port: `netstat -ano | findstr :5005`
+   - Kill process using the port: `netstat -ano | findstr :5000`
 
 3. **Module Not Found**
    - Run `npm install` to ensure all dependencies are installed

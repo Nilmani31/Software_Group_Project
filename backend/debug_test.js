@@ -11,7 +11,7 @@ async function debugImageSearch() {
   console.log('STEP 1: Check Backend Environment Variables');
   console.log('─────────────────────────────────────────────');
   try {
-    const envResponse = await axios.get('http://localhost:5005/api/debug/env', { timeout: 5005 });
+    const envResponse = await axios.get('http://localhost:5000/api/debug/env', { timeout: 5000 });
     console.log('✅ Backend responded:');
     console.log(`   ML_SERVICE_URL: ${envResponse.data.ML_SERVICE_URL}`);
     console.log(`   IMAGE_UPLOAD_MAX_MB: ${envResponse.data.IMAGE_UPLOAD_MAX_MB}`);
@@ -33,7 +33,7 @@ async function debugImageSearch() {
   console.log('\n\nSTEP 2: Test FastAPI Health Endpoint');
   console.log('─────────────────────────────────────────────');
   try {
-    const healthResponse = await axios.get('http://127.0.0.1:8000/health', { timeout: 5005 });
+    const healthResponse = await axios.get('http://127.0.0.1:8000/health', { timeout: 5000 });
     console.log('✅ FastAPI is reachable!');
     console.log(`   Response: ${JSON.stringify(healthResponse.data)}`);
   } catch (error) {
@@ -95,11 +95,11 @@ async function debugImageSearch() {
     const fileStream = fs.createReadStream(imagePath);
     form.append('image', fileStream);
 
-    console.log(`Sending to: http://localhost:5005/api/image-search/search`);
+    console.log(`Sending to: http://localhost:5000/api/image-search/search`);
     console.log(`Timeout: 120000ms`);
 
     const backendResponse = await axios.post(
-      'http://localhost:5005/api/image-search/search',
+      'http://localhost:5000/api/image-search/search',
       form,
       {
         headers: form.getHeaders(),

@@ -38,7 +38,7 @@ export default function Users() {
   // Fetch roles from database
   const fetchRoles = async () => {
     try {
-      const response = await fetch('http://localhost:5005/api/roles');
+      const response = await fetch('http://localhost:5000/api/roles');
       const data = await response.json();
       if (data.success && data.data) {
         setRoles(data.data);
@@ -51,7 +51,7 @@ export default function Users() {
   // Fetch branches from database
   const fetchBranches = async () => {
     try {
-      const response = await fetch('http://localhost:5005/api/branches');
+      const response = await fetch('http://localhost:5000/api/branches');
       const data = await response.json();
       const branchesArray = Array.isArray(data) ? data : (data.data ? data.data : []);
       if (Array.isArray(branchesArray)) {
@@ -78,7 +78,7 @@ export default function Users() {
 
   const fetchUsers = async () => {
     try {
-      const response = await fetch('http://localhost:5005/api/users');
+      const response = await fetch('http://localhost:5000/api/users');
       const data = await response.json();
       if (data.success && data.data) {
         // Transform database users to match display format
@@ -104,7 +104,6 @@ export default function Users() {
     e.preventDefault();
     setAddLoading(true);
     try {
-<<<<<<< Updated upstream
       const requestBody = {
         username: addForm.username,
         email: addForm.email,
@@ -121,9 +120,7 @@ export default function Users() {
       console.log('Password type:', typeof requestBody.password);
       console.log('Password length:', requestBody.password ? requestBody.password.length : 0);
       
-=======
->>>>>>> Stashed changes
-      const response = await fetch('http://localhost:5005/api/users/create', {
+      const response = await fetch('http://localhost:5000/api/users/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(requestBody)
@@ -154,7 +151,7 @@ export default function Users() {
   const handleDeleteUser = async (userId) => {
     if (!window.confirm('Delete this user?')) return;
     try {
-      const response = await fetch(`http://localhost:5005/api/users/${userId}`, {
+      const response = await fetch(`http://localhost:5000/api/users/${userId}`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' }
       });
@@ -188,7 +185,7 @@ export default function Users() {
     e.preventDefault();
     setEditLoading(true);
     try {
-      const response = await fetch(`http://localhost:5005/api/users/${editing.id}`, {
+      const response = await fetch(`http://localhost:5000/api/users/${editing.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
