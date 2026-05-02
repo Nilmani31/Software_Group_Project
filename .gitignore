@@ -49,6 +49,17 @@ qdrant_storage/
 qdrant/storage/
 qdrant/snapshots/
 
+# ML Service & Datasets
+Bottles_All-2/
+Liquor-data-4/
+data/
+clip/
+yolov5/
+yolov8/
+*.zip
+roboflow.yaml
+dataset.yaml
+
 # VS Code
 .vscode/
 *.code-workspace
@@ -62,9 +73,13 @@ qdrant/snapshots/
 # Windows
 Thumbs.db
 *.lnk
+.venv-1/
 
 # Logs
 *.log
+
+# Temporary files
+ER_.png
 
 # Lock files (optional - uncomment if needed)
 # package-lock.json
