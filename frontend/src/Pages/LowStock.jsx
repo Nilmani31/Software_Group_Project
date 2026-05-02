@@ -12,6 +12,11 @@ const LowStock = () => {
   const [suppliers, setSuppliers] = useState([]);
   const [loadingSuppliers, setLoadingSuppliers] = useState(true);
 
+  // Role check
+  const roleId = localStorage.getItem('roleId') || '';
+  const userRole = roleId.replace('ROLE_', '');
+  const canEdit = ['ADMIN', 'DIRECTOR', 'MANAGER', 'BRANCH_MANAGER'].includes(userRole);
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
   const [orderType, setOrderType] = useState("Branches");
@@ -21,7 +26,7 @@ const LowStock = () => {
 
   // Fetch low stock items from backend
   useEffect(() => {
-    fetch('http://localhost:5000/api/items/low-stock')
+    fetch('http://localhost:5005/api/items/low-stock')
       .then(res => res.json())
       .then(data => {
         if (Array.isArray(data)) {
@@ -49,7 +54,7 @@ const LowStock = () => {
 
   // Fetch supplier list from backend
   useEffect(() => {
-    fetch('http://localhost:5000/api/suppliers')
+    fetch('http://localhost:5005/api/suppliers')
       .then(res => res.json())
       .then(result => {
         if (result && result.success && Array.isArray(result.data)) {
@@ -162,40 +167,42 @@ const LowStock = () => {
                   <div style={{ textAlign: 'center', padding: '40px' }}>No low stock items found.</div>
                 ) : (
                   <table>
-                  <thead>
-                    <tr>
-                      <th>SKU</th>
-                      <th>Current Stock</th>
-                      <th>Minimum Stock</th>
-                      <th>Shortage</th>
-                      <th>Category</th>
-                      <th>Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {lowStockItems.map((item) => (
-                      <tr key={item.id} className={`status-${item.status.toLowerCase()}`}>
-                        <td>
-                          <span className="name">{item.name}</span>
-                          <span className="sku">{item.sku}</span>
-                          <span className={`badge ${item.status.toLowerCase()}`}>{item.status}</span>
-                        </td>
-                        <td>{item.currentStock} {item.unit}</td>
-                        <td>{item.minimumStock} {item.unit}</td>
-                        <td>{item.shortage} {item.unit}</td>
-                        <td>{item.category}</td>
-                        <td>
-                          <button 
-                            className="restock-btn"
-                            onClick={() => handleOrderClick(item)}
-                          >
-                            Order Restock
-                          </button>
-                        </td>
+                    <thead>
+                      <tr>
+                        <th>SKU</th>
+                        <th>Current Stock</th>
+                        <th>Minimum Stock</th>
+                        <th>Shortage</th>
+                        <th>Category</th>
+                        <th>Action</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {lowStockItems.map((item) => (
+                        <tr key={item.id} className={`status-${item.status.toLowerCase()}`}>
+                          <td>
+                            <span className="name">{item.name}</span>
+                            <span className="sku">{item.sku}</span>
+                            <span className={`badge ${item.status.toLowerCase()}`}>{item.status}</span>
+                          </td>
+                          <td>{item.currentStock} {item.unit}</td>
+                          <td>{item.minimumStock} {item.unit}</td>
+                          <td>{item.shortage} {item.unit}</td>
+                          <td>{item.category}</td>
+                          <td>
+                            {canEdit && (
+                              <button
+                                className="restock-btn"
+                                onClick={() => handleOrderClick(item)}
+                              >
+                                Order Restock
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 )}
               </div>
             </div>
@@ -241,7 +248,7 @@ const LowStock = () => {
               {/* Order Type */}
               <div className="form-group">
                 <label className="form-label">Order Type</label>
-                <select 
+                <select
                   className="form-select"
                   value={orderType}
                   onChange={(e) => setOrderType(e.target.value)}

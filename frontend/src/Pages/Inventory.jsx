@@ -5,22 +5,23 @@ import ChatAssistant from '../Components/ChatAssistant';
 import FindItemByImageModal from '../Components/FindItemByImageModal';
 import './Inventory.css';
 import { FaTimes, FaEdit, FaTrash, FaImage } from 'react-icons/fa';
+import { getAuthHeaders } from '../utils/authHeaders';
 
 // Helper function to generate SKU with first 3 letters of category name
 const generateSKU = (categoryName, existingSkus = []) => {
   if (!categoryName) {
     return ''; // Empty if no category
   }
-  
+
   // Get first 3 letters of category name
   const initials = categoryName
     .substring(0, 3)
     .toUpperCase();
-  
+
   // Find the highest number for this category prefix
   const prefix = `SKU-${initials}-`;
   const categorySkus = existingSkus.filter(sku => sku.startsWith(prefix));
-  
+
   let maxNumber = 0;
   categorySkus.forEach(sku => {
     const numberStr = sku.replace(prefix, '');
@@ -29,7 +30,7 @@ const generateSKU = (categoryName, existingSkus = []) => {
       maxNumber = number;
     }
   });
-  
+
   // Generate next number with padding (001, 002, etc.)
   const nextNumber = String(maxNumber + 1).padStart(3, '0');
   return `${prefix}${nextNumber}`;
@@ -37,7 +38,7 @@ const generateSKU = (categoryName, existingSkus = []) => {
 
 // Helper function to get status class
 const getStatusClass = (status) => {
-  switch(status) {
+  switch (status) {
     case 'normal':
       return 'badge-normal';
     case 'low':
@@ -88,6 +89,11 @@ const Inventory = () => {
   const [submitLoading, setSubmitLoading] = useState(false);
   const [stockData, setStockData] = useState([]);
 
+  // Role check
+  const roleId = localStorage.getItem('roleId') || '';
+  const userRole = roleId.replace('ROLE_', '');
+  const canEdit = ['ADMIN', 'DIRECTOR', 'MANAGER', 'BRANCH_MANAGER'].includes(userRole);
+
   // Fetch items and related data from server
   useEffect(() => {
     fetchItems();
@@ -98,7 +104,9 @@ const Inventory = () => {
   // Fetch items from database
   const fetchItems = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/items');
+      const response = await fetch('http://localhost:5005/api/items', {
+        headers: getAuthHeaders()
+      });
       const data = await response.json();
       setItems(Array.isArray(data) ? data : []);
       setLoading(false);
@@ -111,7 +119,7 @@ const Inventory = () => {
   // Fetch categories from database
   const fetchCategories = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/categories');
+      const response = await fetch('http://localhost:5005/api/categories');
       const data = await response.json();
       if (Array.isArray(data)) {
         setCategories(data); // Store full objects
@@ -130,7 +138,7 @@ const Inventory = () => {
   // Fetch branches from database
   const fetchBranches = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/branches');
+      const response = await fetch('http://localhost:5005/api/branches');
       const data = await response.json();
       // Handle both array and { success, data } response formats
       const branchesArray = Array.isArray(data) ? data : (data.data ? data.data : []);
@@ -157,7 +165,7 @@ const Inventory = () => {
   // Fetch stock data for a specific item
   const fetchStockData = async (itemId) => {
     try {
-      const response = await fetch(`http://localhost:5000/api/items/stock/${itemId}`);
+      const response = await fetch(`http://localhost:5005/api/items/stock/${itemId}`);
       if (response.ok) {
         const data = await response.json();
         console.log('Stock data fetched:', data);
@@ -184,14 +192,14 @@ const Inventory = () => {
   const filtered = useMemo(() => {
     return items.filter(item => {
       const q = query.trim().toLowerCase();
-      const matchesQuery = !q || 
-        item.name.toLowerCase().includes(q) || 
+      const matchesQuery = !q ||
+        item.name.toLowerCase().includes(q) ||
         item.category.toLowerCase().includes(q) ||
         item.unit.toLowerCase().includes(q);
-      
+
       const matchesCategory = categoryFilter === 'All Categories' || item.category === categoryFilter;
       const matchesBranch = branchFilter === 'All Branch' || item.branch === branchFilter;
-      
+
       return matchesQuery && matchesCategory && matchesBranch;
     });
   }, [items, query, categoryFilter, branchFilter]);
@@ -228,7 +236,7 @@ const Inventory = () => {
     }));
     setShowModal(true);
   };
-  
+
   const handleCloseModal = () => {
     setShowModal(false);
     setImagePreview(null);
@@ -249,17 +257,17 @@ const Inventory = () => {
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     const updatedData = { ...formData, [name]: value };
-    
+
     // When category changes, regenerate SKU
     if (name === 'category' && value) {
       // Extract all existing SKUs from items
       const existingSKUs = items
         .map(item => item.sku)
         .filter(sku => sku && typeof sku === 'string');
-      
+
       updatedData.sku = generateSKU(value, existingSKUs);
     }
-    
+
     setFormData(updatedData);
   };
 
@@ -287,17 +295,17 @@ const Inventory = () => {
       alert('Please fill required fields');
       return;
     }
-    
+
     // Get category ObjectId from map
     const categoryId = categoryMap[formData.category];
     if (!categoryId) {
       alert('Invalid category selected');
       return;
     }
-    
+
     setSubmitLoading(true);
     try {
-      const response = await fetch('http://localhost:5000/api/items', {
+      const response = await fetch('http://localhost:5005/api/items', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -314,7 +322,7 @@ const Inventory = () => {
           image: imagePreview || ''
         })
       });
-      
+
       const result = await response.json();
       if (result._id || result.id) {
         alert('Item added successfully!');
@@ -348,7 +356,7 @@ const Inventory = () => {
       if (typeof categoryValue === 'object' && categoryValue !== null) {
         categoryValue = categoryValue.name || categoryValue.categoryName || '';
       }
-      
+
       setEditFormData({
         name: selectedItem.name,
         category: categoryValue,
@@ -390,7 +398,7 @@ const Inventory = () => {
   const handleDeleteItem = async () => {
     if (window.confirm(`Are you sure you want to delete ${selectedItem.name}?`)) {
       try {
-        const response = await fetch(`http://localhost:5000/api/items/${selectedItem._id}`, {
+        const response = await fetch(`http://localhost:5005/api/items/${selectedItem._id}`, {
           method: 'DELETE'
         });
         const result = await response.json();
@@ -410,17 +418,17 @@ const Inventory = () => {
   const handleEditInputChange = (e) => {
     const { name, value } = e.target;
     const updatedData = { ...editFormData, [name]: value };
-    
+
     // When category changes during edit, regenerate SKU
     if (name === 'category' && value) {
       // Extract all existing SKUs from items
       const existingSKUs = items
         .map(item => item.sku)
         .filter(sku => sku && typeof sku === 'string');
-      
+
       updatedData.sku = generateSKU(value, existingSKUs);
     }
-    
+
     setEditFormData(updatedData);
   };
 
@@ -463,18 +471,18 @@ const Inventory = () => {
       alert('Please fill required fields');
       return;
     }
-    
+
     // Get category ObjectId from map
     const categoryId = categoryMap[editFormData.category];
     if (!categoryId) {
       alert('Invalid category selected');
       return;
     }
-    
+
     setSubmitLoading(true);
     try {
       // First, update the item
-      const response = await fetch(`http://localhost:5000/api/items/${selectedItem._id}`, {
+      const response = await fetch(`http://localhost:5005/api/items/${selectedItem._id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -490,13 +498,13 @@ const Inventory = () => {
           image: editImagePreview || ''
         })
       });
-      
+
       const result = await response.json();
       if (result._id || result.id) {
         // Now save the stock quantities for each branch
         if (editableStockData && editableStockData.length > 0) {
           for (const stock of editableStockData) {
-            await fetch(`http://localhost:5000/api/stock/${stock._id}`, {
+            await fetch(`http://localhost:5005/api/stock/${stock._id}`, {
               method: 'PUT',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -505,7 +513,7 @@ const Inventory = () => {
             });
           }
         }
-        
+
         alert('Item and stock updated successfully!');
         fetchItems();
         handleCloseEditModal();
@@ -535,7 +543,7 @@ const Inventory = () => {
                       <label htmlFor="inventory-search-input" className="sr-only">Search inventory</label>
                       <div className="search-field">
                         <svg className="search-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                          <path fill="currentColor" d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0016 9.5 6.5 6.5 0 109.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79L20 21.49 21.49 20 15.5 14zM4 9.5C4 6.46 6.46 4 9.5 4S15 6.46 15 9.5 12.54 15 9.5 15 4 12.54 4 9.5z"/>
+                          <path fill="currentColor" d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0016 9.5 6.5 6.5 0 109.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79L20 21.49 21.49 20 15.5 14zM4 9.5C4 6.46 6.46 4 9.5 4S15 6.46 15 9.5 12.54 15 9.5 15 4 12.54 4 9.5z" />
                         </svg>
                         <input
                           id="inventory-search-input"
@@ -548,8 +556,8 @@ const Inventory = () => {
                     </div>
 
                     <div className="filter">
-                      <select 
-                        value={categoryFilter} 
+                      <select
+                        value={categoryFilter}
                         onChange={(e) => setCategoryFilter(e.target.value)}
                         className="filter-select"
                       >
@@ -561,8 +569,8 @@ const Inventory = () => {
                     </div>
 
                     <div className="filter">
-                      <select 
-                        value={branchFilter} 
+                      <select
+                        value={branchFilter}
                         onChange={(e) => setBranchFilter(e.target.value)}
                         className="filter-select"
                       >
@@ -574,10 +582,14 @@ const Inventory = () => {
                     </div>
 
                     <div className="inventory-actions">
-                      <button className="btn btn-find" onClick={handleFindByImage}>
-                        <FaImage /> Find by Image
-                      </button>
-                      <button className="btn btn-add" onClick={handleOpenModal}>+ Add new Item</button>
+                      {canEdit && (
+                        <>
+                          <button className="btn btn-find" onClick={handleFindByImage}>
+                            <FaImage /> Find by Image
+                          </button>
+                          <button className="btn btn-add" onClick={handleOpenModal}>+ Add new Item</button>
+                        </>
+                      )}
                     </div>
                   </div>
                 </header>
@@ -606,8 +618,8 @@ const Inventory = () => {
                               categoryDisplay = item.category.name || item.category.categoryName || 'N/A';
                             }
                             return (
-                              <tr 
-                                key={item.uniqueId || item._id || item.id} 
+                              <tr
+                                key={item.uniqueId || item._id || item.id}
                                 className="inventory-row"
                                 onClick={() => handleRowClick(item)}
                                 style={{ cursor: 'pointer' }}
@@ -844,35 +856,37 @@ const Inventory = () => {
               {/* Right Content */}
               <div className="item-detail-right-content">
                 {/* Actions Section */}
-                <div className="item-detail-section">
-                  <h3 className="item-detail-section-title">Actions</h3>
-                  <div className="item-detail-actions">
-                    <button 
-                      className="item-detail-action-btn edit-btn"
-                      onClick={handleEditItem}
-                      title="Edit item"
-                    >
-                      <FaEdit />
-                    </button>
-                    <button 
-                      className="item-detail-action-btn delete-btn"
-                      onClick={handleDeleteItem}
-                      title="Delete item"
-                    >
-                      <FaTrash />
-                    </button>
+                {canEdit && (
+                  <div className="item-detail-section">
+                    <h3 className="item-detail-section-title">Actions</h3>
+                    <div className="item-detail-actions">
+                      <button
+                        className="item-detail-action-btn edit-btn"
+                        onClick={handleEditItem}
+                        title="Edit item"
+                      >
+                        <FaEdit />
+                      </button>
+                      <button
+                        className="item-detail-action-btn delete-btn"
+                        onClick={handleDeleteItem}
+                        title="Delete item"
+                      >
+                        <FaTrash />
+                      </button>
+                    </div>
                   </div>
-                </div>
+                )}
 
                 {/* State Section */}
                 <div className="item-detail-section">
                   <h3 className="item-detail-section-title">State</h3>
                   <span className={`item-detail-state-badge ${selectedItem.status}`}>
-                    {selectedItem.status === 'normal' 
-                      ? 'Normal' 
-                      : selectedItem.status === 'low' 
-                      ? 'Low Stock' 
-                      : 'Out of Stock'}
+                    {selectedItem.status === 'normal'
+                      ? 'Normal'
+                      : selectedItem.status === 'low'
+                        ? 'Low Stock'
+                        : 'Out of Stock'}
                   </span>
                 </div>
               </div>
@@ -883,7 +897,7 @@ const Inventory = () => {
               <div className="item-info-row">
                 <span className="item-info-label">Quantity :</span>
                 <span className="item-info-value">
-                  {stockData && stockData.length > 0 
+                  {stockData && stockData.length > 0
                     ? stockData.reduce((total, stock) => total + (stock.quantity || 0), 0)
                     : (selectedItem.qty || selectedItem.quantity || 0)
                   }
@@ -892,7 +906,7 @@ const Inventory = () => {
               <div className="item-info-row">
                 <span className="item-info-label">Category :</span>
                 <span className="item-info-value">
-                  {typeof selectedItem.category === 'object' 
+                  {typeof selectedItem.category === 'object'
                     ? (selectedItem.category.name || selectedItem.category.categoryName || 'N/A')
                     : (selectedItem.category || 'N/A')
                   }
@@ -911,9 +925,9 @@ const Inventory = () => {
                 <span className="item-info-value" style={{ fontWeight: 'bold', color: '#667eea' }}>
                   Rs {
                     (
-                      (stockData && stockData.length > 0 
+                      (stockData && stockData.length > 0
                         ? stockData.reduce((total, stock) => total + (stock.quantity || 0), 0)
-                        : (selectedItem.qty || selectedItem.quantity || 0)) 
+                        : (selectedItem.qty || selectedItem.quantity || 0))
                       * (parseFloat(selectedItem.unitPrice) || 0)
                     ).toFixed(2)
                   }
@@ -941,7 +955,7 @@ const Inventory = () => {
                       } else if (stock.branch && typeof stock.branch === 'object') {
                         branchName = stock.branch.branchName || stock.branch.branch_name || stock.branch.name || 'Unknown Branch';
                       }
-                      
+
                       return (
                         <tr key={stock._id || index}>
                           <td>{branchName}</td>
@@ -1005,7 +1019,7 @@ const Inventory = () => {
                       <label className="edit-form-label">Category</label>
                       <select
                         name="category"
-                        value={typeof editFormData.category === 'object' 
+                        value={typeof editFormData.category === 'object'
                           ? (editFormData.category?.name || editFormData.category?.categoryName || '')
                           : (editFormData.category || '')
                         }
@@ -1150,19 +1164,19 @@ const Inventory = () => {
                 {/* Editable Stock Section - Inside Form */}
                 <div style={{ marginTop: '24px', paddingTop: '20px', borderTop: '1px solid #e5e7eb' }}>
                   <h3 style={{ marginBottom: '12px', fontSize: '14px', fontWeight: '700', color: '#12203a', textTransform: 'uppercase', letterSpacing: '0.3px' }}>Branch Stock Quantities</h3>
-                  <table style={{ 
-                    width: '100%', 
-                    borderCollapse: 'collapse', 
+                  <table style={{
+                    width: '100%',
+                    borderCollapse: 'collapse',
                     border: '1px solid #d8bfd8',
                     borderRadius: '6px',
                     overflow: 'hidden'
                   }}>
                     <thead>
                       <tr style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
-                        <th style={{ 
-                          padding: '12px', 
-                          textAlign: 'left', 
-                          fontWeight: '700', 
+                        <th style={{
+                          padding: '12px',
+                          textAlign: 'left',
+                          fontWeight: '700',
                           fontSize: '13px',
                           color: 'white',
                           textTransform: 'uppercase',
@@ -1170,10 +1184,10 @@ const Inventory = () => {
                           borderRight: '1px solid rgba(255, 255, 255, 0.2)',
                           width: '40%'
                         }}>Branch Name</th>
-                        <th style={{ 
+                        <th style={{
                           padding: '12px',
                           textAlign: 'center',
-                          fontWeight: '700', 
+                          fontWeight: '700',
                           fontSize: '13px',
                           color: 'white',
                           textTransform: 'uppercase',
@@ -1181,10 +1195,10 @@ const Inventory = () => {
                           borderRight: '1px solid rgba(255, 255, 255, 0.2)',
                           width: '30%'
                         }}>Current Qty</th>
-                        <th style={{ 
+                        <th style={{
                           padding: '12px',
                           textAlign: 'center',
-                          fontWeight: '700', 
+                          fontWeight: '700',
                           fontSize: '13px',
                           color: 'white',
                           textTransform: 'uppercase',
@@ -1204,25 +1218,25 @@ const Inventory = () => {
                             } else if (stock.branch && typeof stock.branch === 'object') {
                               branchName = stock.branch.branchName || stock.branch.branch_name || stock.branch.name || 'Unknown Branch';
                             }
-                            
+
                             return (
-                              <tr key={stock._id || index} style={{ 
+                              <tr key={stock._id || index} style={{
                                 transition: 'all 0.3s ease',
                                 backgroundColor: 'white',
                                 borderBottom: index === editableStockData.length - 1 ? 'none' : '1px solid #d8bfd8'
                               }}
-                              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(102, 126, 234, 0.05)'}
-                              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'white'}
+                                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(102, 126, 234, 0.05)'}
+                                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'white'}
                               >
-                                <td style={{ 
-                                  padding: '12px', 
-                                  color: '#1a3a52', 
-                                  fontWeight: '600', 
+                                <td style={{
+                                  padding: '12px',
+                                  color: '#1a3a52',
+                                  fontWeight: '600',
                                   fontSize: '13px',
                                   borderRight: '1px solid #d8bfd8'
                                 }}>{branchName}</td>
-                                <td style={{ 
-                                  padding: '12px', 
+                                <td style={{
+                                  padding: '12px',
                                   textAlign: 'center',
                                   borderRight: '1px solid #d8bfd8',
                                   color: '#1a3a52',
@@ -1232,8 +1246,8 @@ const Inventory = () => {
                                 }}>
                                   {stock.quantity || 0}
                                 </td>
-                                <td style={{ 
-                                  padding: '12px', 
+                                <td style={{
+                                  padding: '12px',
                                   textAlign: 'center',
                                   borderRight: 'none'
                                 }}>
@@ -1242,11 +1256,11 @@ const Inventory = () => {
                                     min="0"
                                     value={stock.quantity || 0}
                                     onChange={(e) => handleEditStockQuantityChange(index, e.target.value)}
-                                    style={{ 
-                                      width: '100%', 
-                                      padding: '8px 10px', 
-                                      border: '1.5px solid #667eea', 
-                                      borderRadius: '4px', 
+                                    style={{
+                                      width: '100%',
+                                      padding: '8px 10px',
+                                      border: '1.5px solid #667eea',
+                                      borderRadius: '4px',
                                       textAlign: 'center',
                                       fontSize: '13px',
                                       fontWeight: '600',
@@ -1269,22 +1283,22 @@ const Inventory = () => {
                             );
                           })}
                           {/* Total Row */}
-                          <tr style={{ 
+                          <tr style={{
                             background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
                             fontWeight: '700'
                           }}>
-                            <td style={{ 
-                              padding: '12px', 
-                              color: 'white', 
-                              fontWeight: '700', 
+                            <td style={{
+                              padding: '12px',
+                              color: 'white',
+                              fontWeight: '700',
                               fontSize: '13px',
                               borderRight: '1px solid rgba(255, 255, 255, 0.2)',
                               textTransform: 'uppercase',
                               letterSpacing: '0.3px',
                               width: '40%'
                             }}>Total Stock</td>
-                            <td style={{ 
-                              padding: '12px', 
+                            <td style={{
+                              padding: '12px',
                               textAlign: 'center',
                               borderRight: '1px solid rgba(255, 255, 255, 0.2)',
                               color: 'white',
@@ -1294,8 +1308,8 @@ const Inventory = () => {
                             }}>
                               {editableStockData.reduce((total, stock) => total + (stock.quantity || 0), 0)}
                             </td>
-                            <td style={{ 
-                              padding: '12px', 
+                            <td style={{
+                              padding: '12px',
                               textAlign: 'center',
                               borderRight: 'none',
                               width: '30%'
@@ -1305,11 +1319,11 @@ const Inventory = () => {
                                 min="0"
                                 value={editableStockData.reduce((total, stock) => total + (stock.quantity || 0), 0)}
                                 onChange={(e) => handleEditTotalQuantityChange(e.target.value)}
-                                style={{ 
-                                  width: '100%', 
-                                  padding: '8px 10px', 
-                                  border: 'none', 
-                                  borderRadius: '4px', 
+                                style={{
+                                  width: '100%',
+                                  padding: '8px 10px',
+                                  border: 'none',
+                                  borderRadius: '4px',
                                   textAlign: 'center',
                                   fontSize: '13px',
                                   fontWeight: '700',
@@ -1331,10 +1345,10 @@ const Inventory = () => {
                         </>
                       ) : (
                         <tr>
-                          <td colSpan="2" style={{ 
-                            padding: '20px', 
-                            textAlign: 'center', 
-                            color: '#9ca3af', 
+                          <td colSpan="2" style={{
+                            padding: '20px',
+                            textAlign: 'center',
+                            color: '#9ca3af',
                             fontStyle: 'italic',
                             borderBottom: 'none'
                           }}>No stock data available</td>

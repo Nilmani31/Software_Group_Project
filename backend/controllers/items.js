@@ -4,6 +4,7 @@ const ItemUnit = require('../models/itemUnits');
 const Branch = require('../models/branches');
 const Stock = require('../models/stock');
 const GoodsReceived = require('../models/goodsReceived');
+const { getBranchFilter } = require('../utils/branchFilter');
 
 // Get all inventory items with populated fields
 exports.getAllItems = async (req, res) => {
@@ -33,7 +34,8 @@ exports.getAllItems = async (req, res) => {
       const itemObj = item.toObject();
       
       // Get stock records with branch information
-      const stockRecords = await Stock.find({ itemId: item._id })
+      const branchFilter = getBranchFilter(req);
+      const stockRecords = await Stock.find({ itemId: item._id, ...branchFilter })
         .populate('branchId', 'name branchName _id');
       const totalQuantity = stockRecords.reduce((sum, stock) => sum + (stock.quantity || 0), 0);
       
@@ -131,7 +133,8 @@ exports.getLowStockItems = async (req, res) => {
       const itemObj = item.toObject();
       
       // Get total quantity from Stock collection
-      const stockRecords = await Stock.find({ itemId: item._id });
+      const branchFilter = getBranchFilter(req);
+      const stockRecords = await Stock.find({ itemId: item._id, ...branchFilter });
       const totalQuantity = stockRecords.reduce((sum, stock) => sum + (stock.quantity || 0), 0);
       
       // Get unit price from ItemUnit

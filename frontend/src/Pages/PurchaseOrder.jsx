@@ -6,6 +6,7 @@ import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
 // Modal component replaced for Create PO to match Inventory design
 import './PurchaseOrder.css'
+import { getAuthHeaders } from '../utils/authHeaders'
 
 const samplePOs = []
 
@@ -15,17 +16,17 @@ const formatDate = (dateString) => {
   try {
     // Remove time portion if present (handle ISO format like "2026-02-26T00:00:00.000Z")
     const dateOnly = dateString.split('T')[0]
-    
+
     // If it's YYYY-MM-DD format, convert to YYYY/MM/DD
     if (dateOnly.includes('-')) {
       return dateOnly.replace(/-/g, '/')
     }
-    
+
     // If it's already YYYY/MM/DD format, return as-is
     if (dateOnly.includes('/')) {
       return dateOnly
     }
-    
+
     // Fallback: parse as date object
     const date = new Date(dateString)
     const year = date.getFullYear()
@@ -37,8 +38,12 @@ const formatDate = (dateString) => {
   }
 }
 
-export default function PurchaseOrder () {
+export default function PurchaseOrder() {
   // ===== MAIN STATE =====
+  const roleId = localStorage.getItem('roleId') || '';
+  const userRole = roleId.replace('ROLE_', '');
+  const canEdit = ['ADMIN', 'DIRECTOR', 'MANAGER', 'BRANCH_MANAGER'].includes(userRole);
+
   const [pos, setPos] = useState(samplePOs)
   const [query, setQuery] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
@@ -99,15 +104,15 @@ export default function PurchaseOrder () {
 
   const filtered = pos.filter(po => {
     const poNum = po.poNumber || po.id
-    const matchesQuery = poNum.toLowerCase().includes(query.toLowerCase()) || 
+    const matchesQuery = poNum.toLowerCase().includes(query.toLowerCase()) ||
       (po.supplier && po.supplier.toLowerCase().includes(query.toLowerCase()))
-    
+
     const matchesStatus = !filterStatus || po.status === filterStatus
     const matchesOrderBy = !filterOrderBy || po.orderType === filterOrderBy
     const matchesSupplier = !filterSupplier || (po.supplier && po.supplier.toLowerCase().includes(filterSupplier.toLowerCase()))
     const matchesBranch = !filterBranch || (po.branchName === filterBranch)
     const matchesReceiverBranch = !filterReceiverBranch || (po.createdByBranch === filterReceiverBranch || po.branch === filterReceiverBranch)
-    
+
     return matchesQuery && matchesStatus && matchesOrderBy && matchesSupplier && matchesBranch && matchesReceiverBranch
   })
 
@@ -116,7 +121,7 @@ export default function PurchaseOrder () {
     const fetchData = async () => {
       try {
         // Fetch branches
-        const branchRes = await fetch('http://localhost:5000/api/branches');
+        const branchRes = await fetch('http://localhost:5005/api/branches');
         const branchResult = await branchRes.json();
         let branchData = [];
         if (branchResult.success && Array.isArray(branchResult.data)) {
@@ -132,14 +137,14 @@ export default function PurchaseOrder () {
           // Find the branch matching the user's branchId
           const userBranch = branchData.find(b => {
             // Try different possible ID field names
-            return b._id === userBranchId || 
-                   String(b._id) === String(userBranchId) ||
-                   b.branchId === userBranchId ||
-                   String(b.branchId) === String(userBranchId) ||
-                   b.id === userBranchId ||
-                   String(b.id) === String(userBranchId);
+            return b._id === userBranchId ||
+              String(b._id) === String(userBranchId) ||
+              b.branchId === userBranchId ||
+              String(b.branchId) === String(userBranchId) ||
+              b.id === userBranchId ||
+              String(b.id) === String(userBranchId);
           });
-          
+
           if (userBranch) {
             const branchName = userBranch.name || userBranch.branchName || userBranch.branch_name || '';
             setUserBranchName(branchName);
@@ -147,21 +152,21 @@ export default function PurchaseOrder () {
         }
 
         // Fetch categories
-        const catRes = await fetch('http://localhost:5000/api/categories');
+        const catRes = await fetch('http://localhost:5005/api/categories', { headers: getAuthHeaders() });
         const catData = await catRes.json();
         if (Array.isArray(catData)) {
           setCategories(catData);
         }
 
         // Fetch items with stock
-        const itemRes = await fetch('http://localhost:5000/api/items');
+        const itemRes = await fetch('http://localhost:5005/api/items', { headers: getAuthHeaders() });
         const itemData = await itemRes.json();
         if (Array.isArray(itemData)) {
           setItemsWithStock(itemData);
         }
 
         // Fetch purchase orders from backend
-        const poRes = await fetch('http://localhost:5000/api/purchase-orders');
+        const poRes = await fetch('http://localhost:5005/api/purchase-orders', { headers: getAuthHeaders() });
         const poData = await poRes.json();
         if (poData.success && Array.isArray(poData.data)) {
           setPos(poData.data);
@@ -180,7 +185,7 @@ export default function PurchaseOrder () {
     const year = new Date().getFullYear()
     const existingIds = new Set(pos.map(p => p.poNumber || p.id))
     const pattern = new RegExp(`^PO-${year}-\\d{3}$`)
-    
+
     const takenNumbers = pos
       .map(p => {
         // Support both old 'id' and new 'poNumber' field names
@@ -189,11 +194,11 @@ export default function PurchaseOrder () {
         return m ? parseInt(m[1], 10) : null
       })
       .filter(n => n !== null)
-    
+
     let seq = takenNumbers.length ? Math.max(...takenNumbers) + 1 : 1
-    while (existingIds.has(`PO-${year}-${String(seq).padStart(3,'0')}`)) seq++
-    
-    return `PO-${year}-${String(seq).padStart(3,'0')}`
+    while (existingIds.has(`PO-${year}-${String(seq).padStart(3, '0')}`)) seq++
+
+    return `PO-${year}-${String(seq).padStart(3, '0')}`
   }
 
   const handleNewPO = () => {
@@ -244,8 +249,8 @@ export default function PurchaseOrder () {
     if (!line.item || !line.qty) return
     // Normalize numbers
     const qty = Number(line.qty)
-    setCart(prev => [...prev, { 
-      ...line, 
+    setCart(prev => [...prev, {
+      ...line,
       qty,
       branch: poForm.orderBy === 'Branch' ? (line.branch || poForm.branch) : undefined
     }])
@@ -287,8 +292,8 @@ export default function PurchaseOrder () {
     setEditCartVisible(true)
     if (!editLine.item || !editLine.qty) return
     const qty = Number(editLine.qty)
-    setEditCart(prev => [...prev, { 
-      ...editLine, 
+    setEditCart(prev => [...prev, {
+      ...editLine,
       qty,
       branch: editForm.orderBy === 'Branch' ? (editLine.branch || editForm.branch) : undefined
     }])
@@ -316,7 +321,7 @@ export default function PurchaseOrder () {
 
   const submitPO = async (e) => {
     e.preventDefault()
-    
+
     // Validate form is filled
     if (!poForm.orderBy) {
       alert('Please select Order By (Supplier or Branch)')
@@ -330,18 +335,18 @@ export default function PurchaseOrder () {
       alert('Please add items to the cart')
       return
     }
-    
+
     // Use the auto-generated PO number from form
     const poNumber = poForm.poNumber || generatePONumber()
-    
+
     // Store items as simple format
     const items = cart.map(ci => `${ci.item} x ${ci.qty}`)
     let total = ''
-    
+
     // Get logged-in user info
     const username = localStorage.getItem('username') || 'Admin User'
     const branchName = userBranchName || localStorage.getItem('branchName') || 'Main Branch'
-    
+
     // Validate required fields
     if (!username) {
       alert('Error: User not logged in properly')
@@ -351,7 +356,7 @@ export default function PurchaseOrder () {
       alert('Error: User branch not found')
       return
     }
-    
+
     const newPO = {
       poNumber,
       status: 'Pending',
@@ -370,21 +375,19 @@ export default function PurchaseOrder () {
         branch: poForm.branch
       }
     }
-    
+
     console.log('Sending PO:', newPO)
-    
+
     try {
       // Send PO to backend API
-      const response = await fetch('http://localhost:5000/api/purchase-orders', {
+      const response = await fetch('http://localhost:5005/api/purchase-orders', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: getAuthHeaders(),
         body: JSON.stringify(newPO)
       })
-      
+
       const result = await response.json()
-      
+
       if (result.success) {
         setPos(prev => [newPO, ...prev])
         // Reset form and cart
@@ -428,7 +431,7 @@ export default function PurchaseOrder () {
                         className="po-search-input"
                       />
                     </div>
-                    
+
                     {/* Filter Section */}
                     <div className="po-filters">
                       <div className="filter-group">
@@ -440,7 +443,7 @@ export default function PurchaseOrder () {
                           <option value="Cancelled">Cancelled</option>
                         </select>
                       </div>
-                      
+
                       <div className="filter-group">
                         <label className="filter-label">Order By:</label>
                         <select value={filterOrderBy} onChange={e => { setFilterOrderBy(e.target.value); setFilterSupplier(''); setFilterBranch(''); }} className="filter-select">
@@ -449,11 +452,11 @@ export default function PurchaseOrder () {
                           <option value="Branch">Branch</option>
                         </select>
                       </div>
-                      
+
                       {filterOrderBy === 'Supplier' && (
                         <div className="filter-group">
                           <label className="filter-label">Supplier:</label>
-                          <input 
+                          <input
                             type="text"
                             placeholder="Filter by supplier..."
                             value={filterSupplier}
@@ -462,7 +465,7 @@ export default function PurchaseOrder () {
                           />
                         </div>
                       )}
-                      
+
                       {filterOrderBy === 'Branch' && (
                         <div className="filter-group">
                           <label className="filter-label">Branch:</label>
@@ -480,7 +483,7 @@ export default function PurchaseOrder () {
                           </select>
                         </div>
                       )}
-                      
+
                       {filterOrderBy === 'Branch' && (
                         <div className="filter-group">
                           <label className="filter-label">Branch Received:</label>
@@ -498,8 +501,8 @@ export default function PurchaseOrder () {
                           </select>
                         </div>
                       )}
-                      
-                      <button 
+
+                      <button
                         className="btn-clear-filters"
                         onClick={() => {
                           setFilterStatus('')
@@ -513,10 +516,12 @@ export default function PurchaseOrder () {
                         Clear Filters
                       </button>
                     </div>
-                    
-                    <button className="btn-new-po" onClick={handleNewPO}>
-                      + New Purchase Order
-                    </button>
+
+                    {canEdit && (
+                      <button className="btn-new-po" onClick={handleNewPO}>
+                        + New Purchase Order
+                      </button>
+                    )}
                   </div>
                 </header>
 
@@ -648,11 +653,11 @@ export default function PurchaseOrder () {
                             {branches && branches.map((branch, idx) => {
                               const branchName = branch.name || branch.branchName;
                               return (
-                                <tr 
-                                  key={idx} 
+                                <tr
+                                  key={idx}
                                   onClick={() => handleBranchSelect(branchName, branch)}
-                                  style={{ 
-                                    cursor: 'pointer', 
+                                  style={{
+                                    cursor: 'pointer',
                                     transition: 'background-color 0.2s',
                                     backgroundColor: selectedBranchRow === branchName ? '#667eea' : 'transparent',
                                     color: selectedBranchRow === branchName ? 'white' : 'inherit'
@@ -683,7 +688,7 @@ export default function PurchaseOrder () {
                     <label className="form-label-inventory">Quantity</label>
                     <input value={line.qty} onChange={e => updateLine('qty', e.target.value)} placeholder="Qty" type="number" min="1" step="1" className="form-input-inventory" />
                   </div>
-                  <div className="form-group-inventory" style={{ alignSelf:'end' }}>
+                  <div className="form-group-inventory" style={{ alignSelf: 'end' }}>
                     <button type="button" className="modal-btn-inventory cancel" onClick={addToCart}>Add to cart</button>
                   </div>
                 </div>
@@ -692,29 +697,29 @@ export default function PurchaseOrder () {
                     <table className="po-detail-table">
                       <thead>
                         {poForm.orderBy === 'Supplier' ? (
-                          <tr><th>Item Name</th><th>Quantity</th><th style={{width:'120px'}}>Actions</th></tr>
+                          <tr><th>Item Name</th><th>Quantity</th><th style={{ width: '120px' }}>Actions</th></tr>
                         ) : (
-                          <tr><th>Branch Name</th><th>Item Name</th><th>Quantity</th><th style={{width:'120px'}}>Actions</th></tr>
+                          <tr><th>Branch Name</th><th>Item Name</th><th>Quantity</th><th style={{ width: '120px' }}>Actions</th></tr>
                         )}
                       </thead>
                       <tbody>
                         {cart.length === 0 ? (
                           poForm.orderBy === 'Supplier' ? (
-                            <tr><td colSpan={3} style={{ color:'#6b7280' }}>No items added yet</td></tr>
+                            <tr><td colSpan={3} style={{ color: '#6b7280' }}>No items added yet</td></tr>
                           ) : (
-                            <tr><td colSpan={4} style={{ color:'#6b7280' }}>No items added yet</td></tr>
+                            <tr><td colSpan={4} style={{ color: '#6b7280' }}>No items added yet</td></tr>
                           )
                         ) : (
                           cart.map((ci, i) => (
                             poForm.orderBy === 'Supplier' ? (
-                              <tr key={i}><td>{ci.item}</td><td>{ci.qty}</td><td style={{display:'flex',gap:6}}>
-                                <button type="button" className="modal-btn-inventory cancel" style={{padding:'6px 10px'}} onClick={() => editExistingCreateItem(i)}>Edit</button>
-                                <button type="button" className="modal-btn-inventory cancel" style={{padding:'6px 10px'}} onClick={() => removeCreateItem(i)}>Remove</button>
+                              <tr key={i}><td>{ci.item}</td><td>{ci.qty}</td><td style={{ display: 'flex', gap: 6 }}>
+                                <button type="button" className="modal-btn-inventory cancel" style={{ padding: '6px 10px' }} onClick={() => editExistingCreateItem(i)}>Edit</button>
+                                <button type="button" className="modal-btn-inventory cancel" style={{ padding: '6px 10px' }} onClick={() => removeCreateItem(i)}>Remove</button>
                               </td></tr>
                             ) : (
-                              <tr key={i}><td>{ci.branch}</td><td>{ci.item}</td><td>{ci.qty}</td><td style={{display:'flex',gap:6}}>
-                                <button type="button" className="modal-btn-inventory cancel" style={{padding:'6px 10px'}} onClick={() => editExistingCreateItem(i)}>Edit</button>
-                                <button type="button" className="modal-btn-inventory cancel" style={{padding:'6px 10px'}} onClick={() => removeCreateItem(i)}>Remove</button>
+                              <tr key={i}><td>{ci.branch}</td><td>{ci.item}</td><td>{ci.qty}</td><td style={{ display: 'flex', gap: 6 }}>
+                                <button type="button" className="modal-btn-inventory cancel" style={{ padding: '6px 10px' }} onClick={() => editExistingCreateItem(i)}>Edit</button>
+                                <button type="button" className="modal-btn-inventory cancel" style={{ padding: '6px 10px' }} onClick={() => removeCreateItem(i)}>Remove</button>
                               </td></tr>
                             )
                           ))
@@ -761,7 +766,7 @@ export default function PurchaseOrder () {
                   )}
                   <div className="form-group-inventory">
                     <label className="form-label-inventory">Order Date</label>
-                    <DatePicker 
+                    <DatePicker
                       selected={poForm.orderDate ? new Date(poForm.orderDate) : null}
                       onChange={(date) => {
                         const dateString = date ? date.toISOString().split('T')[0] : ''
@@ -776,7 +781,7 @@ export default function PurchaseOrder () {
                   </div>
                   <div className="form-group-inventory">
                     <label className="form-label-inventory">Expected Delivery Date</label>
-                    <DatePicker 
+                    <DatePicker
                       selected={poForm.expectedDate ? new Date(poForm.expectedDate) : null}
                       onChange={(date) => {
                         const dateString = date ? date.toISOString().split('T')[0] : ''
@@ -790,7 +795,7 @@ export default function PurchaseOrder () {
                     />
                   </div>
                 </div>
-                <div className="modal-footer-inventory" style={{ justifyContent:'flex-end' }}>
+                <div className="modal-footer-inventory" style={{ justifyContent: 'flex-end' }}>
                   <button type="button" className="modal-btn-inventory cancel" onClick={() => {
                     setSelectedBranchRow(null)
                     setOpenCreate(false)
@@ -842,7 +847,7 @@ export default function PurchaseOrder () {
                   <span className="po-detail-label branch">CREATED BRANCH</span>
                   <div>{selected.createdByBranch}</div>
                 </div>
-                
+
               </div>
               <div className="po-detail-table-wrap">
                 <table className="po-detail-table">
@@ -868,7 +873,7 @@ export default function PurchaseOrder () {
                 </table>
               </div>
               <div className="modal-footer-inventory">
-                {selected.status === 'Pending' && (
+                {selected.status === 'Pending' && canEdit && (
                   <>
                     <button type="button" className="modal-btn-inventory cancel" onClick={() => {
                       if (!selected) return
@@ -934,7 +939,8 @@ export default function PurchaseOrder () {
                 <span className={`po-detail-badge ${selected.status === 'Pending' ? 'pending' : (selected.status === 'Cancelled' ? 'cancelled' : 'received')}`}>{selected.status}</span>
               </div>
 
-              <form onSubmit={(e) => { e.preventDefault();
+              <form onSubmit={(e) => {
+                e.preventDefault();
                 const pending = (editLine.item && editLine.qty) ? [{ ...editLine }] : []
                 const workingCart = [...editCart, ...pending]
                 const updatedItems = workingCart.map(ci => `${ci.item} x ${ci.qty}`)
@@ -999,7 +1005,7 @@ export default function PurchaseOrder () {
                   )}
                   <div className="form-group-inventory">
                     <label className="form-label-inventory">Order Date</label>
-                    <DatePicker 
+                    <DatePicker
                       selected={editForm.orderDate ? new Date(editForm.orderDate) : null}
                       onChange={(date) => {
                         const dateString = date ? date.toISOString().split('T')[0] : ''
@@ -1014,7 +1020,7 @@ export default function PurchaseOrder () {
                   </div>
                   <div className="form-group-inventory">
                     <label className="form-label-inventory">Expected Delivery Date</label>
-                    <DatePicker 
+                    <DatePicker
                       selected={editForm.expectedDate ? new Date(editForm.expectedDate) : null}
                       onChange={(date) => {
                         const dateString = date ? date.toISOString().split('T')[0] : ''
@@ -1073,11 +1079,11 @@ export default function PurchaseOrder () {
                             {branches && branches.map((branch, idx) => {
                               const branchName = branch.name || branch.branchName;
                               return (
-                                <tr 
-                                  key={idx} 
+                                <tr
+                                  key={idx}
                                   onClick={() => handleBranchSelect(branchName, branch)}
-                                  style={{ 
-                                    cursor: 'pointer', 
+                                  style={{
+                                    cursor: 'pointer',
                                     transition: 'background-color 0.2s',
                                     backgroundColor: selectedBranchRow === branchName ? '#667eea' : 'transparent',
                                     color: selectedBranchRow === branchName ? 'white' : 'inherit'
@@ -1118,29 +1124,29 @@ export default function PurchaseOrder () {
                     <table className="po-detail-table">
                       <thead>
                         {editForm.orderBy === 'Supplier' ? (
-                          <tr><th>Item Name</th><th>Quantity</th><th style={{width:'120px'}}>Actions</th></tr>
+                          <tr><th>Item Name</th><th>Quantity</th><th style={{ width: '120px' }}>Actions</th></tr>
                         ) : (
-                          <tr><th>Branch Name</th><th>Item Name</th><th>Quantity</th><th style={{width:'120px'}}>Actions</th></tr>
+                          <tr><th>Branch Name</th><th>Item Name</th><th>Quantity</th><th style={{ width: '120px' }}>Actions</th></tr>
                         )}
                       </thead>
                       <tbody>
                         {editCart.length === 0 ? (
                           editForm.orderBy === 'Supplier' ? (
-                            <tr><td colSpan={3} style={{ color:'#6b7280' }}>No items added yet</td></tr>
+                            <tr><td colSpan={3} style={{ color: '#6b7280' }}>No items added yet</td></tr>
                           ) : (
-                            <tr><td colSpan={4} style={{ color:'#6b7280' }}>No items added yet</td></tr>
+                            <tr><td colSpan={4} style={{ color: '#6b7280' }}>No items added yet</td></tr>
                           )
                         ) : (
                           editCart.map((ci, i) => (
                             editForm.orderBy === 'Supplier' ? (
-                              <tr key={i}><td>{ci.item}</td><td>{ci.qty}</td><td style={{display:'flex',gap:6}}>
-                                <button type="button" className="modal-btn-inventory cancel" style={{padding:'6px 10px'}} onClick={() => editExistingEditItem(i)}>Edit</button>
-                                <button type="button" className="modal-btn-inventory cancel" style={{padding:'6px 10px'}} onClick={() => removeEditItem(i)}>Remove</button>
+                              <tr key={i}><td>{ci.item}</td><td>{ci.qty}</td><td style={{ display: 'flex', gap: 6 }}>
+                                <button type="button" className="modal-btn-inventory cancel" style={{ padding: '6px 10px' }} onClick={() => editExistingEditItem(i)}>Edit</button>
+                                <button type="button" className="modal-btn-inventory cancel" style={{ padding: '6px 10px' }} onClick={() => removeEditItem(i)}>Remove</button>
                               </td></tr>
                             ) : (
-                              <tr key={i}><td>{ci.branch || editForm.branch}</td><td>{ci.item}</td><td>{ci.qty}</td><td style={{display:'flex',gap:6}}>
-                                <button type="button" className="modal-btn-inventory cancel" style={{padding:'6px 10px'}} onClick={() => editExistingEditItem(i)}>Edit</button>
-                                <button type="button" className="modal-btn-inventory cancel" style={{padding:'6px 10px'}} onClick={() => removeEditItem(i)}>Remove</button>
+                              <tr key={i}><td>{ci.branch || editForm.branch}</td><td>{ci.item}</td><td>{ci.qty}</td><td style={{ display: 'flex', gap: 6 }}>
+                                <button type="button" className="modal-btn-inventory cancel" style={{ padding: '6px 10px' }} onClick={() => editExistingEditItem(i)}>Edit</button>
+                                <button type="button" className="modal-btn-inventory cancel" style={{ padding: '6px 10px' }} onClick={() => removeEditItem(i)}>Remove</button>
                               </td></tr>
                             )
                           ))
@@ -1177,84 +1183,84 @@ export default function PurchaseOrder () {
               <button className="modal-close-btn-inventory" onClick={() => setOpenCancel(false)} aria-label="Close">×</button>
             </div>
             <div className="modal-body-inventory">
-            <div className="modal-id-section-inventory">
-              <span className="modal-item-id-inventory">{selected.poNumber || selected.id}</span>
-              <span className={`po-detail-badge ${selected.status === 'Pending' ? 'pending' : (selected.status === 'Cancelled' ? 'cancelled' : 'received')}`}>{selected.status}</span>
-            </div>
-            <form onSubmit={async (e) => {
-              e.preventDefault()
-              
-              // Update the PO status to Cancelled and store deletion details
-              const updated = { 
-                ...selected, 
-                status: 'Cancelled',
-                deleted: {
-                  by: cancelForm.deletedBy,
-                  branchName: cancelForm.branchName,
-                  date: cancelForm.deletedDate,
-                  reason: cancelForm.reason
+              <div className="modal-id-section-inventory">
+                <span className="modal-item-id-inventory">{selected.poNumber || selected.id}</span>
+                <span className={`po-detail-badge ${selected.status === 'Pending' ? 'pending' : (selected.status === 'Cancelled' ? 'cancelled' : 'received')}`}>{selected.status}</span>
+              </div>
+              <form onSubmit={async (e) => {
+                e.preventDefault()
+
+                // Update the PO status to Cancelled and store deletion details
+                const updated = {
+                  ...selected,
+                  status: 'Cancelled',
+                  deleted: {
+                    by: cancelForm.deletedBy,
+                    branchName: cancelForm.branchName,
+                    date: cancelForm.deletedDate,
+                    reason: cancelForm.reason
+                  }
                 }
-              }
-              
-              try {
-                // Send cancel request to backend API
-                const response = await fetch(`http://localhost:5000/api/purchase-orders/${selected.poNumber}/cancel`, {
-                  method: 'PATCH',
-                  headers: {
-                    'Content-Type': 'application/json'
-                  },
-                  body: JSON.stringify(updated.deleted)
-                })
-                
-                const result = await response.json()
-                
-                if (result.success) {
-                  // Update the PO list
-                  setPos(prev => prev.map(p => (p.poNumber === selected.poNumber || p.id === selected.id) ? updated : p))
-                  
-                  // Update selected reference
-                  setSelected(updated)
-                  
-                  alert('Purchase Order cancelled successfully')
-                  
-                  // Close the cancel modal
-                  setOpenCancel(false)
-                } else {
-                  alert('Error cancelling purchase order: ' + (result.message || 'Unknown error'))
+
+                try {
+                  // Send cancel request to backend API
+                  const response = await fetch(`http://localhost:5005/api/purchase-orders/${selected.poNumber}/cancel`, {
+                    method: 'PATCH',
+                    headers: {
+                      'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(updated.deleted)
+                  })
+
+                  const result = await response.json()
+
+                  if (result.success) {
+                    // Update the PO list
+                    setPos(prev => prev.map(p => (p.poNumber === selected.poNumber || p.id === selected.id) ? updated : p))
+
+                    // Update selected reference
+                    setSelected(updated)
+
+                    alert('Purchase Order cancelled successfully')
+
+                    // Close the cancel modal
+                    setOpenCancel(false)
+                  } else {
+                    alert('Error cancelling purchase order: ' + (result.message || 'Unknown error'))
+                  }
+                } catch (error) {
+                  console.error('Error:', error)
+                  alert('Error cancelling purchase order: ' + error.message)
                 }
-              } catch (error) {
-                console.error('Error:', error)
-                alert('Error cancelling purchase order: ' + error.message)
-              }
-            }} className="modal-form-inventory">
-              <div className="form-layout-inventory">
-                <div className="form-group-inventory">
-                  <label className="form-label-inventory">Deleted By</label>
-                  <input className="form-input-inventory" value={cancelForm.deletedBy} onChange={e => updateCancelForm('deletedBy', e.target.value)} placeholder="Type name here" aria-invalid={!!cancelErrors.deletedBy} />
-                  {cancelErrors.deletedBy && <div className="field-error">{cancelErrors.deletedBy}</div>}
+              }} className="modal-form-inventory">
+                <div className="form-layout-inventory">
+                  <div className="form-group-inventory">
+                    <label className="form-label-inventory">Deleted By</label>
+                    <input className="form-input-inventory" value={cancelForm.deletedBy} onChange={e => updateCancelForm('deletedBy', e.target.value)} placeholder="Type name here" aria-invalid={!!cancelErrors.deletedBy} />
+                    {cancelErrors.deletedBy && <div className="field-error">{cancelErrors.deletedBy}</div>}
+                  </div>
+                  <div className="form-group-inventory">
+                    <label className="form-label-inventory">Branch Name</label>
+                    <input className="form-input-inventory" type="text" value={cancelForm.branchName} readOnly placeholder="Auto-filled" aria-invalid={!!cancelErrors.branchName} />
+                    {cancelErrors.branchName && <div className="field-error">{cancelErrors.branchName}</div>}
+                  </div>
+                  <div className="form-group-inventory">
+                    <label className="form-label-inventory">Deleted Date</label>
+                    <input className="form-input-inventory" type="date" value={cancelForm.deletedDate} onChange={e => updateCancelForm('deletedDate', e.target.value)} aria-invalid={!!cancelErrors.deletedDate} />
+                    {cancelErrors.deletedDate && <div className="field-error">{cancelErrors.deletedDate}</div>}
+                  </div>
                 </div>
                 <div className="form-group-inventory">
-                  <label className="form-label-inventory">Branch Name</label>
-                  <input className="form-input-inventory" type="text" value={cancelForm.branchName} readOnly placeholder="Auto-filled" aria-invalid={!!cancelErrors.branchName} />
-                  {cancelErrors.branchName && <div className="field-error">{cancelErrors.branchName}</div>}
+                  <label className="form-label-inventory">Reason</label>
+                  <textarea className="form-input-inventory" rows="5" value={cancelForm.reason} onChange={e => updateCancelForm('reason', e.target.value)} placeholder="" aria-invalid={!!cancelErrors.reason} />
+                  {cancelErrors.reason && <div className="field-error">{cancelErrors.reason}</div>}
                 </div>
-                <div className="form-group-inventory">
-                  <label className="form-label-inventory">Deleted Date</label>
-                  <input className="form-input-inventory" type="date" value={cancelForm.deletedDate} onChange={e => updateCancelForm('deletedDate', e.target.value)} aria-invalid={!!cancelErrors.deletedDate} />
-                  {cancelErrors.deletedDate && <div className="field-error">{cancelErrors.deletedDate}</div>}
+                <div className="modal-footer-inventory">
+                  <button type="submit" className="modal-btn-inventory submit danger">Confirm and Inform</button>
+                  <button type="button" className="modal-btn-inventory cancel" onClick={() => { setOpenCancel(false); setOpenView(true) }}>View Details</button>
+                  <button type="button" className="modal-btn-inventory cancel" onClick={() => setOpenCancel(false)}>Close</button>
                 </div>
-              </div>
-              <div className="form-group-inventory">
-                <label className="form-label-inventory">Reason</label>
-                <textarea className="form-input-inventory" rows="5" value={cancelForm.reason} onChange={e => updateCancelForm('reason', e.target.value)} placeholder="" aria-invalid={!!cancelErrors.reason} />
-                {cancelErrors.reason && <div className="field-error">{cancelErrors.reason}</div>}
-              </div>
-              <div className="modal-footer-inventory">
-                <button type="submit" className="modal-btn-inventory submit danger">Confirm and Inform</button>
-                <button type="button" className="modal-btn-inventory cancel" onClick={() => { setOpenCancel(false); setOpenView(true) }}>View Details</button>
-                <button type="button" className="modal-btn-inventory cancel" onClick={() => setOpenCancel(false)}>Close</button>
-              </div>
-            </form>
+              </form>
             </div>
           </div>
         </div>

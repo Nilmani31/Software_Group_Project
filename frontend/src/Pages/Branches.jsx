@@ -6,7 +6,7 @@ import "./Branches.css";
 import { FaTimes, FaEdit, FaTrash } from "react-icons/fa";
 
 export default function Branches() {
-    const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || "http://localhost:5000";
+    const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || "http://localhost:5005";
     const [branches, setBranches] = useState([]);
     const [query, setQuery] = useState("");
     const [showAdd, setShowAdd] = useState(false);
@@ -60,7 +60,7 @@ export default function Branches() {
 
     async function save() {
         const newErrors = {};
-        
+
         if (!form.name?.trim()) {
             newErrors.name = "Branch name is required";
         }
@@ -78,12 +78,12 @@ export default function Branches() {
                 newErrors.phone = "Phone number must contain 10-15 digits";
             }
         }
-        
+
         if (Object.keys(newErrors).length > 0) {
             setErrors(newErrors);
             return;
         }
-        
+
         setErrors({});
         const payload = {
             branch_name: form.name.trim(),
@@ -154,7 +154,7 @@ export default function Branches() {
         }
     }
 
-    const filtered = branches.filter(b => 
+    const filtered = branches.filter(b =>
         (b.name || "").toLowerCase().includes(query.toLowerCase())
     );
 
@@ -200,15 +200,15 @@ export default function Branches() {
                                                     <div className="branch-card-header">
                                                         <h3 className="branch-name">{b.name}</h3>
                                                         <div className="branch-card-actions">
-                                                            <button 
-                                                                className="branch-icon-btn edit" 
+                                                            <button
+                                                                className="branch-icon-btn edit"
                                                                 onClick={() => openEdit(b)}
                                                                 title="Edit branch"
                                                             >
                                                                 <FaEdit />
                                                             </button>
-                                                            <button 
-                                                                className="branch-icon-btn delete" 
+                                                            <button
+                                                                className="branch-icon-btn delete"
                                                                 onClick={() => remove(b.id)}
                                                                 title="Delete branch"
                                                             >
@@ -251,8 +251,8 @@ export default function Branches() {
                             <h3 className="branch-modal-title">
                                 {editing ? "Edit Branch" : "Add New Branch"}
                             </h3>
-                            <button 
-                                className="branch-modal-close" 
+                            <button
+                                className="branch-modal-close"
                                 onClick={() => setShowAdd(false)}
                             >
                                 <FaTimes />
@@ -262,10 +262,10 @@ export default function Branches() {
                         {/* Modal Body */}
                         <div className="branch-modal-body">
                             {errors.submit && (
-                                <div style={{ 
-                                    color: '#dc2626', 
-                                    padding: '12px', 
-                                    backgroundColor: '#fee2e2', 
+                                <div style={{
+                                    color: '#dc2626',
+                                    padding: '12px',
+                                    backgroundColor: '#fee2e2',
                                     borderRadius: '6px',
                                     marginBottom: '16px',
                                     fontSize: '14px'
@@ -273,7 +273,7 @@ export default function Branches() {
                                     {errors.submit}
                                 </div>
                             )}
-                            
+
                             <div className="branch-form-group">
                                 <label className="branch-form-label">Branch Name</label>
                                 <input
@@ -325,14 +325,14 @@ export default function Branches() {
 
                         {/* Modal Footer */}
                         <div className="branch-modal-footer">
-                            <button 
-                                className="branch-btn-cancel" 
+                            <button
+                                className="branch-btn-cancel"
                                 onClick={() => setShowAdd(false)}
                             >
                                 Cancel
                             </button>
-                            <button 
-                                className="branch-btn-submit" 
+                            <button
+                                className="branch-btn-submit"
                                 onClick={save}
                             >
                                 {editing ? "Update Branch" : "Add Branch"}

@@ -27,6 +27,11 @@ export default function GoodReceived() {
   const [page, setPage] = useState(1);
   const [inventoryItems, setInventoryItems] = useState([]);
 
+  // Role check
+  const roleId = localStorage.getItem('roleId') || '';
+  const userRole = roleId.replace('ROLE_', '');
+  const canEdit = ['ADMIN', 'DIRECTOR', 'MANAGER', 'BRANCH_MANAGER'].includes(userRole);
+
   const { register, handleSubmit, control, reset, watch, setValue } = useForm({
     defaultValues: {
       items: [{ itemId: '', itemName: '', unit: '', unitPrice: '', quantityOrdered: '', quantityReceived: '' }]
@@ -59,7 +64,7 @@ export default function GoodReceived() {
   useEffect(() => {
     const fetchInventoryItems = async () => {
       try {
-        const response = await fetch('http://localhost:5000/api/items');
+        const response = await fetch('http://localhost:5005/api/items');
         const data = await response.json();
         setInventoryItems(Array.isArray(data) ? data : []);
       } catch (err) {
@@ -351,13 +356,15 @@ export default function GoodReceived() {
                       </div>
                     </div>
                     <div className="inventory-actions">
-                      <button className="btn btn-add" onClick={() => {
-                        reset({ items: [{ itemId: '', itemName: '', unit: '', unitPrice: '', quantityOrdered: '', quantityReceived: '' }] });
-                        setImagePreview(null);
-                        setOpenCreate(true);
-                      }} disabled={loading}>
-                        + New GRN
-                      </button>
+                      {canEdit && (
+                        <button className="btn btn-add" onClick={() => {
+                          reset({ items: [{ itemId: '', itemName: '', unit: '', unitPrice: '', quantityOrdered: '', quantityReceived: '' }] });
+                          setImagePreview(null);
+                          setOpenCreate(true);
+                        }} disabled={loading}>
+                          + New GRN
+                        </button>
+                      )}
                     </div>
                   </div>
                 </header>
@@ -813,14 +820,16 @@ export default function GoodReceived() {
             </div>
 
             <div className="modal-footer-inventory" style={{ justifyContent: 'space-between' }}>
-              <button 
-                className="modal-btn-inventory cancel" 
-                onClick={() => handleDeleteGrn(selected)}
-                disabled={loading}
-                style={{ backgroundColor: '#ef4444', borderColor: '#ef4444' }}
-              >
-                Delete GRN
-              </button>
+              {canEdit && (
+                <button 
+                  className="modal-btn-inventory cancel" 
+                  onClick={() => handleDeleteGrn(selected)}
+                  disabled={loading}
+                  style={{ backgroundColor: '#ef4444', borderColor: '#ef4444', color: 'white' }}
+                >
+                  Delete GRN
+                </button>
+              )}
               <div style={{ display: 'flex', gap: '8px' }}>
                 <button 
                   className="modal-btn-inventory cancel" 
@@ -829,13 +838,15 @@ export default function GoodReceived() {
                 >
                   Cancel
                 </button>
-                <button 
-                  className="modal-btn-inventory submit" 
-                  onClick={handleSave} 
-                  disabled={loading}
-                >
-                  {loading ? 'Saving...' : 'Save Changes'}
-                </button>
+                {canEdit && (
+                  <button 
+                    className="modal-btn-inventory submit" 
+                    onClick={handleSave} 
+                    disabled={loading}
+                  >
+                    {loading ? 'Saving...' : 'Save Changes'}
+                  </button>
+                )}
               </div>
             </div>
           </div>

@@ -4,11 +4,13 @@ const Stock = require('../models/stock');
 const Item = require('../models/items');
 const Branch = require('../models/branches');
 const User = require('../models/users');
+const { getIssueNoteBranchFilter } = require('../utils/branchFilter');
 
 // Get all issue notes with populated fields
 exports.getAllIssueNotes = async (req, res) => {
   try {
-    const issueNotes = await IssueNote.find()
+    const branchFilter = getIssueNoteBranchFilter(req);
+    const issueNotes = await IssueNote.find(branchFilter)
       .populate('fromBranchId', 'branchName branchCode branch_name branch_code')
       .populate('toBranchId', 'branchName branchCode branch_name branch_code')
       .populate('issuedBy', 'name email username')
@@ -76,11 +78,17 @@ exports.getIssueNoteById = async (req, res) => {
 exports.getIssueNotesByBranch = async (req, res) => {
   try {
     const { branchId } = req.params;
+    const branchFilter = getIssueNoteBranchFilter(req);
     
     const issueNotes = await IssueNote.find({
-      $or: [
-        { fromBranchId: branchId },
-        { toBranchId: branchId }
+      $and: [
+        branchFilter,
+        {
+          $or: [
+            { fromBranchId: branchId },
+            { toBranchId: branchId }
+          ]
+        }
       ]
     })
       .populate('fromBranchId', 'branchName branchCode branch_name branch_code')

@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from "react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
+import { getAuthHeaders } from "../utils/authHeaders";
 import "./Dashboard.css";
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5005/api';
 
 const COLORS = ['#4f46e5', '#f59e0b']; // In Stock (Blue), Low Stock (Amber)
 
@@ -13,7 +14,9 @@ const Dashboard = () => {
 
   const fetchStats = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/dashboard/stats`);
+      const response = await fetch(`${API_BASE_URL}/dashboard/stats`, {
+        headers: getAuthHeaders()
+      });
       if (!response.ok) throw new Error('Failed to fetch dashboard stats');
       const json = await response.json();
       if (json.success) {
@@ -53,8 +56,8 @@ const Dashboard = () => {
   ];
 
   // Calculate max issued for progress bar scaling
-  const maxIssued = stats.topProducts.length > 0 
-    ? Math.max(...stats.topProducts.map(p => p.value)) 
+  const maxIssued = stats.topProducts.length > 0
+    ? Math.max(...stats.topProducts.map(p => p.value))
     : 1;
 
   const formatCurrency = (value) => {
@@ -123,7 +126,7 @@ const Dashboard = () => {
                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                       ))}
                     </Pie>
-                    <Tooltip 
+                    <Tooltip
                       formatter={(value) => formatCurrency(value)}
                       contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 25px rgba(0,0,0,0.1)' }}
                     />
@@ -149,8 +152,8 @@ const Dashboard = () => {
                     <span>{product.value} Units</span>
                   </div>
                   <div className="product-bar-bg">
-                    <div 
-                      className="product-bar-fill" 
+                    <div
+                      className="product-bar-fill"
                       style={{ width: `${(product.value / maxIssued) * 100}%` }}
                     ></div>
                   </div>

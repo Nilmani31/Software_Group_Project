@@ -19,13 +19,13 @@ export default function Users() {
   const [openEdit, setOpenEdit] = useState(false);
   const [editing, setEditing] = useState(null);
   const [query, setQuery] = useState('');
-  
+
   // Add user form state
-  const [addForm, setAddForm] = useState({ username: '', email: '', phoneNumber: '', password: '', roleId: 'STAFF', branchId: 'MAIN_BRANCH' });
+  const [addForm, setAddForm] = useState({ username: '', email: '', phoneNumber: '', password: '', roleId: 'STAFF', branchId: 'MAIN_BRANCH', allowedBranches: [] });
   const [addLoading, setAddLoading] = useState(false);
 
   // Edit user form state
-  const [editForm, setEditForm] = useState({ username: '', email: '', phoneNumber: '', roleId: '', branchId: '' });
+  const [editForm, setEditForm] = useState({ username: '', email: '', phoneNumber: '', roleId: '', branchId: '', allowedBranches: [] });
   const [editLoading, setEditLoading] = useState(false);
 
   // Fetch users and roles from backend
@@ -38,10 +38,24 @@ export default function Users() {
   // Fetch roles from database
   const fetchRoles = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/roles');
+      const response = await fetch('http://localhost:5005/api/roles');
       const data = await response.json();
       if (data.success && data.data) {
-        setRoles(data.data);
+        const currentUserRole = localStorage.getItem('roleId') || '';
+        let filteredRoles = data.data;
+
+        // Apply role hierarchy filtering
+        if (currentUserRole === 'ROLE_DIRECTOR' || currentUserRole === 'DIRECTOR') {
+          filteredRoles = data.data.filter(r => !r.roleId.includes('ADMIN') && !r.roleId.includes('DIRECTOR'));
+        } else if (currentUserRole === 'ROLE_MANAGER' || currentUserRole === 'MANAGER') {
+          filteredRoles = data.data.filter(r => r.roleId.includes('BRANCH_MANAGER') || r.roleId.includes('STAFF'));
+        } else if (currentUserRole === 'ROLE_BRANCH_MANAGER' || currentUserRole === 'BRANCH_MANAGER') {
+          filteredRoles = data.data.filter(r => r.roleId.includes('STAFF'));
+        } else if (currentUserRole === 'ROLE_STAFF' || currentUserRole === 'STAFF') {
+          filteredRoles = []; // Staff shouldn't be here anyway
+        }
+
+        setRoles(filteredRoles);
       }
     } catch (err) {
       console.error('Error fetching roles:', err);
@@ -51,7 +65,7 @@ export default function Users() {
   // Fetch branches from database
   const fetchBranches = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/branches');
+      const response = await fetch('http://localhost:5005/api/branches');
       const data = await response.json();
       const branchesArray = Array.isArray(data) ? data : (data.data ? data.data : []);
       if (Array.isArray(branchesArray)) {
@@ -78,7 +92,7 @@ export default function Users() {
 
   const fetchUsers = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/users');
+      const response = await fetch('http://localhost:5005/api/users');
       const data = await response.json();
       if (data.success && data.data) {
         // Transform database users to match display format
@@ -88,7 +102,8 @@ export default function Users() {
           email: user.email,
           phoneNumber: user.phoneNumber,
           branch: user.branchId,
-          role: user.roleId
+          role: user.roleId,
+          allowedBranches: user.allowedBranches || []
         }));
         setList(formattedUsers);
       }
@@ -111,33 +126,24 @@ export default function Users() {
         password: addForm.password,
         roleId: addForm.roleId,
         branchId: addForm.branchId,
+        allowedBranches: addForm.roleId.includes('MANAGER') ? addForm.allowedBranches : [],
         createdBy: localStorage.getItem('username') || 'System'
       };
-      
-      console.log('=== SENDING ADD USER REQUEST ===');
-      console.log('Request body:', { ...requestBody, password: requestBody.password ? '***' : 'EMPTY' });
-      console.log('Password value:', requestBody.password);
-      console.log('Password type:', typeof requestBody.password);
-      console.log('Password length:', requestBody.password ? requestBody.password.length : 0);
-      
-      const response = await fetch('http://localhost:5000/api/users/create', {
+
+      const response = await fetch('http://localhost:5005/api/users/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(requestBody)
       });
       const data = await response.json();
-      
-      console.log('Response status:', response.status);
-      console.log('Response data:', data);
-      
+
       if (data.message) {
         alert('User created successfully! Password: ' + data.password);
-        setAddForm({ username: '', email: '', phoneNumber: '', password: '', roleId: 'STAFF', branchId: 'MAIN_BRANCH' });
+        setAddForm({ username: '', email: '', phoneNumber: '', password: '', roleId: 'STAFF', branchId: 'MAIN_BRANCH', allowedBranches: [] });
         setOpenAdd(false);
         fetchUsers(); // Refresh list
       } else {
         const errorMsg = data.error || 'Failed to create user';
-        console.error('Backend error:', errorMsg);
         alert('Error: ' + errorMsg);
       }
     } catch (err) {
@@ -151,7 +157,7 @@ export default function Users() {
   const handleDeleteUser = async (userId) => {
     if (!window.confirm('Delete this user?')) return;
     try {
-      const response = await fetch(`http://localhost:5000/api/users/${userId}`, {
+      const response = await fetch(`http://localhost:5005/api/users/${userId}`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' }
       });
@@ -174,7 +180,8 @@ export default function Users() {
       email: user.email,
       phoneNumber: user.phoneNumber || '0000000000',
       roleId: user.role,
-      branchId: user.branch
+      branchId: user.branch,
+      allowedBranches: user.allowedBranches || []
     });
     setEditing(user);
     setOpenEdit(true);
@@ -185,7 +192,7 @@ export default function Users() {
     e.preventDefault();
     setEditLoading(true);
     try {
-      const response = await fetch(`http://localhost:5000/api/users/${editing.id}`, {
+      const response = await fetch(`http://localhost:5005/api/users/${editing.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -211,6 +218,23 @@ export default function Users() {
     }
   };
 
+  // Toggle allowed branch checkbox
+  const toggleAllowedBranch = (formType, branchId) => {
+    if (formType === 'add') {
+      const isSelected = addForm.allowedBranches.includes(branchId);
+      const newBranches = isSelected
+        ? addForm.allowedBranches.filter(id => id !== branchId)
+        : [...addForm.allowedBranches, branchId];
+      setAddForm({ ...addForm, allowedBranches: newBranches });
+    } else {
+      const isSelected = editForm.allowedBranches.includes(branchId);
+      const newBranches = isSelected
+        ? editForm.allowedBranches.filter(id => id !== branchId)
+        : [...editForm.allowedBranches, branchId];
+      setEditForm({ ...editForm, allowedBranches: newBranches });
+    }
+  };
+
   const filteredUsers = list.filter(user =>
     user.name.toLowerCase().includes(query.toLowerCase()) ||
     user.email.toLowerCase().includes(query.toLowerCase()) ||
@@ -231,7 +255,7 @@ export default function Users() {
                     <div className="inventory-search">
                       <div className="search-field">
                         <svg className="search-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                          <path fill="currentColor" d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0016 9.5 6.5 6.5 0 109.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79L20 21.49 21.49 20 15.5 14zM4 9.5C4 6.46 6.46 4 9.5 4S15 6.46 15 9.5 12.54 15 9.5 15 4 12.54 4 9.5z"/>
+                          <path fill="currentColor" d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0016 9.5 6.5 6.5 0 109.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79L20 21.49 21.49 20 15.5 14zM4 9.5C4 6.46 6.46 4 9.5 4S15 6.46 15 9.5 12.54 15 9.5 15 4 12.54 4 9.5z" />
                         </svg>
                         <input
                           type="search"
@@ -301,15 +325,29 @@ export default function Users() {
 
       <Modal title="Add New User" open={openAdd} onClose={() => setOpenAdd(false)}>
         <form style={{ display: 'flex', flexDirection: 'column', gap: 10 }} onSubmit={handleAddUser}>
-          <div><label className="text-sm">Username</label><input className="input" placeholder="e.g. john_doe" value={addForm.username} onChange={(e) => setAddForm({...addForm, username: e.target.value})} required /></div>
-          <div><label className="text-sm">Email</label><input className="input" type="email" placeholder="e.g. john@company.com" value={addForm.email} onChange={(e) => setAddForm({...addForm, email: e.target.value})} required /></div>
-          <div><label className="text-sm">Phone Number</label><input className="input" placeholder="e.g. 0712345678" value={addForm.phoneNumber} onChange={(e) => setAddForm({...addForm, phoneNumber: e.target.value})} required /></div>
+          <div><label className="text-sm">Username</label><input className="input" placeholder="e.g. john_doe" value={addForm.username} onChange={(e) => setAddForm({ ...addForm, username: e.target.value })} required /></div>
+          <div><label className="text-sm">Email</label><input className="input" type="email" placeholder="e.g. john@company.com" value={addForm.email} onChange={(e) => setAddForm({ ...addForm, email: e.target.value })} required /></div>
+          <div><label className="text-sm">Phone Number</label><input className="input" placeholder="e.g. 0712345678" value={addForm.phoneNumber} onChange={(e) => setAddForm({ ...addForm, phoneNumber: e.target.value })} required /></div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
-            <div style={{ flex: 1 }}><label className="text-sm">Password</label><input className="input" type="password" placeholder="Leave empty to auto-generate" value={addForm.password} onChange={(e) => setAddForm({...addForm, password: e.target.value})} /></div>
+            <div style={{ flex: 1 }}><label className="text-sm">Password</label><input className="input" type="password" placeholder="Leave empty to auto-generate" value={addForm.password} onChange={(e) => setAddForm({ ...addForm, password: e.target.value })} /></div>
             <button type="button" className="btn-white" onClick={generatePassword} style={{ padding: '8px 16px' }}>Generate</button>
           </div>
-          <div><label className="text-sm">Role</label><select className="input" value={addForm.roleId} onChange={(e) => setAddForm({...addForm, roleId: e.target.value})} required><option value="">Select Role</option>{roles.map(r => <option key={r._id} value={r.roleId}>{r.roleName}</option>)}</select></div>
-          <div><label className="text-sm">Branch</label><select className="input" value={addForm.branchId} onChange={(e) => setAddForm({...addForm, branchId: e.target.value})} required><option value="">Select Branch</option>{branches.map(b => <option key={b._id} value={b._id}>{b.branchName || b.name}</option>)}</select></div>
+          <div><label className="text-sm">Role</label><select className="input" value={addForm.roleId} onChange={(e) => setAddForm({ ...addForm, roleId: e.target.value })} required><option value="">Select Role</option>{roles.map(r => <option key={r._id} value={r.roleId}>{r.roleName}</option>)}</select></div>
+          <div><label className="text-sm">{addForm.roleId.includes('MANAGER') && !addForm.roleId.includes('BRANCH') ? 'Primary Branch' : 'Branch'}</label><select className="input" value={addForm.branchId} onChange={(e) => setAddForm({ ...addForm, branchId: e.target.value })} required><option value="">Select Branch</option>{branches.map(b => <option key={b._id} value={b._id}>{b.branchName || b.name}</option>)}</select></div>
+
+          {(addForm.roleId === 'ROLE_MANAGER' || addForm.roleId === 'MANAGER') && (
+            <div>
+              <label className="text-sm">Allowed Branches (Multi-select)</label>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 4, maxHeight: 150, overflowY: 'auto', border: '1px solid #e2e8f0', padding: 8, borderRadius: 6 }}>
+                {branches.map(b => (
+                  <label key={b._id} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                    <input type="checkbox" checked={addForm.allowedBranches.includes(b._id)} onChange={() => toggleAllowedBranch('add', b._id)} />
+                    <span className="text-sm">{b.branchName || b.name}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }} className="modal-actions">
             <button className="btn-white" onClick={() => setOpenAdd(false)} type="button">Cancel</button>
@@ -321,12 +359,26 @@ export default function Users() {
       <Modal title="Edit User" open={openEdit} onClose={() => setOpenEdit(false)}>
         {editing && (
           <form style={{ display: 'flex', flexDirection: 'column', gap: 10 }} onSubmit={handleUpdateUser}>
-            <div><label className="text-sm">Username</label><input className="input" value={editForm.username} onChange={(e) => setEditForm({...editForm, username: e.target.value})} required /></div>
-            <div><label className="text-sm">Email</label><input className="input" type="email" value={editForm.email} onChange={(e) => setEditForm({...editForm, email: e.target.value})} required /></div>
-            <div><label className="text-sm">Phone Number</label><input className="input" value={editForm.phoneNumber} onChange={(e) => setEditForm({...editForm, phoneNumber: e.target.value})} /></div>
-            <div><label className="text-sm">Password (Optional)</label><input className="input" type="password" placeholder="Leave empty to keep current password" value={editForm.password || ''} onChange={(e) => setEditForm({...editForm, password: e.target.value})} /></div>
-            <div><label className="text-sm">Role</label><select className="input" value={editForm.roleId} onChange={(e) => setEditForm({...editForm, roleId: e.target.value})} required><option value="">Select Role</option>{roles.map(r => <option key={r._id} value={r.roleId}>{r.roleName}</option>)}</select></div>
-            <div><label className="text-sm">Branch</label><select className="input" value={editForm.branchId} onChange={(e) => setEditForm({...editForm, branchId: e.target.value})} required><option value="">Select Branch</option>{branches.map(b => <option key={b._id} value={b._id}>{b.branchName || b.name}</option>)}</select></div>
+            <div><label className="text-sm">Username</label><input className="input" value={editForm.username} onChange={(e) => setEditForm({ ...editForm, username: e.target.value })} required /></div>
+            <div><label className="text-sm">Email</label><input className="input" type="email" value={editForm.email} onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} required /></div>
+            <div><label className="text-sm">Phone Number</label><input className="input" value={editForm.phoneNumber} onChange={(e) => setEditForm({ ...editForm, phoneNumber: e.target.value })} /></div>
+            <div><label className="text-sm">Password (Optional)</label><input className="input" type="password" placeholder="Leave empty to keep current password" value={editForm.password || ''} onChange={(e) => setEditForm({ ...editForm, password: e.target.value })} /></div>
+            <div><label className="text-sm">Role</label><select className="input" value={editForm.roleId} onChange={(e) => setEditForm({ ...editForm, roleId: e.target.value })} required><option value="">Select Role</option>{roles.map(r => <option key={r._id} value={r.roleId}>{r.roleName}</option>)}</select></div>
+            <div><label className="text-sm">{editForm.roleId.includes('MANAGER') && !editForm.roleId.includes('BRANCH') ? 'Primary Branch' : 'Branch'}</label><select className="input" value={editForm.branchId} onChange={(e) => setEditForm({ ...editForm, branchId: e.target.value })} required><option value="">Select Branch</option>{branches.map(b => <option key={b._id} value={b._id}>{b.branchName || b.name}</option>)}</select></div>
+
+            {(editForm.roleId === 'ROLE_MANAGER' || editForm.roleId === 'MANAGER') && (
+              <div>
+                <label className="text-sm">Allowed Branches (Multi-select)</label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 4, maxHeight: 150, overflowY: 'auto', border: '1px solid #e2e8f0', padding: 8, borderRadius: 6 }}>
+                  {branches.map(b => (
+                    <label key={b._id} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                      <input type="checkbox" checked={editForm.allowedBranches.includes(b._id)} onChange={() => toggleAllowedBranch('edit', b._id)} />
+                      <span className="text-sm">{b.branchName || b.name}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }} className="modal-actions">
               <button className="btn-white" onClick={() => setOpenEdit(false)} type="button">Cancel</button>

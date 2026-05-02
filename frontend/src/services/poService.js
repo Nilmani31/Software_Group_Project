@@ -1,11 +1,12 @@
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+import { getAuthHeaders } from '../utils/authHeaders';
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5005/api';
 
 // Get all purchase orders
 export const getAllPOs = async (page = 1, limit = 100) => {
   try {
     const url = `${API_BASE_URL}/purchase-orders?page=${page}&limit=${limit}`;
     console.log('Fetching POs from:', url);
-    const response = await fetch(url);
+    const response = await fetch(url, { headers: getAuthHeaders() });
     const data = await response.json();
     if (!response.ok) {
       throw new Error(data.message || `HTTP ${response.status}: ${response.statusText}`);
@@ -20,7 +21,7 @@ export const getAllPOs = async (page = 1, limit = 100) => {
 // Get PO by ID
 export const getPOById = async (id) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/purchase-orders/${id}`);
+    const response = await fetch(`${API_BASE_URL}/purchase-orders/${id}`, { headers: getAuthHeaders() });
     if (!response.ok) throw new Error('Failed to fetch PO');
     return await response.json();
   } catch (error) {
@@ -32,7 +33,7 @@ export const getPOById = async (id) => {
 // Get POs by status
 export const getPOsByStatus = async (status) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/purchase-orders/status/${status}`);
+    const response = await fetch(`${API_BASE_URL}/purchase-orders/status/${status}`, { headers: getAuthHeaders() });
     const data = await response.json();
     if (!response.ok) {
       throw new Error(data.message || 'Failed to fetch POs by status');
@@ -47,7 +48,7 @@ export const getPOsByStatus = async (status) => {
 // Search POs
 export const searchPOs = async (query, type = 'all') => {
   try {
-    const response = await fetch(`${API_BASE_URL}/purchase-orders/search?query=${query}&type=${type}`);
+    const response = await fetch(`${API_BASE_URL}/purchase-orders/search?query=${query}&type=${type}`, { headers: getAuthHeaders() });
     const data = await response.json();
     if (!response.ok) {
       throw new Error(data.message || 'Failed to search POs');

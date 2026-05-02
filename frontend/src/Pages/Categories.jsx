@@ -17,11 +17,11 @@ export default function Categories() {
   const [openEdit, setOpenEdit] = useState(false);
   const [editing, setEditing] = useState(null);
   const [query, setQuery] = useState('');
-  
+
   // Add role form
   const [addForm, setAddForm] = useState({ name: '', desc: '' });
   const [editForm, setEditForm] = useState({ name: '', desc: '' });
-  
+
   // Add category form
   const [catAddForm, setCatAddForm] = useState({ name: '', desc: '' });
   const [catEditForm, setCatEditForm] = useState({ name: '', desc: '' });
@@ -36,17 +36,17 @@ export default function Categories() {
   // Fetch categories from database
   const fetchCategories = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/categories');
+      const response = await fetch('http://localhost:5005/api/categories');
       const data = await response.json(); // Backend returns array directly or { success: true, data: [] }? 
       // Based on my backend code: res.status(200).json(categories); -> It returns an array directly.
       if (Array.isArray(data)) {
-         const formattedData = data.map(item => ({
-             id: item._id, // Mongo ID
-             name: item.name,
-             desc: item.description,
-             items: 0 // Backend doesn't return count yet, defaulting to 0
-         }));
-         setList(formattedData);
+        const formattedData = data.map(item => ({
+          id: item._id, // Mongo ID
+          name: item.name,
+          desc: item.description,
+          items: 0 // Backend doesn't return count yet, defaulting to 0
+        }));
+        setList(formattedData);
       }
     } catch (err) {
       console.error('Error fetching categories:', err);
@@ -62,7 +62,7 @@ export default function Categories() {
     }
     setFormLoading(true);
     try {
-      const response = await fetch('http://localhost:5000/api/categories', {
+      const response = await fetch('http://localhost:5005/api/categories', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -71,7 +71,7 @@ export default function Categories() {
         })
       });
       const data = await response.json();
-      
+
       if (response.ok) {
         setCatAddForm({ name: '', desc: '' });
         setOpenAdd(false);
@@ -96,7 +96,7 @@ export default function Categories() {
     }
     setFormLoading(true);
     try {
-      const response = await fetch(`http://localhost:5000/api/categories/${editing.id}`, {
+      const response = await fetch(`http://localhost:5005/api/categories/${editing.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -105,7 +105,7 @@ export default function Categories() {
         })
       });
       const data = await response.json();
-      
+
       if (response.ok) {
         setOpenEdit(false);
         setEditing(null);
@@ -123,26 +123,26 @@ export default function Categories() {
 
   // Handle Delete Category
   const handleDeleteCategory = async (id) => {
-      try {
-        const response = await fetch(`http://localhost:5000/api/categories/${id}`, {
-          method: 'DELETE'
-        });
-        if (response.ok) {
-          fetchCategories();
-          alert('Category deleted successfully!');
-        } else {
-             const data = await response.json();
-             alert('Error: ' + (data.error || 'Failed to delete category'));
-        }
-      } catch (err) {
-        alert('Error deleting category: ' + err.message);
+    try {
+      const response = await fetch(`http://localhost:5005/api/categories/${id}`, {
+        method: 'DELETE'
+      });
+      if (response.ok) {
+        fetchCategories();
+        alert('Category deleted successfully!');
+      } else {
+        const data = await response.json();
+        alert('Error: ' + (data.error || 'Failed to delete category'));
       }
+    } catch (err) {
+      alert('Error deleting category: ' + err.message);
+    }
   };
 
   // Fetch roles from database
   const fetchRoles = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/roles');
+      const response = await fetch('http://localhost:5005/api/roles');
       const data = await response.json();
       if (data.success && data.data) {
         const formattedRoles = data.data.map(role => ({
@@ -168,7 +168,7 @@ export default function Categories() {
     }
     setFormLoading(true);
     try {
-      const response = await fetch('http://localhost:5000/api/roles', {
+      const response = await fetch('http://localhost:5005/api/roles', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -202,7 +202,7 @@ export default function Categories() {
     }
     setFormLoading(true);
     try {
-      const response = await fetch(`http://localhost:5000/api/roles/${editing.id}`, {
+      const response = await fetch(`http://localhost:5005/api/roles/${editing.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -230,7 +230,7 @@ export default function Categories() {
   const handleDeleteRole = async (id) => {
     if (window.confirm('Are you sure you want to delete this role?')) {
       try {
-        const response = await fetch(`http://localhost:5000/api/roles/${id}`, {
+        const response = await fetch(`http://localhost:5005/api/roles/${id}`, {
           method: 'DELETE'
         });
         const data = await response.json();
@@ -263,7 +263,7 @@ export default function Categories() {
                     <div className="inventory-search">
                       <div className="search-field">
                         <svg className="search-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                          <path fill="currentColor" d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0016 9.5 6.5 6.5 0 109.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79L20 21.49 21.49 20 15.5 14zM4 9.5C4 6.46 6.46 4 9.5 4S15 6.46 15 9.5 12.54 15 9.5 15 4 12.54 4 9.5z"/>
+                          <path fill="currentColor" d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0016 9.5 6.5 6.5 0 109.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79L20 21.49 21.49 20 15.5 14zM4 9.5C4 6.46 6.46 4 9.5 4S15 6.46 15 9.5 12.54 15 9.5 15 4 12.54 4 9.5z" />
                         </svg>
                         <input
                           type="search"
@@ -297,21 +297,21 @@ export default function Categories() {
                         <div className="category-card-header">
                           <Archive size={20} className="category-icon" />
                           <div className="category-actions">
-                            <button onClick={() => { 
+                            <button onClick={() => {
                               if (tab === 'user') {
                                 setEditForm({ name: item.name, desc: item.desc });
                               } else {
                                 setCatEditForm({ name: item.name, desc: item.desc });
                               }
-                              setEditing(item); 
-                              setOpenEdit(true); 
+                              setEditing(item);
+                              setOpenEdit(true);
                             }} className="icon-btn" aria-label="Edit">
                               <Edit2 size={16} />
                             </button>
-                            <button onClick={() => { 
+                            <button onClick={() => {
                               if (tab === 'inventory') {
                                 if (window.confirm('Are you sure you want to delete this category?')) {
-                                   handleDeleteCategory(item.id);
+                                  handleDeleteCategory(item.id);
                                 }
                               } else {
                                 handleDeleteRole(item.id);
@@ -346,11 +346,11 @@ export default function Categories() {
           <form style={{ display: 'flex', flexDirection: 'column', gap: 10 }} onSubmit={handleAddCategory}>
             <div>
               <label className="text-sm">Name</label>
-              <input className="input" placeholder="Enter name" value={catAddForm.name} onChange={(e) => setCatAddForm({...catAddForm, name: e.target.value})} required />
+              <input className="input" placeholder="Enter name" value={catAddForm.name} onChange={(e) => setCatAddForm({ ...catAddForm, name: e.target.value })} required />
             </div>
             <div>
               <label className="text-sm">Description</label>
-              <textarea className="input" style={{ height: 80 }} placeholder="Enter description" value={catAddForm.desc} onChange={(e) => setCatAddForm({...catAddForm, desc: e.target.value})} />
+              <textarea className="input" style={{ height: 80 }} placeholder="Enter description" value={catAddForm.desc} onChange={(e) => setCatAddForm({ ...catAddForm, desc: e.target.value })} />
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }} className="modal-actions">
               <button className="btn-white" onClick={() => setOpenAdd(false)} type="button">Cancel</button>
@@ -361,11 +361,11 @@ export default function Categories() {
           <form style={{ display: 'flex', flexDirection: 'column', gap: 10 }} onSubmit={handleAddRole}>
             <div>
               <label className="text-sm">Role Name</label>
-              <input className="input" placeholder="e.g. ADMIN, MANAGER" value={addForm.name} onChange={(e) => setAddForm({...addForm, name: e.target.value})} required />
+              <input className="input" placeholder="e.g. ADMIN, MANAGER" value={addForm.name} onChange={(e) => setAddForm({ ...addForm, name: e.target.value })} required />
             </div>
             <div>
               <label className="text-sm">Description</label>
-              <textarea className="input" style={{ height: 80 }} placeholder="Enter role description" value={addForm.desc} onChange={(e) => setAddForm({...addForm, desc: e.target.value})} />
+              <textarea className="input" style={{ height: 80 }} placeholder="Enter role description" value={addForm.desc} onChange={(e) => setAddForm({ ...addForm, desc: e.target.value })} />
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }} className="modal-actions">
               <button className="btn-white" onClick={() => setOpenAdd(false)} type="button">Cancel</button>
@@ -381,11 +381,11 @@ export default function Categories() {
             <form style={{ display: 'flex', flexDirection: 'column', gap: 10 }} onSubmit={handleUpdateCategory}>
               <div>
                 <label className="text-sm">Name</label>
-                <input className="input" value={catEditForm.name} onChange={(e) => setCatEditForm({...catEditForm, name: e.target.value})} required />
+                <input className="input" value={catEditForm.name} onChange={(e) => setCatEditForm({ ...catEditForm, name: e.target.value })} required />
               </div>
               <div>
                 <label className="text-sm">Description</label>
-                <textarea className="input" value={catEditForm.desc} onChange={(e) => setCatEditForm({...catEditForm, desc: e.target.value})} style={{ height: 80 }} />
+                <textarea className="input" value={catEditForm.desc} onChange={(e) => setCatEditForm({ ...catEditForm, desc: e.target.value })} style={{ height: 80 }} />
               </div>
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }} className="modal-actions">
                 <button className="btn-white" onClick={() => setOpenEdit(false)} type="button">Cancel</button>
@@ -396,11 +396,11 @@ export default function Categories() {
             <form style={{ display: 'flex', flexDirection: 'column', gap: 10 }} onSubmit={handleUpdateRole}>
               <div>
                 <label className="text-sm">Role Name</label>
-                <input className="input" value={editForm.name} onChange={(e) => setEditForm({...editForm, name: e.target.value})} required />
+                <input className="input" value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} required />
               </div>
               <div>
                 <label className="text-sm">Description</label>
-                <textarea className="input" style={{ height: 80 }} value={editForm.desc} onChange={(e) => setEditForm({...editForm, desc: e.target.value})} />
+                <textarea className="input" style={{ height: 80 }} value={editForm.desc} onChange={(e) => setEditForm({ ...editForm, desc: e.target.value })} />
               </div>
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }} className="modal-actions">
                 <button className="btn-white" onClick={() => setOpenEdit(false)} type="button">Cancel</button>

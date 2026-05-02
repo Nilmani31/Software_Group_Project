@@ -79,6 +79,7 @@ exports.createUser = async (req, res) => {
       role: roleValue,
       roleId,
       branchId,
+      allowedBranches: req.body.allowedBranches || [],
       phoneNumber,
       email,
       createdBy
@@ -193,6 +194,7 @@ exports.login = async (req, res) => {
       email: user.email,
       roleId: user.roleId,
       branchId: user.branchId,
+      allowedBranches: user.allowedBranches || [],
       phoneNumber: user.phoneNumber,
       status: user.status,
       lastLoginAt: user.lastLoginAt

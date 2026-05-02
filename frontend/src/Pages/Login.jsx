@@ -13,10 +13,10 @@ const LoginPage = () => {
     e.preventDefault();
     setLoading(true);
     setError('');
-    
+
     try {
       // Send login request to backend
-      const response = await fetch('http://localhost:5000/api/users/login', {
+      const response = await fetch('http://localhost:5005/api/users/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -37,7 +37,8 @@ const LoginPage = () => {
         localStorage.setItem('roleId', data.user.roleId);
         localStorage.setItem('branchId', data.user.branchId);
         localStorage.setItem('email', data.user.email);
-        
+        localStorage.setItem('allowedBranches', JSON.stringify(data.user.allowedBranches || []));
+
         // Navigate to dashboard
         navigate('/dashboard');
       } else {
@@ -54,24 +55,24 @@ const LoginPage = () => {
   return (
     <div className="login-container">
       <div className="login-card">
-        
+
         <div className="logo-section">
           <div className="logo-circle">
             <div className="logo-placeholder">
-              
-              <img src="/logo.jpg" alt="CBBS Logo" className='logo-placeholder'/>
-              
+
+              <img src="/logo.jpg" alt="CBBS Logo" className='logo-placeholder' />
+
             </div>
           </div>
         </div>
-        
-       
+
+
         <div className="form-section">
           <h1 className="system-title">CBBS Inventory System</h1>
           <h2 className="school-name">Colombo Bartender & Barista School</h2>
-          
+
           {error && <div className="error-message">{error}</div>}
-          
+
           <form onSubmit={handleSubmit} className="login-form">
             <div className="form-group">
               <label htmlFor="username">Username</label>
@@ -83,7 +84,7 @@ const LoginPage = () => {
                 required
               />
             </div>
-            
+
             <div className="form-group">
               <label htmlFor="password">Password</label>
               <input
@@ -94,7 +95,7 @@ const LoginPage = () => {
                 required
               />
             </div>
-            
+
             <button type="submit" className="login-button" disabled={loading}>
               {loading ? 'Logging in...' : 'Login'}
             </button>

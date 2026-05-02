@@ -36,6 +36,9 @@ const userSchema = new mongoose.Schema({
     required: true,
     default: 'MAIN_BRANCH'
   },
+  allowedBranches: [{
+    type: String
+  }],
   phoneNumber: {
     type: String,
     required: true,

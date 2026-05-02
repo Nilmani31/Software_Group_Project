@@ -5,7 +5,7 @@ async function testConnection() {
 
   try {
     console.log('1. Testing health endpoint...');
-    const response = await axios.get('http://localhost:8000/health', { timeout: 5000 });
+    const response = await axios.get('http://localhost:8000/health', { timeout: 5005 });
     console.log('✅ Connected to ML service!');
     console.log('   Response:', response.data);
   } catch (error) {

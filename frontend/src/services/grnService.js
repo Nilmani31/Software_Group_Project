@@ -1,11 +1,12 @@
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+import { getAuthHeaders } from '../utils/authHeaders';
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5005/api';
 
 // Get all GRNs
 export const getAllGRNs = async (page = 1, limit = 10) => {
   try {
     const url = `${API_BASE_URL}/goods-received?page=${page}&limit=${limit}`;
     console.log('Fetching GRNs from:', url);
-    const response = await fetch(url);
+    const response = await fetch(url, { headers: getAuthHeaders() });
     const data = await response.json();
     if (!response.ok) {
       throw new Error(data.message || `HTTP ${response.status}: ${response.statusText}`);
@@ -20,7 +21,7 @@ export const getAllGRNs = async (page = 1, limit = 10) => {
 // Get single GRN by ID
 export const getGRNById = async (id) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/goods-received/${id}`);
+    const response = await fetch(`${API_BASE_URL}/goods-received/${id}`, { headers: getAuthHeaders() });
     if (!response.ok) throw new Error('Failed to fetch GRN');
     return await response.json();
   } catch (error) {
@@ -36,9 +37,7 @@ export const createGRN = async (grnData) => {
     console.log('Creating GRN with data:', grnData);
     const response = await fetch(url, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: getAuthHeaders(),
       body: JSON.stringify(grnData),
     });
     
@@ -67,9 +66,7 @@ export const updateGRN = async (id, grnData) => {
   try {
     const response = await fetch(`${API_BASE_URL}/goods-received/${id}`, {
       method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: getAuthHeaders(),
       body: JSON.stringify(grnData),
     });
     if (!response.ok) throw new Error('Failed to update GRN');
@@ -85,6 +82,7 @@ export const deleteGRN = async (id) => {
   try {
     const response = await fetch(`${API_BASE_URL}/goods-received/${id}`, {
       method: 'DELETE',
+      headers: getAuthHeaders()
     });
     if (!response.ok) throw new Error('Failed to delete GRN');
     return await response.json();
@@ -97,7 +95,7 @@ export const deleteGRN = async (id) => {
 // Get GRNs by PO number
 export const getGRNsByPONumber = async (poNumber) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/goods-received/po/${poNumber}`);
+    const response = await fetch(`${API_BASE_URL}/goods-received/po/${poNumber}`, { headers: getAuthHeaders() });
     if (!response.ok) throw new Error('Failed to fetch GRNs');
     return await response.json();
   } catch (error) {
@@ -109,7 +107,7 @@ export const getGRNsByPONumber = async (poNumber) => {
 // Get GRN summary
 export const getGRNSummary = async () => {
   try {
-    const response = await fetch(`${API_BASE_URL}/goods-received/summary/report`);
+    const response = await fetch(`${API_BASE_URL}/goods-received/summary/report`, { headers: getAuthHeaders() });
     if (!response.ok) throw new Error('Failed to fetch summary');
     return await response.json();
   } catch (error) {
@@ -122,7 +120,8 @@ export const getGRNSummary = async () => {
 export const searchGRNs = async (query, type = 'all') => {
   try {
     const response = await fetch(
-      `${API_BASE_URL}/goods-received/search?query=${query}&type=${type}`
+      `${API_BASE_URL}/goods-received/search?query=${query}&type=${type}`,
+      { headers: getAuthHeaders() }
     );
     if (!response.ok) throw new Error('Failed to search GRNs');
     return await response.json();
