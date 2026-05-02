@@ -23,17 +23,60 @@ exports.getAllUsers = async (req, res) => {
 // CREATE USER
 exports.createUser = async (req, res) => {
   try {
-    const { username, roleId, branchId, phoneNumber, email, createdBy } = req.body;
+    console.log('=== CREATE USER START ===');
+    console.log('req.body:', req.body);
+    console.log('req.body keys:', Object.keys(req.body));
+    
+    const { username, roleId, branchId, phoneNumber, email, password, createdBy } = req.body;
+    
+    console.log('Destructured values:');
+    console.log('  username:', username);
+    console.log('  roleId:', roleId);
+    console.log('  branchId:', branchId);
+    console.log('  phoneNumber:', phoneNumber);
+    console.log('  email:', email);
+    console.log('  password:', password, '(type:', typeof password, ', length:', password ? password.length : 'N/A', ')');
+    console.log('  createdBy:', createdBy);
 
- 
-    const autoPassword = generatePasswordByRole(roleId);
+    // Use provided password or generate one
+    let finalPassword;
+    
+    if (password) {
+      console.log('Password provided by user');
+      const trimmed = String(password).trim();
+      console.log('After trim:', trimmed, '(length:', trimmed.length, ')');
+      if (trimmed.length > 0) {
+        finalPassword = trimmed;
+        console.log('Using user password');
+      } else {
+        finalPassword = generatePasswordByRole(roleId);
+        console.log('Generated password (empty provided)');
+      }
+    } else {
+      finalPassword = generatePasswordByRole(roleId);
+      console.log('Generated password (no password provided)');
+    }
+    
+    console.log('Final password before bcrypt:', finalPassword ? '***' : 'EMPTY', '(type:', typeof finalPassword, ')');
 
-    const hashedPassword = await bcrypt.hash(autoPassword, 10);
+    // Validate password exists
+    if (!finalPassword || typeof finalPassword !== 'string' || finalPassword.length === 0) {
+      console.log('ERROR: finalPassword is invalid');
+      return res.status(400).json({ error: 'Password is invalid: ' + JSON.stringify({finalPassword, type: typeof finalPassword}) });
+    }
 
+    console.log('Calling bcrypt.hash...');
+    const hashedPassword = await bcrypt.hash(finalPassword, 10);
+    
+    console.log('Password hashed successfully');
+
+    // Map roleId to role (remove ROLE_ prefix if present)
+    const roleValue = roleId.startsWith('ROLE_') ? roleId.substring(5) : roleId;
+    
     const newUser = await User.create({
       username,
       password: hashedPassword,
-      role: roleId,
+      role: roleValue,
       roleId,
       branchId,
       phoneNumber,
@@ -41,15 +84,22 @@ exports.createUser = async (req, res) => {
       createdBy
     });
 
+    console.log('User created successfully:', newUser._id);
+
     res.status(201).json({
       message: "User created successfully",
       userId: newUser.userId,
       username: newUser.username,
       role: newUser.role,
       roleId: newUser.roleId,
-      password: autoPassword   
+      password: finalPassword   
     });
   } catch (err) {
+    console.error('=== ERROR IN CREATE USER ===');
+    console.error('Error message:', err.message);
+    console.error('Error stack:', err.stack);
+    console.error('Error code:', err.code);
+    console.error('Full error:', err);
     res.status(400).json({ error: err.message });
   }
 };
@@ -58,8 +108,12 @@ exports.updateUser = async (req, res) => {
   try {
     const data = req.body;
 
-    if (data.password) {
+    // Only hash password if it's provided and not empty
+    if (data.password && data.password.trim() !== '') {
       data.password = await bcrypt.hash(data.password, 10);
+    } else {
+      // Remove password from update if it's empty to keep existing password
+      delete data.password;
     }
 
     const updated = await User.findByIdAndUpdate(req.params.id, data, { new: true });

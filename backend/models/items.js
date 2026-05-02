@@ -15,18 +15,14 @@ const itemSchema = new mongoose.Schema({
 	},
 	sku: {
 		type: String,
+		required: true,
 		unique: true,
-		sparse: true,
-		default: null
+		sparse: true
 	},
 	barcode: {
 		type: String,
-		required: true,
-		unique: true,
-		default: function() {
-			// Generate a unique 12-digit numeric barcode
-			return Math.floor(100000000000 + Math.random() * 900000000000).toString();
-		}
+		required: false,
+		default: null
 	},
 	name: {
 		type: String,

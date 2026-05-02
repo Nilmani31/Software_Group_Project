@@ -7,9 +7,13 @@ import ChatAssistant from '../Components/ChatAssistant';
 import './Users.css';
 import './Inventory.css';
 
+// Default password length
+const DEFAULT_PASSWORD_LENGTH = 12;
+
 export default function Users() {
   const [list, setList] = useState([]);
   const [roles, setRoles] = useState([]);
+  const [branches, setBranches] = useState([]);
   const [loading, setLoading] = useState(true);
   const [openAdd, setOpenAdd] = useState(false);
   const [openEdit, setOpenEdit] = useState(false);
@@ -17,7 +21,7 @@ export default function Users() {
   const [query, setQuery] = useState('');
   
   // Add user form state
-  const [addForm, setAddForm] = useState({ username: '', email: '', phoneNumber: '', roleId: 'STAFF', branchId: 'MAIN_BRANCH' });
+  const [addForm, setAddForm] = useState({ username: '', email: '', phoneNumber: '', password: '', roleId: 'STAFF', branchId: 'MAIN_BRANCH' });
   const [addLoading, setAddLoading] = useState(false);
 
   // Edit user form state
@@ -27,13 +31,14 @@ export default function Users() {
   // Fetch users and roles from backend
   useEffect(() => {
     fetchRoles();
+    fetchBranches();
     fetchUsers();
   }, []);
 
   // Fetch roles from database
   const fetchRoles = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/roles');
+      const response = await fetch('http://localhost:5005/api/roles');
       const data = await response.json();
       if (data.success && data.data) {
         setRoles(data.data);
@@ -43,9 +48,37 @@ export default function Users() {
     }
   };
 
+  // Fetch branches from database
+  const fetchBranches = async () => {
+    try {
+      const response = await fetch('http://localhost:5005/api/branches');
+      const data = await response.json();
+      const branchesArray = Array.isArray(data) ? data : (data.data ? data.data : []);
+      if (Array.isArray(branchesArray)) {
+        setBranches(branchesArray);
+        // Set first branch as default
+        if (branchesArray.length > 0) {
+          setAddForm(prev => ({ ...prev, branchId: branchesArray[0]._id }));
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching branches:', err);
+    }
+  };
+
+  // Generate random password
+  const generatePassword = () => {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*';
+    let password = '';
+    for (let i = 0; i < DEFAULT_PASSWORD_LENGTH; i++) {
+      password += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    setAddForm({ ...addForm, password });
+  };
+
   const fetchUsers = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/users');
+      const response = await fetch('http://localhost:5005/api/users');
       const data = await response.json();
       if (data.success && data.data) {
         // Transform database users to match display format
@@ -71,26 +104,41 @@ export default function Users() {
     e.preventDefault();
     setAddLoading(true);
     try {
-      const response = await fetch('http://localhost:5000/api/users/create', {
+      const requestBody = {
+        username: addForm.username,
+        email: addForm.email,
+        phoneNumber: addForm.phoneNumber,
+        password: addForm.password,
+        roleId: addForm.roleId,
+        branchId: addForm.branchId,
+        createdBy: localStorage.getItem('username') || 'System'
+      };
+      
+      console.log('=== SENDING ADD USER REQUEST ===');
+      console.log('Request body:', { ...requestBody, password: requestBody.password ? '***' : 'EMPTY' });
+      console.log('Password value:', requestBody.password);
+      console.log('Password type:', typeof requestBody.password);
+      console.log('Password length:', requestBody.password ? requestBody.password.length : 0);
+      
+      const response = await fetch('http://localhost:5005/api/users/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          username: addForm.username,
-          email: addForm.email,
-          phoneNumber: addForm.phoneNumber,
-          roleId: addForm.roleId,
-          branchId: addForm.branchId,
-          createdBy: localStorage.getItem('username') || 'System'
-        })
+        body: JSON.stringify(requestBody)
       });
       const data = await response.json();
+      
+      console.log('Response status:', response.status);
+      console.log('Response data:', data);
+      
       if (data.message) {
         alert('User created successfully! Password: ' + data.password);
-        setAddForm({ username: '', email: '', phoneNumber: '', roleId: 'STAFF', branchId: 'MAIN_BRANCH' });
+        setAddForm({ username: '', email: '', phoneNumber: '', password: '', roleId: 'STAFF', branchId: 'MAIN_BRANCH' });
         setOpenAdd(false);
         fetchUsers(); // Refresh list
       } else {
-        alert('Error: ' + (data.error || 'Failed to create user'));
+        const errorMsg = data.error || 'Failed to create user';
+        console.error('Backend error:', errorMsg);
+        alert('Error: ' + errorMsg);
       }
     } catch (err) {
       alert('Error creating user: ' + err.message);
@@ -103,7 +151,7 @@ export default function Users() {
   const handleDeleteUser = async (userId) => {
     if (!window.confirm('Delete this user?')) return;
     try {
-      const response = await fetch(`http://localhost:5000/api/users/${userId}`, {
+      const response = await fetch(`http://localhost:5005/api/users/${userId}`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' }
       });
@@ -137,7 +185,7 @@ export default function Users() {
     e.preventDefault();
     setEditLoading(true);
     try {
-      const response = await fetch(`http://localhost:5000/api/users/${editing.id}`, {
+      const response = await fetch(`http://localhost:5005/api/users/${editing.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -256,8 +304,12 @@ export default function Users() {
           <div><label className="text-sm">Username</label><input className="input" placeholder="e.g. john_doe" value={addForm.username} onChange={(e) => setAddForm({...addForm, username: e.target.value})} required /></div>
           <div><label className="text-sm">Email</label><input className="input" type="email" placeholder="e.g. john@company.com" value={addForm.email} onChange={(e) => setAddForm({...addForm, email: e.target.value})} required /></div>
           <div><label className="text-sm">Phone Number</label><input className="input" placeholder="e.g. 0712345678" value={addForm.phoneNumber} onChange={(e) => setAddForm({...addForm, phoneNumber: e.target.value})} required /></div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+            <div style={{ flex: 1 }}><label className="text-sm">Password</label><input className="input" type="password" placeholder="Leave empty to auto-generate" value={addForm.password} onChange={(e) => setAddForm({...addForm, password: e.target.value})} /></div>
+            <button type="button" className="btn-white" onClick={generatePassword} style={{ padding: '8px 16px' }}>Generate</button>
+          </div>
           <div><label className="text-sm">Role</label><select className="input" value={addForm.roleId} onChange={(e) => setAddForm({...addForm, roleId: e.target.value})} required><option value="">Select Role</option>{roles.map(r => <option key={r._id} value={r.roleId}>{r.roleName}</option>)}</select></div>
-          <div><label className="text-sm">Branch</label><input className="input" placeholder="e.g. MAIN_BRANCH" value={addForm.branchId} onChange={(e) => setAddForm({...addForm, branchId: e.target.value})} required /></div>
+          <div><label className="text-sm">Branch</label><select className="input" value={addForm.branchId} onChange={(e) => setAddForm({...addForm, branchId: e.target.value})} required><option value="">Select Branch</option>{branches.map(b => <option key={b._id} value={b._id}>{b.branchName || b.name}</option>)}</select></div>
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }} className="modal-actions">
             <button className="btn-white" onClick={() => setOpenAdd(false)} type="button">Cancel</button>
@@ -272,8 +324,9 @@ export default function Users() {
             <div><label className="text-sm">Username</label><input className="input" value={editForm.username} onChange={(e) => setEditForm({...editForm, username: e.target.value})} required /></div>
             <div><label className="text-sm">Email</label><input className="input" type="email" value={editForm.email} onChange={(e) => setEditForm({...editForm, email: e.target.value})} required /></div>
             <div><label className="text-sm">Phone Number</label><input className="input" value={editForm.phoneNumber} onChange={(e) => setEditForm({...editForm, phoneNumber: e.target.value})} /></div>
+            <div><label className="text-sm">Password (Optional)</label><input className="input" type="password" placeholder="Leave empty to keep current password" value={editForm.password || ''} onChange={(e) => setEditForm({...editForm, password: e.target.value})} /></div>
             <div><label className="text-sm">Role</label><select className="input" value={editForm.roleId} onChange={(e) => setEditForm({...editForm, roleId: e.target.value})} required><option value="">Select Role</option>{roles.map(r => <option key={r._id} value={r.roleId}>{r.roleName}</option>)}</select></div>
-            <div><label className="text-sm">Branch</label><input className="input" value={editForm.branchId} onChange={(e) => setEditForm({...editForm, branchId: e.target.value})} required /></div>
+            <div><label className="text-sm">Branch</label><select className="input" value={editForm.branchId} onChange={(e) => setEditForm({...editForm, branchId: e.target.value})} required><option value="">Select Branch</option>{branches.map(b => <option key={b._id} value={b._id}>{b.branchName || b.name}</option>)}</select></div>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }} className="modal-actions">
               <button className="btn-white" onClick={() => setOpenEdit(false)} type="button">Cancel</button>

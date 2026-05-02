@@ -155,7 +155,7 @@ const ChatAssistant = () => {
 
     try {
       // Call Node.js backend NLP service
-      const response = await fetch('http://localhost:5000/api/chat/send-message', {
+      const response = await fetch('http://localhost:5005/api/chat/send-message', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userMessage: inputMessage })
@@ -190,7 +190,7 @@ const ChatAssistant = () => {
       
       const errorMsg = {
         id: Date.now() + 1,
-        text: '⚠️ Chat service is not running. Make sure Node.js backend is running on port 5000.',
+        text: '⚠️ Chat service is not running. Make sure Node.js backend is running on port 5005.',
         sender: 'ai',
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       };

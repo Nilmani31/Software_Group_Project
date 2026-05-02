@@ -27,7 +27,7 @@ Qdrant Vector Database (Port 6333)
 
 - **Python 3.10+** (Tested on Python 3.10, 3.11)
 - **Qdrant vector database** running on `http://localhost:6333`
-- **Node.js backend** running on `http://localhost:5000`
+- **Node.js backend** running on `http://localhost:5005`
 
 ---
 
