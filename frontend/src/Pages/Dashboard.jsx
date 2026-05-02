@@ -33,7 +33,7 @@ const Dashboard = () => {
   useEffect(() => {
     fetchStats();
     // Poll every 15 seconds for real-time updates
-    const interval = setInterval(fetchStats, 15000);
+    const interval = setInterval(fetchStats, 15005);
     return () => clearInterval(interval);
   }, []);
 
