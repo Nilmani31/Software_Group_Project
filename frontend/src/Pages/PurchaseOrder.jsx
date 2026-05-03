@@ -121,7 +121,7 @@ export default function PurchaseOrder() {
     const fetchData = async () => {
       try {
         // Fetch branches
-        const branchRes = await fetch('http://localhost:5000/api/branches');
+        const branchRes = await fetch('http://localhost:5005/api/branches');
         const branchResult = await branchRes.json();
         let branchData = [];
         if (branchResult.success && Array.isArray(branchResult.data)) {
@@ -152,21 +152,21 @@ export default function PurchaseOrder() {
         }
 
         // Fetch categories
-        const catRes = await fetch('http://localhost:5000/api/categories');
+        const catRes = await fetch('http://localhost:5005/api/categories');
         const catData = await catRes.json();
         if (Array.isArray(catData)) {
           setCategories(catData);
         }
 
         // Fetch items with stock
-        const itemRes = await fetch('http://localhost:5000/api/items');
+        const itemRes = await fetch('http://localhost:5005/api/items');
         const itemData = await itemRes.json();
         if (Array.isArray(itemData)) {
           setItemsWithStock(itemData);
         }
 
         // Fetch purchase orders from backend
-        const poRes = await fetch('http://localhost:5000/api/purchase-orders');
+        const poRes = await fetch('http://localhost:5005/api/purchase-orders');
         const poData = await poRes.json();
         if (poData.success && Array.isArray(poData.data)) {
           setPos(poData.data);
@@ -380,7 +380,7 @@ export default function PurchaseOrder() {
 
     try {
       // Send PO to backend API
-      const response = await fetch('http://localhost:5000/api/purchase-orders', {
+      const response = await fetch('http://localhost:5005/api/purchase-orders', {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify(newPO)
@@ -1201,67 +1201,70 @@ export default function PurchaseOrder() {
                     reason: cancelForm.reason
                   }
                 }
-              }
               
               try {
                 // Send cancel request to backend API
-                const response = await fetch(`http://localhost:5000/api/purchase-orders/${selected.poNumber}/cancel`, {
-                  method: 'PATCH',
-                  headers: {
-                    'Content-Type': 'application/json'
+                const response= await fetch(`http://localhost:5005/api/purchase-orders/${selected.poNumber}/cancel`, {
+                method: 'PATCH',
+              headers: {
+                'Content-Type': 'application/json'
                   },
-                  body: JSON.stringify(updated.deleted)
+              body: JSON.stringify(updated.deleted)
                 })
-                
-                const result = await response.json()
-                
-                if (result.success) {
-                  // Update the PO list
-                  setPos(prev => prev.map(p => (p.poNumber === selected.poNumber || p.id === selected.id) ? updated : p))
+
+              const result = await response.json()
+
+              if (result.success) {
+                // Update the PO list
+                setPos(prev => prev.map(p => (p.poNumber === selected.poNumber || p.id === selected.id) ? updated : p))
                   
                   // Update selected reference
                   setSelected(updated)
-                  
-                  alert('Purchase Order cancelled successfully')
-                  
-                  // Close the cancel modal
-                  setOpenCancel(false)
+
+              alert('Purchase Order cancelled successfully')
+
+              // Close the cancel modal
+              setOpenCancel(false)
                 } else {
                   alert('Error cancelling purchase order: ' + (result.message || 'Unknown error'))
                 }
-              }} className="modal-form-inventory">
-                <div className="form-layout-inventory">
-                  <div className="form-group-inventory">
-                    <label className="form-label-inventory">Deleted By</label>
-                    <input className="form-input-inventory" value={cancelForm.deletedBy} onChange={e => updateCancelForm('deletedBy', e.target.value)} placeholder="Type name here" aria-invalid={!!cancelErrors.deletedBy} />
-                    {cancelErrors.deletedBy && <div className="field-error">{cancelErrors.deletedBy}</div>}
-                  </div>
-                  <div className="form-group-inventory">
-                    <label className="form-label-inventory">Branch Name</label>
-                    <input className="form-input-inventory" type="text" value={cancelForm.branchName} readOnly placeholder="Auto-filled" aria-invalid={!!cancelErrors.branchName} />
-                    {cancelErrors.branchName && <div className="field-error">{cancelErrors.branchName}</div>}
-                  </div>
-                  <div className="form-group-inventory">
-                    <label className="form-label-inventory">Deleted Date</label>
-                    <input className="form-input-inventory" type="date" value={cancelForm.deletedDate} onChange={e => updateCancelForm('deletedDate', e.target.value)} aria-invalid={!!cancelErrors.deletedDate} />
-                    {cancelErrors.deletedDate && <div className="field-error">{cancelErrors.deletedDate}</div>}
-                  </div>
+              } catch (error) {
+                console.error('Error:', error)
+                alert('Error cancelling purchase order: ' + error.message)
+              }
+            }} className="modal-form-inventory">
+              <div className="form-layout-inventory">
+                <div className="form-group-inventory">
+                  <label className="form-label-inventory">Deleted By</label>
+                  <input className="form-input-inventory" value={cancelForm.deletedBy} onChange={e => updateCancelForm('deletedBy', e.target.value)} placeholder="Type name here" aria-invalid={!!cancelErrors.deletedBy} />
+                  {cancelErrors.deletedBy && <div className="field-error">{cancelErrors.deletedBy}</div>}
                 </div>
                 <div className="form-group-inventory">
-                  <label className="form-label-inventory">Reason</label>
-                  <textarea className="form-input-inventory" rows="5" value={cancelForm.reason} onChange={e => updateCancelForm('reason', e.target.value)} placeholder="" aria-invalid={!!cancelErrors.reason} />
-                  {cancelErrors.reason && <div className="field-error">{cancelErrors.reason}</div>}
+                  <label className="form-label-inventory">Branch Name</label>
+                  <input className="form-input-inventory" type="text" value={cancelForm.branchName} readOnly placeholder="Auto-filled" aria-invalid={!!cancelErrors.branchName} />
+                  {cancelErrors.branchName && <div className="field-error">{cancelErrors.branchName}</div>}
                 </div>
-                <div className="modal-footer-inventory">
-                  <button type="submit" className="modal-btn-inventory submit danger">Confirm and Inform</button>
-                  <button type="button" className="modal-btn-inventory cancel" onClick={() => { setOpenCancel(false); setOpenView(true) }}>View Details</button>
-                  <button type="button" className="modal-btn-inventory cancel" onClick={() => setOpenCancel(false)}>Close</button>
+                <div className="form-group-inventory">
+                  <label className="form-label-inventory">Deleted Date</label>
+                  <input className="form-input-inventory" type="date" value={cancelForm.deletedDate} onChange={e => updateCancelForm('deletedDate', e.target.value)} aria-invalid={!!cancelErrors.deletedDate} />
+                  {cancelErrors.deletedDate && <div className="field-error">{cancelErrors.deletedDate}</div>}
                 </div>
-              </form>
-            </div>
+              </div>
+              <div className="form-group-inventory">
+                <label className="form-label-inventory">Reason</label>
+                <textarea className="form-input-inventory" rows="5" value={cancelForm.reason} onChange={e => updateCancelForm('reason', e.target.value)} placeholder="" aria-invalid={!!cancelErrors.reason} />
+                {cancelErrors.reason && <div className="field-error">{cancelErrors.reason}</div>}
+              </div>
+              <div className="modal-footer-inventory">
+                <button type="submit" className="modal-btn-inventory submit danger">Confirm and Inform</button>
+                <button type="button" className="modal-btn-inventory cancel" onClick={() => { setOpenCancel(false); setOpenView(true) }}>View Details</button>
+                <button type="button" className="modal-btn-inventory cancel" onClick={() => setOpenCancel(false)}>Close</button>
+              </div>
+            </form>
           </div>
         </div>
-      )}
+      </div>
+    )}
 
       {/* Chat Assistant */}
       <ChatAssistant />

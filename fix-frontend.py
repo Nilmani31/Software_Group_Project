@@ -17,7 +17,7 @@ content = content.replace(
 # 2. Replace relative API paths with full URLs
 content = content.replace(
     "const endpoint = useTestEndpoint ? '/api/image-search/test' : '/api/image-search/search';",
-    "const endpoint = useTestEndpoint ? 'http://localhost:5000/api/image-search/test' : 'http://localhost:5000/api/image-search/search';"
+    "const endpoint = useTestEndpoint ? 'http://localhost:5005/api/image-search/test' : 'http://localhost:5005/api/image-search/search';"
 )
 
 # Write the file back

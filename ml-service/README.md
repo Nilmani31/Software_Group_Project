@@ -9,7 +9,7 @@ FastAPI-based machine learning service for the **Barista & Bartender Training Sc
 ```
 React Frontend
      ↓
-Node.js Backend (Express) — Port 5000
+Node.js Backend (Express) — Port 5005
      ↓
 FastAPI ML Service — Port 8000
      ↓

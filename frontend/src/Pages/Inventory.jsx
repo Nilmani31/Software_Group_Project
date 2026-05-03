@@ -104,7 +104,7 @@ const Inventory = () => {
   // Fetch items from database
   const fetchItems = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/items');
+      const response = await fetch('http://localhost:5005/api/items');
       const data = await response.json();
       setItems(Array.isArray(data) ? data : []);
       setLoading(false);
@@ -117,7 +117,7 @@ const Inventory = () => {
   // Fetch categories from database
   const fetchCategories = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/categories');
+      const response = await fetch('http://localhost:5005/api/categories');
       const data = await response.json();
       if (Array.isArray(data)) {
         setCategories(data); // Store full objects
@@ -136,7 +136,7 @@ const Inventory = () => {
   // Fetch branches from database
   const fetchBranches = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/branches');
+      const response = await fetch('http://localhost:5005/api/branches');
       const data = await response.json();
       // Handle both array and { success, data } response formats
       const branchesArray = Array.isArray(data) ? data : (data.data ? data.data : []);
@@ -163,7 +163,7 @@ const Inventory = () => {
   // Fetch stock data for a specific item
   const fetchStockData = async (itemId) => {
     try {
-      const response = await fetch(`http://localhost:5000/api/items/stock/${itemId}`);
+      const response = await fetch(`http://localhost:5005/api/items/stock/${itemId}`);
       if (response.ok) {
         const data = await response.json();
         console.log('Stock data fetched:', data);
@@ -303,7 +303,7 @@ const Inventory = () => {
 
     setSubmitLoading(true);
     try {
-      const response = await fetch('http://localhost:5000/api/items', {
+      const response = await fetch('http://localhost:5005/api/items', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -396,7 +396,7 @@ const Inventory = () => {
   const handleDeleteItem = async () => {
     if (window.confirm(`Are you sure you want to delete ${selectedItem.name}?`)) {
       try {
-        const response = await fetch(`http://localhost:5000/api/items/${selectedItem._id}`, {
+        const response = await fetch(`http://localhost:5005/api/items/${selectedItem._id}`, {
           method: 'DELETE'
         });
         const result = await response.json();
@@ -480,7 +480,7 @@ const Inventory = () => {
     setSubmitLoading(true);
     try {
       // First, update the item
-      const response = await fetch(`http://localhost:5000/api/items/${selectedItem._id}`, {
+      const response = await fetch(`http://localhost:5005/api/items/${selectedItem._id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -502,7 +502,7 @@ const Inventory = () => {
         // Now save the stock quantities for each branch
         if (editableStockData && editableStockData.length > 0) {
           for (const stock of editableStockData) {
-            await fetch(`http://localhost:5000/api/stock/${stock._id}`, {
+            await fetch(`http://localhost:5005/api/stock/${stock._id}`, {
               method: 'PUT',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({

@@ -138,7 +138,7 @@ const ChatAssistant = () => {
   // Initialize Web Speech API for voice input
   useEffect(() => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    
+
     if (SpeechRecognition) {
       setVoiceSupported(true);
       const recognition = new SpeechRecognition();
@@ -208,7 +208,7 @@ const ChatAssistant = () => {
 
     try {
       // Call Node.js backend NLP service
-      const response = await fetch('http://localhost:5000/api/chat/send-message', {
+      const response = await fetch('http://localhost:5005/api/chat/send-message', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userMessage: inputMessage })
@@ -372,7 +372,7 @@ const ChatAssistant = () => {
               {interimTranscript && (
                 <span className="interim-text" style={{ marginRight: '8px' }}>{interimTranscript}</span>
               )}
-              <button 
+              <button
                 className="send-btn"
                 onClick={handleSendMessage}
                 disabled={!inputMessage.trim()}
