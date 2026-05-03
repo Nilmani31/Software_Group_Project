@@ -36,7 +36,7 @@ const FindItemByImageModal = ({ isOpen, onClose, onAddAsNew }) => {
       const formData = new FormData();
       formData.append('image', selectedImage);
 
-      const endpoint = useTestEndpoint ? 'http://localhost:5000/api/image-search/test' : 'http://localhost:5000/api/image-search/search';
+      const endpoint = useTestEndpoint ? 'http://localhost:5005/api/image-search/test' : 'http://localhost:5005/api/image-search/search';
       console.log('🔍 Starting image search...');
       console.log(`📤 Endpoint: ${endpoint} ${useTestEndpoint ? '(TEST MODE)' : ''}`);
       console.log('📁 File:', selectedImage.name, selectedImage.size, 'bytes');
