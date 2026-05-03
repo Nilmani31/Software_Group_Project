@@ -167,9 +167,13 @@ const Inventory = () => {
   };
 
   // Fetch stock data for a specific item
-  const fetchStockData = async (itemId) => {
+  const fetchStockData = async (item) => {
     try {
-      const response = await fetch(`http://localhost:5005/api/items/stock/${itemId}`, {
+      let url = `http://localhost:5005/api/items/stock/${item._id || item.id}`;
+      if (item.itemUnitId) {
+        url += `?itemUnitId=${item.itemUnitId}`;
+      }
+      const response = await fetch(url, {
         headers: getAuthHeaders()
       });
       if (response.ok) {
@@ -185,7 +189,7 @@ const Inventory = () => {
         }
       } else {
         // If no stock data endpoint, set empty
-        console.log('No stock data found for item:', itemId);
+        console.log('No stock data found for item:', item._id || item.id);
         setStockData([]);
       }
     } catch (err) {
@@ -345,7 +349,7 @@ const Inventory = () => {
   const handleRowClick = (item) => {
     setSelectedItem(item);
     setShowItemDetailModal(true);
-    fetchStockData(item._id);
+    fetchStockData(item);
   };
 
   const handleCloseItemDetailModal = () => {

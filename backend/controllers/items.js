@@ -518,6 +518,7 @@ exports.getItemStockByBranches = async (req, res) => {
 exports.getItemStock = async (req, res) => {
   try {
     const itemId = req.params.itemId;
+    const itemUnitId = req.query.itemUnitId;
     
     // Get item details
     const item = await Item.findById(itemId);
@@ -531,8 +532,12 @@ exports.getItemStock = async (req, res) => {
     // Get all itemUnits for this item
     const itemUnits = await ItemUnit.find({ itemId });
 
-    // Get all stocks for this item
-    const stockRecords = await Stock.find({ itemId }).populate('branchId', 'branchName branch_name name location city');
+    // Get all stocks for this item, filtered by unit if provided
+    let query = { itemId };
+    if (itemUnitId) {
+      query.itemUnitId = itemUnitId;
+    }
+    const stockRecords = await Stock.find(query).populate('branchId', 'branchName branch_name name location city');
     
     // Create map of branch stocks
     const stockByBranch = {};
