@@ -121,7 +121,9 @@ export default function PurchaseOrder() {
     const fetchData = async () => {
       try {
         // Fetch branches
-        const branchRes = await fetch('http://localhost:5005/api/branches');
+        const branchRes = await fetch('http://localhost:5005/api/branches', {
+          headers: getAuthHeaders()
+        });
         const branchResult = await branchRes.json();
         let branchData = [];
         if (branchResult.success && Array.isArray(branchResult.data)) {
@@ -152,21 +154,27 @@ export default function PurchaseOrder() {
         }
 
         // Fetch categories
-        const catRes = await fetch('http://localhost:5005/api/categories');
+        const catRes = await fetch('http://localhost:5005/api/categories', {
+          headers: getAuthHeaders()
+        });
         const catData = await catRes.json();
         if (Array.isArray(catData)) {
           setCategories(catData);
         }
 
         // Fetch items with stock
-        const itemRes = await fetch('http://localhost:5005/api/items');
+        const itemRes = await fetch('http://localhost:5005/api/items', {
+          headers: getAuthHeaders()
+        });
         const itemData = await itemRes.json();
         if (Array.isArray(itemData)) {
           setItemsWithStock(itemData);
         }
 
         // Fetch purchase orders from backend
-        const poRes = await fetch('http://localhost:5005/api/purchase-orders');
+        const poRes = await fetch('http://localhost:5005/api/purchase-orders', {
+          headers: getAuthHeaders()
+        });
         const poData = await poRes.json();
         if (poData.success && Array.isArray(poData.data)) {
           setPos(poData.data);
