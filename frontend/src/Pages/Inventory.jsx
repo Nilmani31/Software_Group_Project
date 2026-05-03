@@ -104,7 +104,9 @@ const Inventory = () => {
   // Fetch items from database
   const fetchItems = async () => {
     try {
-      const response = await fetch('http://localhost:5005/api/items');
+      const response = await fetch('http://localhost:5005/api/items', {
+        headers: getAuthHeaders()
+      });
       const data = await response.json();
       setItems(Array.isArray(data) ? data : []);
       setLoading(false);
@@ -117,7 +119,9 @@ const Inventory = () => {
   // Fetch categories from database
   const fetchCategories = async () => {
     try {
-      const response = await fetch('http://localhost:5005/api/categories');
+      const response = await fetch('http://localhost:5005/api/categories', {
+        headers: getAuthHeaders()
+      });
       const data = await response.json();
       if (Array.isArray(data)) {
         setCategories(data); // Store full objects
@@ -136,7 +140,9 @@ const Inventory = () => {
   // Fetch branches from database
   const fetchBranches = async () => {
     try {
-      const response = await fetch('http://localhost:5005/api/branches');
+      const response = await fetch('http://localhost:5005/api/branches', {
+        headers: getAuthHeaders()
+      });
       const data = await response.json();
       // Handle both array and { success, data } response formats
       const branchesArray = Array.isArray(data) ? data : (data.data ? data.data : []);
@@ -163,7 +169,9 @@ const Inventory = () => {
   // Fetch stock data for a specific item
   const fetchStockData = async (itemId) => {
     try {
-      const response = await fetch(`http://localhost:5005/api/items/stock/${itemId}`);
+      const response = await fetch(`http://localhost:5005/api/items/stock/${itemId}`, {
+        headers: getAuthHeaders()
+      });
       if (response.ok) {
         const data = await response.json();
         console.log('Stock data fetched:', data);
@@ -243,7 +251,6 @@ const Inventory = () => {
       category: '',
       unit: 'kg',
       unitValue: 1,
-      unitPrice: '',
       minStock: '',
       maxStock: '',
       branch: 'Colombo',
@@ -309,15 +316,14 @@ const Inventory = () => {
         body: JSON.stringify({
           sku: formData.sku,
           name: formData.name,
-          category: categoryId,
+          category: formData.category,
           unit: formData.unit,
-          unitPrice: parseFloat(formData.unitPrice) || 0,
-          minStock: parseInt(formData.minStock) || 0,
-          maxStock: parseInt(formData.maxStock) || 0,
-          branch: formData.branch,
+          unitValue: parseFloat(formData.unitValue) || 1,
           quantity: 0,
-          status: 'normal',
-          image: imagePreview || ''
+          minStock: parseInt(formData.minStock) || 0,
+          maxStock: parseInt(formData.maxStock) || 1000,
+          branch: formData.branch,
+          image: formData.image
         })
       });
 
@@ -356,16 +362,16 @@ const Inventory = () => {
       }
 
       setEditFormData({
-        name: selectedItem.name,
-        category: categoryValue,
-        unit: selectedItem.unit,
+        _id: selectedItem._id || selectedItem.id,
+        name: selectedItem.name || '',
+        category: typeof selectedItem.category === 'object' ? selectedItem.category._id : selectedItem.category,
+        unit: selectedItem.unit || 'kg',
         unitValue: selectedItem.unitValue || 1,
-        unitPrice: selectedItem.unitPrice || '',
+        sku: selectedItem.sku || selectedItem.itemId || '',
         quantity: selectedItem.quantity || 0,
-        minStock: selectedItem.minStock || '',
-        maxStock: selectedItem.maxStock || '',
-        sku: selectedItem.sku || '',
-        image: null
+        minStock: selectedItem.minStock || 0,
+        maxStock: selectedItem.maxStock || 1000,
+        image: selectedItem.image || null
       });
       // Use current stockData if available, otherwise it will be populated
       setEditableStockData(stockData.length > 0 ? [...stockData] : []);
@@ -384,8 +390,6 @@ const Inventory = () => {
       category: '',
       unit: 'kg',
       unitValue: 1,
-      unitPrice: '',
-      quantity: 0,
       minStock: '',
       maxStock: '',
       sku: '',
@@ -485,15 +489,13 @@ const Inventory = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: editFormData.name,
-          category: categoryId,
+          category: editFormData.category,
           unit: editFormData.unit,
-          unitPrice: parseFloat(editFormData.unitPrice) || 0,
+          unitValue: parseFloat(editFormData.unitValue) || 1,
           quantity: parseInt(editFormData.quantity) || 0,
           minStock: parseInt(editFormData.minStock) || 0,
-          maxStock: parseInt(editFormData.maxStock) || 0,
-          branch: editFormData.branch,
-          sku: editFormData.sku,
-          image: editImagePreview || ''
+          maxStock: parseInt(editFormData.maxStock) || 1000,
+          image: editFormData.image
         })
       });
 

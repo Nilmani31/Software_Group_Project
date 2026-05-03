@@ -134,13 +134,19 @@ export default function GoodReceived() {
       if (selectedPO.items && Array.isArray(selectedPO.items)) {
         // Handle array of items with individual properties
         poItems = selectedPO.items.map(item => {
-          // If item is a string like "Item Name x Quantity", parse it
+          // If item is a string like "Item Name - unit x Quantity", parse it
           if (typeof item === 'string') {
             const parts = item.split(' x ');
+            const fullName = parts[0] || '';
+            // Extract pure name and unit if they are separated by ' - '
+            const nameParts = fullName.split(' - ');
+            const pureName = nameParts.length > 1 ? nameParts.slice(0, -1).join(' - ') : fullName;
+            const pureUnit = nameParts.length > 1 ? nameParts[nameParts.length - 1] : '';
+
             return {
               itemId: '',
-              itemName: parts[0] || '',
-              unit: '',
+              itemName: pureName.trim(),
+              unit: pureUnit.trim(),
               unitPrice: '',
               quantityOrdered: parts[1] ? parseInt(parts[1]) : '',
               quantityReceived: ''
