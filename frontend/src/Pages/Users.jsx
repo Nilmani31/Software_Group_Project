@@ -235,11 +235,17 @@ export default function Users() {
     }
   };
 
-  const filteredUsers = list.filter(user =>
-    user.name.toLowerCase().includes(query.toLowerCase()) ||
-    user.email.toLowerCase().includes(query.toLowerCase()) ||
-    user.branch.toLowerCase().includes(query.toLowerCase())
-  );
+  const getBranchName = (branchId) => {
+    const branch = branches.find(b => b._id === branchId || b.id === branchId);
+    return branch ? (branch.branchName || branch.branch_name || branch.name) : branchId;
+  };
+
+  const filteredUsers = list.filter(user => {
+    const branchName = getBranchName(user.branch).toLowerCase();
+    return user.name.toLowerCase().includes(query.toLowerCase()) ||
+           user.email.toLowerCase().includes(query.toLowerCase()) ||
+           branchName.includes(query.toLowerCase());
+  });
 
   return (
     <div className="app-wrapper">
@@ -300,7 +306,7 @@ export default function Users() {
                                 </div>
                               </td>
                               <td>{u.email}</td>
-                              <td>{u.branch}</td>
+                              <td>{getBranchName(u.branch)}</td>
                               <td><span className="role-pill">{u.role}</span></td>
                               <td style={{ textAlign: 'center' }}>
                                 <button onClick={() => handleOpenEdit(u)} className="icon-btn" aria-label="Edit user">
