@@ -56,12 +56,14 @@ const connectDB = async () => {
     console.log(`📊 Database Name: ${conn.connection.name}`);
   } catch (error) {
     console.error('❌ MongoDB connection error:', error.message);
-    process.exit(1);
+    console.warn('⚠️  Server will continue without MongoDB. Some features may be limited.');
   }
 };
 
-// Connect to MongoDB
-connectDB();
+// Connect to MongoDB (non-blocking - continue if it fails)
+connectDB().catch(err => {
+  console.error('Failed to establish MongoDB connection:', err.message);
+});
 
 // MongoDB connection event listeners
 mongoose.connection.on('connected', () => {
