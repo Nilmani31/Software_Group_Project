@@ -121,7 +121,7 @@ export default function PurchaseOrder() {
     const fetchData = async () => {
       try {
         // Fetch branches
-        const branchRes = await fetch('http://localhost:5005/api/branches');
+        const branchRes = await fetch('http://localhost:5000/api/branches');
         const branchResult = await branchRes.json();
         let branchData = [];
         if (branchResult.success && Array.isArray(branchResult.data)) {
@@ -152,21 +152,21 @@ export default function PurchaseOrder() {
         }
 
         // Fetch categories
-        const catRes = await fetch('http://localhost:5005/api/categories', { headers: getAuthHeaders() });
+        const catRes = await fetch('http://localhost:5000/api/categories');
         const catData = await catRes.json();
         if (Array.isArray(catData)) {
           setCategories(catData);
         }
 
         // Fetch items with stock
-        const itemRes = await fetch('http://localhost:5005/api/items', { headers: getAuthHeaders() });
+        const itemRes = await fetch('http://localhost:5000/api/items');
         const itemData = await itemRes.json();
         if (Array.isArray(itemData)) {
           setItemsWithStock(itemData);
         }
 
         // Fetch purchase orders from backend
-        const poRes = await fetch('http://localhost:5005/api/purchase-orders', { headers: getAuthHeaders() });
+        const poRes = await fetch('http://localhost:5000/api/purchase-orders');
         const poData = await poRes.json();
         if (poData.success && Array.isArray(poData.data)) {
           setPos(poData.data);
@@ -380,7 +380,7 @@ export default function PurchaseOrder() {
 
     try {
       // Send PO to backend API
-      const response = await fetch('http://localhost:5005/api/purchase-orders', {
+      const response = await fetch('http://localhost:5000/api/purchase-orders', {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify(newPO)
@@ -1201,36 +1201,33 @@ export default function PurchaseOrder() {
                     reason: cancelForm.reason
                   }
                 }
-
-                try {
-                  // Send cancel request to backend API
-                  const response = await fetch(`http://localhost:5005/api/purchase-orders/${selected.poNumber}/cancel`, {
-                    method: 'PATCH',
-                    headers: {
-                      'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(updated.deleted)
-                  })
-
-                  const result = await response.json()
-
-                  if (result.success) {
-                    // Update the PO list
-                    setPos(prev => prev.map(p => (p.poNumber === selected.poNumber || p.id === selected.id) ? updated : p))
-
-                    // Update selected reference
-                    setSelected(updated)
-
-                    alert('Purchase Order cancelled successfully')
-
-                    // Close the cancel modal
-                    setOpenCancel(false)
-                  } else {
-                    alert('Error cancelling purchase order: ' + (result.message || 'Unknown error'))
-                  }
-                } catch (error) {
-                  console.error('Error:', error)
-                  alert('Error cancelling purchase order: ' + error.message)
+              }
+              
+              try {
+                // Send cancel request to backend API
+                const response = await fetch(`http://localhost:5000/api/purchase-orders/${selected.poNumber}/cancel`, {
+                  method: 'PATCH',
+                  headers: {
+                    'Content-Type': 'application/json'
+                  },
+                  body: JSON.stringify(updated.deleted)
+                })
+                
+                const result = await response.json()
+                
+                if (result.success) {
+                  // Update the PO list
+                  setPos(prev => prev.map(p => (p.poNumber === selected.poNumber || p.id === selected.id) ? updated : p))
+                  
+                  // Update selected reference
+                  setSelected(updated)
+                  
+                  alert('Purchase Order cancelled successfully')
+                  
+                  // Close the cancel modal
+                  setOpenCancel(false)
+                } else {
+                  alert('Error cancelling purchase order: ' + (result.message || 'Unknown error'))
                 }
               }} className="modal-form-inventory">
                 <div className="form-layout-inventory">

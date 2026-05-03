@@ -8,7 +8,11 @@ const ChatAssistant = () => {
   const [messages, setMessages] = useState([]);
   const [inputMessage, setInputMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const [voiceSupported, setVoiceSupported] = useState(false);
+  const [interimTranscript, setInterimTranscript] = useState('');
   const messagesEndRef = useRef(null);
+  const voiceRecognitionRef = useRef(null);
 
   // Get current page info
   const getCurrentPageInfo = () => {
@@ -131,6 +135,55 @@ const ChatAssistant = () => {
     ]);
   }, [location.pathname]);
 
+  // Initialize Web Speech API for voice input
+  useEffect(() => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    
+    if (SpeechRecognition) {
+      setVoiceSupported(true);
+      const recognition = new SpeechRecognition();
+      recognition.continuous = false;
+      recognition.interimResults = true;
+      recognition.lang = 'en-US';
+
+      recognition.onstart = () => {
+        setIsListening(true);
+        setInterimTranscript('');
+      };
+
+      recognition.onresult = (event) => {
+        let interim = '';
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const transcript = event.results[i][0].transcript;
+          if (event.results[i].isFinal) {
+            setInputMessage(prev => prev + transcript);
+          } else {
+            interim += transcript;
+          }
+        }
+        setInterimTranscript(interim);
+      };
+
+      recognition.onerror = (event) => {
+        console.error('Speech recognition error:', event.error);
+        setIsListening(false);
+      };
+
+      recognition.onend = () => {
+        setIsListening(false);
+        setInterimTranscript('');
+      };
+
+      voiceRecognitionRef.current = recognition;
+    }
+
+    return () => {
+      if (voiceRecognitionRef.current) {
+        voiceRecognitionRef.current.abort();
+      }
+    };
+  }, []);
+
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
@@ -155,7 +208,7 @@ const ChatAssistant = () => {
 
     try {
       // Call Node.js backend NLP service
-      const response = await fetch('http://localhost:5005/api/chat/send-message', {
+      const response = await fetch('http://localhost:5000/api/chat/send-message', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userMessage: inputMessage })
@@ -210,6 +263,18 @@ const ChatAssistant = () => {
     setTimeout(() => {
       document.querySelector('.message-input')?.focus();
     }, 0);
+  };
+
+  const handleStartListening = () => {
+    if (voiceRecognitionRef.current && !isListening) {
+      voiceRecognitionRef.current.start();
+    }
+  };
+
+  const handleStopListening = () => {
+    if (voiceRecognitionRef.current && isListening) {
+      voiceRecognitionRef.current.stop();
+    }
   };
 
   const pageInfo = getCurrentPageInfo();
@@ -292,10 +357,22 @@ const ChatAssistant = () => {
                 value={inputMessage}
                 onChange={(e) => setInputMessage(e.target.value)}
                 onKeyPress={handleKeyPress}
-                placeholder="Ask about item availability..."
+                placeholder={isListening ? "Listening... 🎙️" : "Ask about item availability..."}
                 className="message-input"
               />
-              <button
+              {voiceSupported && (
+                <button
+                  className={`voice-btn ${isListening ? 'listening' : ''}`}
+                  onClick={isListening ? handleStopListening : handleStartListening}
+                  title={isListening ? 'Stop listening' : 'Start voice input'}
+                >
+                  {isListening ? '⏹️' : '🎤'}
+                </button>
+              )}
+              {interimTranscript && (
+                <span className="interim-text" style={{ marginRight: '8px' }}>{interimTranscript}</span>
+              )}
+              <button 
                 className="send-btn"
                 onClick={handleSendMessage}
                 disabled={!inputMessage.trim()}

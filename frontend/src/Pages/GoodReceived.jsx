@@ -64,7 +64,7 @@ export default function GoodReceived() {
   useEffect(() => {
     const fetchInventoryItems = async () => {
       try {
-        const response = await fetch('http://localhost:5005/api/items');
+        const response = await fetch('http://localhost:5000/api/items');
         const data = await response.json();
         setInventoryItems(Array.isArray(data) ? data : []);
       } catch (err) {
