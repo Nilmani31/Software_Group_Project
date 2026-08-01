@@ -408,6 +408,32 @@ html, body {
   background: #9ca3af;
 }
 
+.inventory-value-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: #f8fafc;
+  color: var(--text);
+}
+
+.inventory-value-summary span {
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.inventory-value-summary strong {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--accent-2);
+}
+
 /* Table styles - IMPROVED */
 .list-wrap {
   flex: 1;

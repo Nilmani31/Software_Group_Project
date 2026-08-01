@@ -230,6 +230,12 @@ const Inventory = () => {
     return item.quantity || item.qty || 0;
   };
 
+  const getDisplayTotalValue = (item) => {
+    const quantity = Number(getDisplayQuantity(item)) || 0;
+    const unitPrice = Number(item.unitPrice) || 0;
+    return quantity * unitPrice;
+  };
+
   const handleClearFilters = () => {
     setQuery('');
     setCategoryFilter('All Categories');
@@ -265,6 +271,8 @@ const Inventory = () => {
       return matchesQuery && matchesCategory && matchesBranch && matchesStatus;
     });
   }, [items, query, categoryFilter, branchFilter, statusFilter]);
+
+  const filteredTotalValue = filtered.reduce((total, item) => total + getDisplayTotalValue(item), 0);
 
   const handleOpenModal = () => {
     setFormData(prev => ({
@@ -306,10 +314,8 @@ const Inventory = () => {
       name: '',
       category: '',
       unit: 'kg',
-      unitValue: 1,
       minStock: '',
       maxStock: '',
-      branch: 'Colombo',
       sku: '', // SKU will be generated when category is selected
       image: null
     });
@@ -372,13 +378,10 @@ const Inventory = () => {
         body: JSON.stringify({
           sku: formData.sku,
           name: formData.name,
-          category: formData.category,
+          category: categoryId,
           unit: formData.unit,
-          unitValue: parseFloat(formData.unitValue) || 1,
-          quantity: 0,
           minStock: parseInt(formData.minStock) || 0,
           maxStock: parseInt(formData.maxStock) || 1000,
-          branch: formData.branch,
           image: formData.image
         })
       });
@@ -673,6 +676,10 @@ const Inventory = () => {
                 </header>
 
                 <div className="inventory-main">
+                  <div className="inventory-value-summary">
+                    <span>Total Inventory Value</span>
+                    <strong>Rs {filteredTotalValue.toFixed(2)}</strong>
+                  </div>
                   {filtered.length === 0 ? (
                     <div className="no-results">No items found.</div>
                   ) : (
@@ -683,10 +690,11 @@ const Inventory = () => {
                             <th style={{ width: '12%', left: 0, background: 'inherit' }}>Item ID</th>
                             <th style={{ width: '18%' }}>Name</th>
                             <th style={{ width: '15%' }}>Category</th>
-                            <th style={{ width: '12%', textAlign: 'center' }}>Quantity</th>
-                            <th style={{ width: '10%', textAlign: 'center' }}>Unit</th>
-                            <th style={{ width: '13%', textAlign: 'center' }}>Unit Price</th>
-                            <th style={{ width: '20%', textAlign: 'center' }}>Status</th>
+                            <th style={{ width: '10%', textAlign: 'center' }}>Quantity</th>
+                            <th style={{ width: '9%', textAlign: 'center' }}>Unit</th>
+                            <th style={{ width: '12%', textAlign: 'center' }}>Unit Price</th>
+                            <th style={{ width: '12%', textAlign: 'center' }}>Total Value</th>
+                            <th style={{ width: '12%', textAlign: 'center' }}>Status</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -705,10 +713,11 @@ const Inventory = () => {
                                 <td style={{ width: '12%', paddingLeft: '16px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={item.sku || item.itemId}>{item.sku || item.itemId || item._id}</td>
                                 <td style={{ width: '18%' }}>{item.name}</td>
                                 <td style={{ width: '15%' }}>{categoryDisplay}</td>
-                                <td style={{ width: '12%', textAlign: 'center' }}>{getDisplayQuantity(item)}</td>
-                                <td style={{ width: '10%', textAlign: 'center' }}>{item.unit || '-'}</td>
-                                <td style={{ width: '13%', textAlign: 'center' }}>Rs {item.unitPrice ? parseFloat(item.unitPrice).toFixed(2) : '0.00'}</td>
-                                <td style={{ width: '20%', textAlign: 'center' }}>
+                                <td style={{ width: '10%', textAlign: 'center' }}>{getDisplayQuantity(item)}</td>
+                                <td style={{ width: '9%', textAlign: 'center' }}>{item.unit || '-'}</td>
+                                <td style={{ width: '12%', textAlign: 'center' }}>Rs {item.unitPrice ? parseFloat(item.unitPrice).toFixed(2) : '0.00'}</td>
+                                <td style={{ width: '12%', textAlign: 'center' }}>Rs {getDisplayTotalValue(item).toFixed(2)}</td>
+                                <td style={{ width: '12%', textAlign: 'center' }}>
                                   <span className={`badge ${getStatusClass(item.status)}`}>
                                     {item.status === 'normal' ? '✅ Normal' : item.status === 'low' ? '⚠️ Low' : '❌ Out'}
                                   </span>
@@ -796,22 +805,6 @@ const Inventory = () => {
                         <option value="pcs">pcs</option>
                       </select>
                     </div>
-
-                    {/* Unit Value */}
-                    <div className="form-group-inventory">
-                      <label className="form-label-inventory">Unit Amount</label>
-                      <input
-                        type="number"
-                        name="unitValue"
-                        placeholder="e.g. 5, 10, 20"
-                        value={formData.unitValue || ''}
-                        onChange={handleInputChange}
-                        className="form-input-inventory"
-                        min="1"
-                        required
-                      />
-                    </div>
-
 
                     {/* SKU - Read Only */}
                     <div className="form-group-inventory">

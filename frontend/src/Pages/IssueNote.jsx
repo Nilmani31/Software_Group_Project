@@ -148,8 +148,13 @@ const IssueNote = () => {
           items: (note.items || []).map(item => ({
             id: item.itemId?._id || item.itemId,
             name: item.itemId?.name || 'Unknown Item',
+            itemUnitId: item.itemUnitId?._id || item.itemUnitId,
             qty: item.quantity,
-            unit: item.itemId?.unit || item.itemUnitId?.unitName || 'unit',
+            unit: item.itemUnitId
+              ? `${item.itemUnitId.unitValue || 1}${item.itemUnitId.unit || item.itemId?.unit || 'unit'}`
+              : item.itemId?.unit || 'unit',
+            unitPrice: item.unitPrice || item.itemUnitId?.unitPrice || 0,
+            totalPrice: item.totalPrice || 0,
             availableQty: 0
           })),
           _original: note // Keep original data for API calls
@@ -227,6 +232,37 @@ const IssueNote = () => {
   const getAvailableItems = () => {
     const selectedCategory = categories.find(c => c.id === formData.category);
     return selectedCategory ? selectedCategory.items : [];
+  };
+
+  const getItemOptionId = (item) => item.uniqueId || `${item._id || item.id}_${item.itemUnitId || 'default'}`;
+
+  const getSourceBranch = () => {
+    return branches.find(branch =>
+      /main|colombo/i.test(branch.branchName || branch.branch_name || branch.name || '')
+    ) || branches[0];
+  };
+
+  const getBranchQuantity = (item, branchId) => {
+    if (!Array.isArray(item.branchStocks) || item.branchStocks.length === 0) {
+      return item.quantity || 0;
+    }
+
+    if (!branchId) {
+      return item.branchStocks.reduce((sum, stock) => sum + (stock.quantity || 0), 0);
+    }
+
+    const branchStock = item.branchStocks.find(stock =>
+      String(stock.branchObjectId || stock.branchId) === String(branchId)
+    );
+    return branchStock ? branchStock.quantity || 0 : 0;
+  };
+
+  const getIssueItemLabel = (item) => {
+    const sourceBranch = getSourceBranch();
+    const fromBranchId = sourceBranch?._id || sourceBranch?.id;
+    const availableQty = getBranchQuantity(item, fromBranchId);
+    const price = Number(item.unitPrice) || 0;
+    return `${item.name} | Rs ${price.toFixed(2)} | Available: ${availableQty} ${item.unit || 'unit'}`;
   };
 
   const currentData = issueNotes;
@@ -865,21 +901,33 @@ const IssueNote = () => {
     // Try to find from API items first
     let item = null;
     if (items.length > 0) {
-      item = items.find(i => i._id === selectedItemForAdd);
+      item = items.find(i => getItemOptionId(i) === selectedItemForAdd);
       if (item) {
         // Check if item already exists to avoid duplicates
-        const itemExists = formData.items.some(i => i.id === item._id);
+        const optionId = getItemOptionId(item);
+        const itemExists = formData.items.some(i => i.optionId === optionId);
         if (itemExists) {
           alert("This item is already added. Edit it instead.");
           return;
         }
 
+        const sourceBranch = getSourceBranch();
+        const fromBranchId = sourceBranch?._id || sourceBranch?.id;
+        const availableQty = getBranchQuantity(item, fromBranchId);
+        if (itemQuantity > availableQty) {
+          alert(`Only ${availableQty} ${item.unit || 'units'} available in source branch for this price range.`);
+          return;
+        }
+
         const newItem = {
           id: item._id,
+          optionId,
+          itemUnitId: item.itemUnitId,
           name: item.name,
           qty: itemQuantity,
-          availableQty: item.quantity || 0,
+          availableQty,
           unit: item.unit || 'unit',
+          unitPrice: Number(item.unitPrice) || 0,
           tempId: Date.now()
         };
 
@@ -980,8 +1028,9 @@ const IssueNote = () => {
       console.log("Selected branch ID:", toBranchId);
     }
 
-    // Get the first branch as source
-    let fromBranchId = branches[0]?._id || branches[0]?.id;
+    // Stock is issued from the main branch when available.
+    const sourceBranch = getSourceBranch();
+    let fromBranchId = sourceBranch?._id || sourceBranch?.id;
 
     if (!fromBranchId) {
       console.error("No branches found in state. Branches:", branches);
@@ -1005,8 +1054,9 @@ const IssueNote = () => {
     // Prepare items for API
     const apiItems = formData.items.map(item => ({
       itemId: item.id,
+      itemUnitId: item.itemUnitId,
       quantity: parseInt(item.qty) || 0,
-      unitPrice: 0,
+      unitPrice: Number(item.unitPrice) || 0,
       remarks: ''
     }));
 
@@ -1407,8 +1457,8 @@ const IssueNote = () => {
                         {/* Show items from database if available, otherwise use hardcoded categories */}
                         {items.length > 0 ? (
                           items.map(item => (
-                            <option key={item._id} value={item._id}>
-                              {item.name} (Available: {item.quantity || 0} {item.unit})
+                            <option key={getItemOptionId(item)} value={getItemOptionId(item)}>
+                              {getIssueItemLabel(item)}
                             </option>
                           ))
                         ) : (

@@ -212,6 +212,7 @@ exports.getLowStockItems = async (req, res) => {
 exports.createItem = async (req, res) => {
   try {
     const { itemId, sku, image, name, ...itemData } = req.body;
+    const initialStockQuantity = 0;
     
     console.log('📝 Creating item with data:', { sku, itemId, name, hasImage: !!image, imageLength: image?.length || 0 });
     
@@ -267,6 +268,8 @@ exports.createItem = async (req, res) => {
       const itemPayload = {
         ...itemData,
         name,
+        quantity: initialStockQuantity,
+        status: 'out',
         ...(finalSku && { sku: finalSku }),
         ...(itemId && { itemId }),
         ...(image && image.length <= 5242880 ? { image } : { image: '' })
@@ -321,10 +324,10 @@ exports.createItem = async (req, res) => {
               itemId: item._id,
               itemUnitId: defaultUnit._id,
               branchId: branch._id,
-              quantity: isNewItem ? (itemData.quantity || 0) : 0, // 0 for newly added units to existing items
+              quantity: initialStockQuantity,
               minStock: itemData.minStock || 0,
               maxStock: itemData.maxStock || 100,
-              status: (isNewItem && itemData.quantity > 0) ? 'in-stock' : 'out-of-stock'
+              status: 'out-of-stock'
             });
             await stock.save();
             console.log(`✅ Stock created for branch: ${branch.branchName}`);
