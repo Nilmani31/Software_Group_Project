@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Navbar from '../Components/Navbar';
 import Sidebar from '../Components/Sidebar';
 import { categories } from '../data/sample';
-import { Edit2, Trash2, Archive } from 'lucide-react';
+import { Edit2, Trash2 } from 'lucide-react';
 import Modal from '../Components/Modal';
 import ChatAssistant from '../Components/ChatAssistant';
 import './Categories.css';
@@ -12,7 +12,7 @@ export default function Categories() {
   const [tab, setTab] = useState('inventory');
   const [list, setList] = useState(categories);
   const [roleList, setRoleList] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [, setLoading] = useState(true);
   const [openAdd, setOpenAdd] = useState(false);
   const [openEdit, setOpenEdit] = useState(false);
   const [editing, setEditing] = useState(null);
@@ -44,7 +44,7 @@ export default function Categories() {
           id: item._id, // Mongo ID
           name: item.name,
           desc: item.description,
-          items: 0 // Backend doesn't return count yet, defaulting to 0
+          items: item.itemCount ?? item.items ?? item.totalItems ?? 0
         }));
         setList(formattedData);
       }
@@ -248,6 +248,7 @@ const handleDeleteRole = async (id) => {
 
 const filteredCategories = list.filter(c => c.name.toLowerCase().includes(query.toLowerCase()));
 const filteredRoles = roleList.filter(r => r.name.toLowerCase().includes(query.toLowerCase()));
+const currentItems = tab === 'inventory' ? filteredCategories : filteredRoles;
 
 return (
   <div className="app-wrapper">
@@ -291,48 +292,54 @@ return (
               </header>
 
               <div className="inventory-main">
-                <div className="category-grid">
-                  {(tab === 'inventory' ? filteredCategories : filteredRoles).map(item => (
-                    <div key={item.id} className="category-card">
-                      <div className="category-card-header">
-                        <Archive size={20} className="category-icon" />
-                        <div className="category-actions">
-                          <button onClick={() => {
-                            if (tab === 'user') {
-                              setEditForm({ name: item.name, desc: item.desc });
-                            } else {
-                              setCatEditForm({ name: item.name, desc: item.desc });
-                            }
-                            setEditing(item);
-                            setOpenEdit(true);
-                          }} className="icon-btn" aria-label="Edit">
-                            <Edit2 size={16} />
-                          </button>
-                          <button onClick={() => {
-                            if (tab === 'inventory') {
-                              if (window.confirm('Are you sure you want to delete this category?')) {
-                                handleDeleteCategory(item.id);
-                              }
-                            } else {
-                              handleDeleteRole(item.id);
-                            }
-                          }} className="icon-btn danger" aria-label="Delete">
-                            <Trash2 size={16} />
-                          </button>
-                        </div>
-                      </div>
-                      <div className="category-card-body">
-                        <div className="category-name">{item.name}</div>
-                        <p className="category-description">{item.desc}</p>
-                      </div>
-                      <div className="category-card-footer">
-                        <span>{tab === 'inventory' ? `${item.items} Items` : '1 Member'}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                {(tab === 'inventory' && filteredCategories.length === 0) || (tab === 'user' && filteredRoles.length === 0) && (
+                {currentItems.length === 0 ? (
                   <div className="no-results">No {tab === 'inventory' ? 'categories' : 'roles'} found.</div>
+                ) : (
+                  <div className="list-wrap categories-table-wrap">
+                    <table className="inventory-table categories-table-ui" role="table" aria-label={`${tab === 'inventory' ? 'Category' : 'Role'} list`}>
+                      <thead>
+                        <tr>
+                          <th style={{ width: '30%' }}>Name</th>
+                          <th style={{ width: '44%' }}>Description</th>
+                          <th style={{ width: '12%', textAlign: 'center' }}>{tab === 'inventory' ? 'Items' : 'Members'}</th>
+                          <th style={{ width: '14%', textAlign: 'center' }}>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {currentItems.map(item => (
+                          <tr key={item.id} className="inventory-row">
+                            <td>{item.name}</td>
+                            <td>{item.desc || '-'}</td>
+                            <td style={{ textAlign: 'center' }}>{tab === 'inventory' ? item.items : 1}</td>
+                            <td style={{ textAlign: 'center' }}>
+                              <button onClick={() => {
+                                if (tab === 'user') {
+                                  setEditForm({ name: item.name, desc: item.desc });
+                                } else {
+                                  setCatEditForm({ name: item.name, desc: item.desc });
+                                }
+                                setEditing(item);
+                                setOpenEdit(true);
+                              }} className="icon-btn" aria-label="Edit" type="button">
+                                <Edit2 size={16} />
+                              </button>
+                              <button onClick={() => {
+                                if (tab === 'inventory') {
+                                  if (window.confirm('Are you sure you want to delete this category?')) {
+                                    handleDeleteCategory(item.id);
+                                  }
+                                } else {
+                                  handleDeleteRole(item.id);
+                                }
+                              }} className="icon-btn danger" aria-label="Delete" type="button">
+                                <Trash2 size={16} />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 )}
               </div>
             </main>

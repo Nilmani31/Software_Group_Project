@@ -26,6 +26,26 @@
   color: var(--accent-1);
 }
 
+.categories-table-wrap {
+  max-height: 600px;
+  overflow-y: auto;
+}
+
+.categories-table-ui td:nth-child(1),
+.categories-table-ui td:nth-child(2) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.categories-table-ui td:nth-child(2) {
+  color: var(--muted);
+}
+
+.categories-table-ui .icon-btn {
+  margin: 0 3px;
+}
+
 .category-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));

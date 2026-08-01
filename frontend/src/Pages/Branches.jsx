@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import Navbar from "../Components/Navbar";
 import Sidebar from "../Components/Sidebar";
 import ChatAssistant from "../Components/ChatAssistant";
+import "./Inventory.css";
 import "./Branches.css";
 import { FaTimes, FaEdit, FaTrash } from "react-icons/fa";
 
@@ -194,7 +195,41 @@ export default function Branches() {
                                             <p>No branches found matching "{query}"</p>
                                         </div>
                                     ) : (
-                                        <div className="branches-grid">
+                                        <>
+                                        <div className="list-wrap branches-table-wrap">
+                                            <table className="inventory-table branches-table-ui" role="table" aria-label="Branches list">
+                                                <thead>
+                                                    <tr>
+                                                        <th style={{ width: "16%" }}>Branch ID</th>
+                                                        <th style={{ width: "20%" }}>Branch Name</th>
+                                                        <th style={{ width: "22%" }}>Location</th>
+                                                        <th style={{ width: "20%" }}>Contact Person</th>
+                                                        <th style={{ width: "12%", textAlign: "center" }}>Phone</th>
+                                                        <th style={{ width: "10%", textAlign: "center" }}>Actions</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {filtered.map(b => (
+                                                        <tr key={b.id} className="inventory-row">
+                                                            <td title={b.id}>{b.id}</td>
+                                                            <td>{b.name}</td>
+                                                            <td>{b.location || "-"}</td>
+                                                            <td>{b.contact_person || "-"}</td>
+                                                            <td style={{ textAlign: "center" }}>{b.phone || "-"}</td>
+                                                            <td style={{ textAlign: "center" }}>
+                                                                <button className="icon-btn" onClick={() => openEdit(b)} title="Edit branch" type="button">
+                                                                    <FaEdit />
+                                                                </button>
+                                                                <button className="icon-btn danger" onClick={() => remove(b.id)} title="Delete branch" type="button">
+                                                                    <FaTrash />
+                                                                </button>
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                        <div className="branches-grid" aria-hidden="true">
                                             {filtered.map(b => (
                                                 <article className="branch-card" key={b.id}>
                                                     <div className="branch-card-header">
@@ -234,6 +269,7 @@ export default function Branches() {
                                                 </article>
                                             ))}
                                         </div>
+                                        </>
                                     )}
                                 </section>
                             </main>

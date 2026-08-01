@@ -140,6 +140,26 @@
   background: #9ca3af;
 }
 
+.branches-table-wrap {
+  max-height: 600px;
+  overflow-y: auto;
+}
+
+.branches-table-ui td:first-child {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.branches-table-ui .icon-btn {
+  margin: 0 3px;
+}
+
+.branches-table-wrap + .branches-grid {
+  display: none !important;
+}
+
 /* ===== BRANCHES GRID ===== */
 
 .branches-grid {
