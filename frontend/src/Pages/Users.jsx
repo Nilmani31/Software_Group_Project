@@ -21,7 +21,7 @@ export default function Users() {
   const [query, setQuery] = useState('');
 
   // Add user form state
-  const [addForm, setAddForm] = useState({ username: '', email: '', phoneNumber: '', password: '', roleId: 'STAFF', branchId: 'MAIN_BRANCH', allowedBranches: [] });
+  const [addForm, setAddForm] = useState({ username: '', email: '', phoneNumber: '', password: '', roleId: 'ROLE_STAFF', branchId: '', allowedBranches: [] });
   const [addLoading, setAddLoading] = useState(false);
 
   // Edit user form state
@@ -139,7 +139,7 @@ export default function Users() {
 
       if (data.message) {
         alert('User created successfully! Password: ' + data.password);
-        setAddForm({ username: '', email: '', phoneNumber: '', password: '', roleId: 'STAFF', branchId: 'MAIN_BRANCH', allowedBranches: [] });
+        setAddForm(prev => ({ username: '', email: '', phoneNumber: '', password: '', roleId: 'ROLE_STAFF', branchId: prev.branchId || '', allowedBranches: [] }));
         setOpenAdd(false);
         fetchUsers(); // Refresh list
       } else {
@@ -200,7 +200,9 @@ export default function Users() {
           email: editForm.email,
           phoneNumber: editForm.phoneNumber,
           roleId: editForm.roleId,
-          branchId: editForm.branchId
+          branchId: editForm.branchId,
+          allowedBranches: editForm.roleId.includes('MANAGER') ? editForm.allowedBranches : [],
+          password: editForm.password || ''
         })
       });
       const data = await response.json();
@@ -236,7 +238,7 @@ export default function Users() {
   };
 
   const getBranchName = (branchId) => {
-    const branch = branches.find(b => b._id === branchId || b.id === branchId);
+    const branch = branches.find(b => b._id === branchId || b.id === branchId || b.branchId === branchId);
     return branch ? (branch.branchName || branch.branch_name || branch.name) : branchId;
   };
 

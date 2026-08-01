@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import Sidebar from "../Components/Sidebar";
 import Navbar from "../Components/Navbar";
 import ChatAssistant from "../Components/ChatAssistant";
+import { getAuthHeaders } from "../utils/authHeaders";
 import "./LowStock.css";
 
 const LowStock = () => {
@@ -26,21 +27,25 @@ const LowStock = () => {
 
   // Fetch low stock items from backend
   useEffect(() => {
-    fetch('http://localhost:5005/api/items/low-stock')
+    fetch('http://localhost:5005/api/items/low-stock', {
+      headers: getAuthHeaders()
+    })
       .then(res => res.json())
       .then(data => {
         if (Array.isArray(data)) {
-          // Transform backend data to match frontend structure
           const transformedItems = data.map(item => ({
             id: item._id,
             sku: item.sku || item.itemId || item.barcode || 'N/A',
             name: item.name,
-            currentStock: item.quantity || 0,
+            currentStock: item.currentStock ?? item.quantity ?? 0,
             minimumStock: item.minStock || 0,
-            shortage: Math.max(0, (item.minStock || 0) - (item.quantity || 0)),
+            shortage: item.shortage ?? Math.max(0, (item.minStock || 0) - (item.quantity || 0)),
             category: item.category || 'N/A',
             unit: item.unit || 'units',
-            status: item.quantity === 0 ? 'Critical' : 'Low'
+            unitPrice: item.unitPrice || 0,
+            branchStocks: item.branchStocks || [],
+            availableBranches: item.availableBranches || [],
+            status: item.status === 'out' ? 'Critical' : 'Low'
           }));
           setLowStockItems(transformedItems);
         }
@@ -79,6 +84,15 @@ const LowStock = () => {
   const handleOrderClick = (item) => {
     setSelectedItem(item);
     setIsModalOpen(true);
+    setLoadingBranches(false);
+    setBranches((item.availableBranches || item.branchStocks || []).map(branch => ({
+      id: branch.branchObjectId || branch.branchId,
+      name: branch.branchName,
+      code: branch.branchCode,
+      location: branch.location,
+      quantity: branch.quantity || 0,
+      status: branch.status
+    })));
     setSelectedBranches([]);
     setSelectedSuppliers([]);
     setOrderQuantities({});
@@ -174,6 +188,7 @@ const LowStock = () => {
                         <th>Minimum Stock</th>
                         <th>Shortage</th>
                         <th>Category</th>
+                        <th>Branch Details</th>
                         <th>Action</th>
                       </tr>
                     </thead>
@@ -189,6 +204,15 @@ const LowStock = () => {
                           <td>{item.minimumStock} {item.unit}</td>
                           <td>{item.shortage} {item.unit}</td>
                           <td>{item.category}</td>
+                          <td>
+                            <div className="branch-stock-summary">
+                              {(item.branchStocks || []).map(branch => (
+                                <span key={branch.stockId || branch.branchId} className={`branch-stock-chip ${branch.status}`}>
+                                  {branch.branchName}: {branch.quantity} {item.unit}
+                                </span>
+                              ))}
+                            </div>
+                          </td>
                           <td>
                             {canEdit && (
                               <button
@@ -268,7 +292,7 @@ const LowStock = () => {
                     <div style={{ padding: '20px', textAlign: 'center', color: '#777' }}>No branch stock data available.</div>
                   ) : (
                     <div className="selection-list">
-                      {branches.map((branch) => (
+                      {branches.filter(branch => branch.quantity > 0).map((branch) => (
                         <div key={branch.id} className="selection-item">
                           <div className="selection-checkbox">
                             <input
@@ -283,7 +307,10 @@ const LowStock = () => {
                             <label htmlFor={`branch-${branch.id}`} className="selection-name">
                               {branch.name}
                             </label>
-                            <span className="selection-details">Available: {branch.quantity} units</span>
+                            <span className="selection-details">
+                              Available: {branch.quantity} {selectedItem.unit}
+                              {branch.location ? ` - ${branch.location}` : ''}
+                            </span>
                           </div>
                           {selectedBranches.includes(branch.id) && (
                             <div className="quantity-input-group">

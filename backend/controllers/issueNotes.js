@@ -145,23 +145,12 @@ exports.createIssueNote = async (req, res) => {
       });
     }
 
-    // Validate branch exists - if not, create a default branch
-    let fromBranch = await Branch.findById(fromBranchId);
+    // Validate branch exists
+    const fromBranch = await Branch.findById(fromBranchId);
     if (!fromBranch) {
-      console.warn('⚠️ From branch not found, creating default branch...');
       
-      fromBranch = await Branch.create({
-        branchName: 'Main Branch',
-        branchCode: 'MAIN',
-        location: 'Head Office',
-        city: 'Main City',
-        state: 'Main State',
-        address: 'Main Office Address',
-        phoneNumber: '0000000000',
-        email: 'main@company.com'
-      });
+      return res.status(404).json({ error: 'From branch not found' });
       
-      console.log('✅ Default branch created:', fromBranch._id);
     }
 
     if (toBranchId) {
@@ -171,22 +160,10 @@ exports.createIssueNote = async (req, res) => {
       }
     }
 
-    // Validate user exists - if not, create a default system user
-    let user = await User.findById(issuedBy);
+    // Validate user exists
+    const user = await User.findById(issuedBy);
     if (!user) {
-      console.warn('⚠️ User not found, creating default system user...');
-      
-      // Create a default system user
-      user = await User.create({
-        name: 'System User',
-        username: 'system',
-        email: 'system@company.com',
-        password: 'system123', // This should be hashed in production
-        role: 'admin',
-        phoneNumber: '0000000000'
-      });
-      
-      console.log('✅ Default system user created:', user._id);
+      return res.status(404).json({ error: 'Issued by user not found' });
     }
 
     // Validate stock availability for all items

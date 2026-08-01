@@ -346,6 +346,31 @@ html, body {
   box-shadow: 0 0 0 3px rgba(59, 94, 207, 0.1);
 }
 
+.filter-clear-btn {
+  height: 42px;
+  align-self: center;
+  padding: 0 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: #ffffff;
+  color: var(--text);
+  font-weight: 700;
+  cursor: pointer;
+  transition: border-color var(--transition), color var(--transition), background-color var(--transition);
+}
+
+.filter-clear-btn:hover:not(:disabled) {
+  border-color: var(--accent-1);
+  color: var(--accent-1);
+  background: rgba(59, 94, 207, 0.06);
+}
+
+.filter-clear-btn:disabled {
+  color: var(--muted-2);
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
 /* Main content area - This is the equivalent of po-main and will be the scrolling container */
 .inventory-main {
   flex: 1;

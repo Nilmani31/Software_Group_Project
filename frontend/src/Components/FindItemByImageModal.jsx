@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { FaTimes, FaImage, FaSpinner } from 'react-icons/fa';
 import '../Pages/Inventory.css';
 
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5005/api';
+
 const FindItemByImageModal = ({ isOpen, onClose, onAddAsNew }) => {
   const [selectedImage, setSelectedImage] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
@@ -9,7 +11,6 @@ const FindItemByImageModal = ({ isOpen, onClose, onAddAsNew }) => {
   const [searchResults, setSearchResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [useTestEndpoint, setUseTestEndpoint] = useState(true);
 
   const handleImageUpload = (e) => {
     const file = e.target.files[0];
@@ -36,9 +37,8 @@ const FindItemByImageModal = ({ isOpen, onClose, onAddAsNew }) => {
       const formData = new FormData();
       formData.append('image', selectedImage);
 
-      const endpoint = useTestEndpoint ? 'http://localhost:5005/api/image-search/test' : 'http://localhost:5005/api/image-search/search';
+      const endpoint = `${API_BASE_URL}/image-search/search`;
       console.log('🔍 Starting image search...');
-      console.log(`📤 Endpoint: ${endpoint} ${useTestEndpoint ? '(TEST MODE)' : ''}`);
       console.log('📁 File:', selectedImage.name, selectedImage.size, 'bytes');
       console.log('🔑 FormData keys:', Array.from(formData.keys()));
 
@@ -131,28 +131,6 @@ const FindItemByImageModal = ({ isOpen, onClose, onAddAsNew }) => {
 
         {/* Modal Body */}
         <div className="modal-body-inventory">
-          {/* Debug Toggle */}
-          <div style={{
-            marginBottom: '12px',
-            padding: '8px',
-            backgroundColor: '#f0f4ff',
-            borderRadius: '4px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            fontSize: '12px'
-          }}>
-            <input
-              type="checkbox"
-              id="debug-toggle"
-              checked={useTestEndpoint}
-              onChange={(e) => setUseTestEndpoint(e.target.checked)}
-              style={{ cursor: 'pointer' }}
-            />
-            <label htmlFor="debug-toggle" style={{ cursor: 'pointer', margin: 0 }}>
-              🧪 {useTestEndpoint ? 'Test Mode (Mock)' : 'Real Mode'}
-            </label>
-          </div>
           {/* Upload Section */}
           <div className="form-group-inventory">
             <label className="form-label-inventory">Upload Image</label>

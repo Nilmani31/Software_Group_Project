@@ -68,35 +68,6 @@ const findItemsByImage = async (req, res, next) => {
 	}
 };
 
-// TEST ENDPOINT: Returns mock response without calling ML service
-const testImageSearch = async (req, res) => {
-	console.log(`\n🧪 TEST ENDPOINT CALLED`);
-	console.log(`   req.file exists: ${!!req.file}`);
-	if (req.file) {
-		console.log(`   File: ${req.file.originalname} (${req.file.size} bytes)`);
-	}
-	
-	return res.status(200).json({
-		results: [
-			{
-				productId: "test_1",
-				name: "Test Product 1",
-				category: "Test Category",
-				sku: "TEST-001",
-				score: 0.95,
-				imageUrl: "https://via.placeholder.com/80?text=Test1"
-			}
-		],
-		count: 1,
-		debug: {
-			fileReceived: !!req.file,
-			fileName: req.file ? req.file.originalname : null,
-			fileSize: req.file ? req.file.size : null
-		}
-	});
-};
-
 module.exports = {
 	findItemsByImage,
-	testImageSearch,
 };

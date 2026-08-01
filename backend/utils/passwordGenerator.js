@@ -2,8 +2,6 @@
 const DEFAULT_PASSWORD_LENGTH = 12;
 
 exports.generatePasswordByRole = (roleId) => {
-  console.log('generatePasswordByRole called with roleId:', roleId);
-  
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*';
   let password = '';
   
@@ -11,6 +9,5 @@ exports.generatePasswordByRole = (roleId) => {
     password += chars.charAt(Math.floor(Math.random() * chars.length));
   }
   
-  console.log('Generated password length:', password.length, 'Password:', password);
   return password;
 };

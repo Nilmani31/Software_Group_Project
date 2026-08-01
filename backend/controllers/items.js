@@ -36,8 +36,16 @@ exports.getAllItems = async (req, res) => {
       // Get stock records with branch information
       const branchFilter = getBranchFilter(req);
       const stockRecords = await Stock.find({ itemId: item._id, ...branchFilter })
-        .populate('branchId', 'name branchName _id');
+        .populate('branchId', 'branchId name branchName branchCode _id');
       const totalQuantity = stockRecords.reduce((sum, stock) => sum + (stock.quantity || 0), 0);
+      const branchStocks = stockRecords.map(stock => ({
+        stockId: stock._id,
+        branchObjectId: stock.branchId?._id,
+        branchId: stock.branchId?.branchId || stock.branchId?._id,
+        branchName: stock.branchId?.branchName || stock.branchId?.name || 'Unknown Branch',
+        branchCode: stock.branchId?.branchCode || '',
+        quantity: stock.quantity || 0,
+      }));
       
       // Find ALL ItemUnits for this item
       const itemUnits = await ItemUnit.find({ itemId: item._id });
@@ -93,7 +101,15 @@ exports.getAllItems = async (req, res) => {
             unit: displayUnit,
             itemUnitId: unit._id,
             quantity: unitTotalQuantity,
-            status: unitStatus
+            status: unitStatus,
+            branchStocks: unitStockRecords.map(stock => ({
+              stockId: stock._id,
+              branchObjectId: stock.branchId?._id,
+              branchId: stock.branchId?.branchId || stock.branchId?._id,
+              branchName: stock.branchId?.branchName || stock.branchId?.name || 'Unknown Branch',
+              branchCode: stock.branchId?.branchCode || '',
+              quantity: stock.quantity || 0,
+            }))
           };
         });
       } else {
@@ -108,6 +124,7 @@ exports.getAllItems = async (req, res) => {
         itemObj.unit = itemObj.unit || 'kg';
         itemObj.quantity = totalQuantity;
         itemObj.status = fallbackStatus;
+        itemObj.branchStocks = branchStocks;
         return [itemObj];
       }
     }));
@@ -127,48 +144,60 @@ exports.getLowStockItems = async (req, res) => {
     const items = await Item.find()
       .populate('category', 'name')
       .select('-__v');
+    const branchFilter = getBranchFilter(req);
     
-    // For each item, fetch total stock quantity and calculate status
+    // For each item, calculate stock status from Stock records, not cached item fields.
     const itemsWithStatus = await Promise.all(items.map(async (item) => {
       const itemObj = item.toObject();
-      
-      // Get total quantity from Stock collection
-      const branchFilter = getBranchFilter(req);
-      const stockRecords = await Stock.find({ itemId: item._id, ...branchFilter });
+
+      const stockRecords = await Stock.find({ itemId: item._id, ...branchFilter })
+        .populate('branchId', 'branchId branchName branchCode location city');
       const totalQuantity = stockRecords.reduce((sum, stock) => sum + (stock.quantity || 0), 0);
-      
-      // Get unit price from ItemUnit
+
       const itemUnit = await ItemUnit.findOne({ itemId: item._id });
       itemObj.unitPrice = itemUnit ? itemUnit.unitPrice : 0;
 
-      // Convert category object to just the name string
       if (itemObj.category && typeof itemObj.category === 'object') {
         itemObj.categoryName = itemObj.category.name;
         itemObj.category = itemObj.category.name;
       }
-      // Ensure branch is a string
-      if (itemObj.branch && typeof itemObj.branch === 'object') {
-        itemObj.branch = itemObj.branch.branchName || itemObj.branch.name || String(itemObj.branch._id);
-      }
-      
-      // Set quantity from database
-      itemObj.quantity = totalQuantity;
-      itemObj.minStock = itemObj.minStock || 0;
-      
-      // Calculate status based on actual quantity vs minStock
+
+      const minStock = itemObj.minStock || 0;
+      const shortage = Math.max(0, minStock - totalQuantity);
+      let status = 'normal';
       if (totalQuantity === 0) {
-        itemObj.status = 'out';
-      } else if (totalQuantity > 0 && totalQuantity < itemObj.minStock) {
-        itemObj.status = 'low';
-      } else {
-        itemObj.status = 'normal';
+        status = 'out';
+      } else if (totalQuantity < minStock) {
+        status = 'low';
       }
-      
+
+      const branchStocks = stockRecords.map(stock => {
+        const branch = stock.branchId;
+        const quantity = stock.quantity || 0;
+        return {
+          stockId: stock._id,
+          branchObjectId: branch?._id,
+          branchId: branch?.branchId || branch?._id,
+          branchName: branch?.branchName || 'Unknown Branch',
+          branchCode: branch?.branchCode || '',
+          location: branch?.location || branch?.city || '',
+          quantity,
+          status: quantity === 0 ? 'out' : quantity < minStock ? 'low' : 'normal',
+        };
+      });
+
+      itemObj.quantity = totalQuantity;
+      itemObj.currentStock = totalQuantity;
+      itemObj.minStock = minStock;
+      itemObj.shortage = shortage;
+      itemObj.status = status;
       itemObj.unit = itemObj.unit || 'kg';
+      itemObj.branchStocks = branchStocks;
+      itemObj.availableBranches = branchStocks.filter(branch => branch.quantity > 0);
+
       return itemObj;
     }));
     
-    // Filter for low stock or out of stock items
     const lowStockItems = itemsWithStatus.filter(item => 
       item.status === 'low' || item.status === 'out'
     );

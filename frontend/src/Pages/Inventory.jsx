@@ -60,6 +60,7 @@ const Inventory = () => {
   const [query, setQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('All Categories');
   const [branchFilter, setBranchFilter] = useState('All Branch');
+  const [statusFilter, setStatusFilter] = useState('All Status');
   const [showModal, setShowModal] = useState(false);
   const [showFindByImageModal, setShowFindByImageModal] = useState(false);
   const [imagePreview, setImagePreview] = useState(null);
@@ -198,21 +199,72 @@ const Inventory = () => {
     }
   };
 
-  // Filter items based on search query, category, and branch
+  const getCategoryName = (item) => {
+    if (item.category && typeof item.category === 'object') {
+      return item.category.name || item.category.categoryName || '';
+    }
+    return item.categoryName || item.category || '';
+  };
+
+  const getItemBranchNames = (item) => {
+    if (Array.isArray(item.branchStocks) && item.branchStocks.length > 0) {
+      return item.branchStocks
+        .map(stock => stock.branchName || stock.branch || '')
+        .filter(Boolean);
+    }
+    return item.branch ? [item.branch] : [];
+  };
+
+  const getStatusLabel = (status) => {
+    if (status === 'low') return 'Low Stock';
+    if (status === 'out') return 'Out of Stock';
+    return 'Normal';
+  };
+
+  const getDisplayQuantity = (item) => {
+    if (branchFilter !== 'All Branch' && Array.isArray(item.branchStocks)) {
+      const selectedBranchStock = item.branchStocks.find(stock => stock.branchName === branchFilter);
+      return selectedBranchStock ? selectedBranchStock.quantity || 0 : 0;
+    }
+
+    return item.quantity || item.qty || 0;
+  };
+
+  const handleClearFilters = () => {
+    setQuery('');
+    setCategoryFilter('All Categories');
+    setBranchFilter('All Branch');
+    setStatusFilter('All Status');
+  };
+
+  // Filter items based on DB-backed search, category, branch, and stock status.
   const filtered = useMemo(() => {
     return items.filter(item => {
       const q = query.trim().toLowerCase();
+      const categoryName = getCategoryName(item);
+      const branchNames = getItemBranchNames(item);
+      const status = item.status || 'normal';
+      const searchText = [
+        item.name,
+        item.sku,
+        item.itemId,
+        categoryName,
+        item.unit,
+        status,
+        getStatusLabel(status),
+        ...branchNames
+      ].filter(Boolean).join(' ').toLowerCase();
+
       const matchesQuery = !q ||
-        item.name.toLowerCase().includes(q) ||
-        item.category.toLowerCase().includes(q) ||
-        item.unit.toLowerCase().includes(q);
+        searchText.includes(q);
 
-      const matchesCategory = categoryFilter === 'All Categories' || item.category === categoryFilter;
-      const matchesBranch = branchFilter === 'All Branch' || item.branch === branchFilter;
+      const matchesCategory = categoryFilter === 'All Categories' || categoryName === categoryFilter;
+      const matchesBranch = branchFilter === 'All Branch' || branchNames.includes(branchFilter);
+      const matchesStatus = statusFilter === 'All Status' || status === statusFilter;
 
-      return matchesQuery && matchesCategory && matchesBranch;
+      return matchesQuery && matchesCategory && matchesBranch && matchesStatus;
     });
-  }, [items, query, categoryFilter, branchFilter]);
+  }, [items, query, categoryFilter, branchFilter, statusFilter]);
 
   const handleOpenModal = () => {
     setFormData(prev => ({
@@ -552,7 +604,7 @@ const Inventory = () => {
                         <input
                           id="inventory-search-input"
                           type="search"
-                          placeholder="Search by name or category...."
+                          placeholder="Search item, SKU, category, branch, status..."
                           value={query}
                           onChange={(e) => setQuery(e.target.value)}
                         />
@@ -584,6 +636,28 @@ const Inventory = () => {
                         ))}
                       </select>
                     </div>
+
+                    <div className="filter">
+                      <select
+                        value={statusFilter}
+                        onChange={(e) => setStatusFilter(e.target.value)}
+                        className="filter-select"
+                      >
+                        <option value="All Status">All Status</option>
+                        <option value="normal">Normal</option>
+                        <option value="low">Low Stock</option>
+                        <option value="out">Out of Stock</option>
+                      </select>
+                    </div>
+
+                    <button
+                      type="button"
+                      className="filter-clear-btn"
+                      onClick={handleClearFilters}
+                      disabled={!query && categoryFilter === 'All Categories' && branchFilter === 'All Branch' && statusFilter === 'All Status'}
+                    >
+                      Clear
+                    </button>
 
                     <div className="inventory-actions">
                       {canEdit && (
@@ -631,7 +705,7 @@ const Inventory = () => {
                                 <td style={{ width: '12%', paddingLeft: '16px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={item.sku || item.itemId}>{item.sku || item.itemId || item._id}</td>
                                 <td style={{ width: '18%' }}>{item.name}</td>
                                 <td style={{ width: '15%' }}>{categoryDisplay}</td>
-                                <td style={{ width: '12%', textAlign: 'center' }}>{item.quantity || item.qty || 0}</td>
+                                <td style={{ width: '12%', textAlign: 'center' }}>{getDisplayQuantity(item)}</td>
                                 <td style={{ width: '10%', textAlign: 'center' }}>{item.unit || '-'}</td>
                                 <td style={{ width: '13%', textAlign: 'center' }}>Rs {item.unitPrice ? parseFloat(item.unitPrice).toFixed(2) : '0.00'}</td>
                                 <td style={{ width: '20%', textAlign: 'center' }}>
