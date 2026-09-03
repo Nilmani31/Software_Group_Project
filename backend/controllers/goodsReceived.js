@@ -157,9 +157,10 @@ exports.createGRN = async (req, res) => {
             if (!foundUnit) {
               const itemNameStr = item.itemName || 'Item';
               const newUnitName = parsedUnitValue > 1 ? `${parsedUnitValue}${parsedUnitName}` : parsedUnitName;
+              const unitDisplayName = `${itemNameStr} - ${newUnitName} (Rs${item.unitPrice || 0})`;
               foundUnit = new ItemUnit({
                 itemId: targetItemId,
-                name: `${itemNameStr} - ${newUnitName}`,
+                name: unitDisplayName,
                 unit: parsedUnitName,
                 unitValue: parsedUnitValue,
                 unitPrice: item.unitPrice || 0,
@@ -170,10 +171,9 @@ exports.createGRN = async (req, res) => {
                 await foundUnit.save();
                 console.log(`Created new ItemUnit from GRN: ${foundUnit._id} for ${foundUnit.name}`);
               } catch (saveErr) {
-                // If it fails (e.g. duplicate name index), append a timestamp or price to name
-                foundUnit.name = `${itemNameStr} - ${newUnitName} (Rs${item.unitPrice})`;
+                foundUnit.name = `${itemNameStr} - ${newUnitName} (Rs${item.unitPrice || 0})_${Date.now()}`;
                 await foundUnit.save();
-                console.log(`Created new ItemUnit from GRN (with price in name): ${foundUnit._id}`);
+                console.log(`Created new ItemUnit from GRN (fallback): ${foundUnit._id}`);
               }
             }
             targetItemUnitId = foundUnit._id;

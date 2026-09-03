@@ -564,12 +564,8 @@ exports.getItemStock = async (req, res) => {
     // Get all itemUnits for this item
     const itemUnits = await ItemUnit.find({ itemId });
 
-    // Get all stocks for this item, filtered by unit if provided
-    let query = { itemId };
-    if (itemUnitId) {
-      query.itemUnitId = itemUnitId;
-    }
-    const stockRecords = await Stock.find(query).populate('branchId', 'branchName branch_name name location city');
+    // Get all stocks for this item across all price tiers and branches
+    const stockRecords = await Stock.find({ itemId }).populate('branchId', 'branchName branch_name name location city');
     
     // Create map of branch stocks
     const stockByBranch = {};
@@ -580,26 +576,35 @@ exports.getItemStock = async (req, res) => {
         branchName: branch.branchName || branch.branch_name || branch.name,
         location: branch.location || branch.city,
         totalQuantity: 0,
+        totalValue: 0,
         units: []
       };
     });
 
     // Populate with actual stock data
     stockRecords.forEach(stock => {
-      const branchKey = String(stock.branchId._id);
+      if (!stock.branchId) return;
+      const branchKey = String(stock.branchId._id || stock.branchId);
       if (stockByBranch[branchKey]) {
         const unit = itemUnits.find(u => u._id.equals(stock.itemUnitId));
-        
+        const unitPrice = unit ? (Number(unit.unitPrice) || 0) : 0;
+        const qty = Number(stock.quantity) || 0;
+        const totalVal = qty * unitPrice;
+
         stockByBranch[branchKey].units.push({
           unitId: stock.itemUnitId,
-          unitName: unit ? unit.name : 'Unknown',
-          quantity: stock.quantity,
+          unitName: unit ? unit.name : 'Standard Unit',
+          unitPrice: unitPrice,
+          unit: unit?.unit || item.unit || 'kg',
+          quantity: qty,
+          totalValue: totalVal,
           status: stock.status,
           minStock: stock.minStock,
           maxStock: stock.maxStock
         });
         
-        stockByBranch[branchKey].totalQuantity += stock.quantity;
+        stockByBranch[branchKey].totalQuantity += qty;
+        stockByBranch[branchKey].totalValue += totalVal;
       }
     });
 
@@ -616,7 +621,8 @@ exports.getItemStock = async (req, res) => {
       summary: {
         totalUnits: itemUnits.length,
         totalBranches: branches.length,
-        totalStockAcrossAllBranches: Object.values(stockByBranch).reduce((sum, b) => sum + b.totalQuantity, 0)
+        totalStockAcrossAllBranches: Object.values(stockByBranch).reduce((sum, b) => sum + b.totalQuantity, 0),
+        totalValueAcrossAllBranches: Object.values(stockByBranch).reduce((sum, b) => sum + b.totalValue, 0)
       }
     };
     
@@ -627,3 +633,84 @@ exports.getItemStock = async (req, res) => {
   }
 };
 
+// Add or update a price tier for an item
+exports.addPriceTier = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { branchId, unitPrice, quantity } = req.body;
+
+    if (!unitPrice || Number(unitPrice) <= 0) {
+      return res.status(400).json({ error: 'Please provide a valid unit price' });
+    }
+
+    const item = await Item.findById(id);
+    if (!item) {
+      return res.status(404).json({ error: 'Item not found' });
+    }
+
+    const parsedPrice = Number(unitPrice);
+    const parsedQty = Math.max(0, Number(quantity) || 0);
+
+    // Find or create ItemUnit for this price tier
+    let itemUnit = await ItemUnit.findOne({
+      itemId: item._id,
+      unitPrice: parsedPrice
+    });
+
+    if (!itemUnit) {
+      itemUnit = new ItemUnit({
+        unitId: `UNIT_${(item.name || '').replace(/\s+/g, '').toUpperCase()}_${Date.now()}`,
+        name: `${item.name} - (Rs${parsedPrice})`,
+        itemId: item._id,
+        unit: item.unit || 'kg',
+        unitValue: 1,
+        unitsPerPack: 1,
+        unitPrice: parsedPrice,
+        description: `${item.name} at Rs ${parsedPrice}`
+      });
+      await itemUnit.save();
+    }
+
+    // Determine branch (use provided or default to first branch)
+    let targetBranchId = branchId;
+    if (!targetBranchId) {
+      const defaultBranch = await Branch.findOne();
+      targetBranchId = defaultBranch?._id;
+    }
+
+    if (targetBranchId) {
+      let stock = await Stock.findOne({
+        itemId: item._id,
+        itemUnitId: itemUnit._id,
+        branchId: targetBranchId
+      });
+
+      if (stock) {
+        stock.quantity = (stock.quantity || 0) + parsedQty;
+        stock.updatedAt = new Date();
+        await stock.save();
+      } else {
+        stock = new Stock({
+          itemId: item._id,
+          itemUnitId: itemUnit._id,
+          branchId: targetBranchId,
+          quantity: parsedQty,
+          minStockLevel: 0,
+          maxStockLevel: 1000
+        });
+        await stock.save();
+      }
+    }
+
+    res.json({
+      success: true,
+      message: 'Price tier added successfully',
+      itemUnitId: itemUnit._id,
+      unitPrice: parsedPrice,
+      quantity: parsedQty
+    });
+  } catch (err) {
+    console.error('Error in addPriceTier:', err);
+    res.status(500).json({ error: err.message });
+  }
+};

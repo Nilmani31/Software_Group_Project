@@ -18,6 +18,9 @@ router.get('/', itemsController.getAllItems);
 // POST create item
 router.post('/', itemsController.createItem);
 
+// POST add price tier
+router.post('/:id/price-tier', itemsController.addPriceTier);
+
 // PUT update item
 router.put('/:id', itemsController.updateItem);
 

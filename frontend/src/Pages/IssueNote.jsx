@@ -237,6 +237,10 @@ const IssueNote = () => {
   const getItemOptionId = (item) => item.uniqueId || `${item._id || item.id}_${item.itemUnitId || 'default'}`;
 
   const getSourceBranch = () => {
+    if (formData && formData.fromBranch) {
+      const found = branches.find(b => String(b._id || b.id) === String(formData.fromBranch));
+      if (found) return found;
+    }
     return branches.find(branch =>
       /main|colombo/i.test(branch.branchName || branch.branch_name || branch.name || '')
     ) || branches[0];
@@ -262,7 +266,8 @@ const IssueNote = () => {
     const fromBranchId = sourceBranch?._id || sourceBranch?.id;
     const availableQty = getBranchQuantity(item, fromBranchId);
     const price = Number(item.unitPrice) || 0;
-    return `${item.name} | Rs ${price.toFixed(2)} | Available: ${availableQty} ${item.unit || 'unit'}`;
+    const cleanName = item.cleanName || item.baseItemName || item.name.replace(/\s*\(Rs\s?\d+(\.\d+)?\)\s*$/i, '');
+    return `${cleanName} | Rs ${price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} | In Stock: ${availableQty} ${item.unit || 'unit'}`;
   };
 
   const currentData = issueNotes;
@@ -849,12 +854,18 @@ const IssueNote = () => {
   };
 
   const openCreateModal = () => {
+    const defaultBranch = branches.find(branch =>
+      /main|colombo/i.test(branch.branchName || branch.branch_name || branch.name || '')
+    ) || branches[0];
+    const defaultBranchId = defaultBranch ? String(defaultBranch._id || defaultBranch.id) : "";
+
     setShowCreateModal(true);
     setFormData({
       issueNumber: "ISS-2025-XXX",
       issueDate: new Date().toISOString().split('T')[0],
       issueType: "Training Sessions",
       trainingSession: "",
+      fromBranch: defaultBranchId,
       category: "coffee-supplies",
       items: []
     });
@@ -872,6 +883,7 @@ const IssueNote = () => {
       issueDate: new Date().toISOString().split('T')[0],
       issueType: "Training Sessions",
       trainingSession: "",
+      fromBranch: "",
       category: "coffee-supplies",
       items: []
     });
@@ -919,15 +931,19 @@ const IssueNote = () => {
           return;
         }
 
+        const cleanName = item.cleanName || item.baseItemName || item.name.replace(/\s*\(Rs\s?\d+(\.\d+)?\)\s*$/i, '');
+        const unitPrice = Number(item.unitPrice) || 0;
+
         const newItem = {
           id: item._id,
           optionId,
           itemUnitId: item.itemUnitId,
-          name: item.name,
+          name: cleanName,
           qty: itemQuantity,
           availableQty,
           unit: item.unit || 'unit',
-          unitPrice: Number(item.unitPrice) || 0,
+          unitPrice: unitPrice,
+          totalPrice: itemQuantity * unitPrice,
           tempId: Date.now()
         };
 
@@ -1379,6 +1395,31 @@ const IssueNote = () => {
                 </div>
               </div>
 
+              {/* Issuing From Branch */}
+              <div className="form-group full-width">
+                <label>Issuing From Branch (Source)</label>
+                <select
+                  value={formData.fromBranch || (getSourceBranch()?._id || getSourceBranch()?.id || '')}
+                  onChange={(e) => {
+                    handleFormChange('fromBranch', e.target.value);
+                    setSelectedItemForAdd(null);
+                    setItemQuantity(0);
+                  }}
+                  className="form-select"
+                >
+                  {branches.map(branch => {
+                    const branchName = branch.branchName || branch.branch_name || branch.name || 'Unknown';
+                    const branchCode = branch.branchCode || branch.branch_code || '';
+                    const branchId = branch._id || branch.id;
+                    return (
+                      <option key={branchId} value={branchId}>
+                        {branchName} {branchCode ? `(${branchCode})` : ''}
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+
               {/* Issue Type */}
               <div className="form-group full-width">
                 <label>Issue Type</label>
@@ -1395,7 +1436,7 @@ const IssueNote = () => {
 
               {/* Training Session / Branch Name */}
               <div className="form-group full-width">
-                <label>{formData.issueType === "Training Sessions" ? "Training Sessions" : "Branch Name"}</label>
+                <label>{formData.issueType === "Training Sessions" ? "Training Session / Destination" : "Destination Branch (Issued To)"}</label>
                 {formData.issueType === "Training Sessions" ? (
                   <input
                     type="text"
@@ -1540,7 +1581,9 @@ const IssueNote = () => {
                             <>
                               <span className="item-info">
                                 <strong>{item.name}</strong>
-                                <span className="item-detail"> • {item.qty} {item.unit}</span>
+                                <span className="item-detail">
+                                  {" "}• {item.qty} {item.unit} @ Rs {(Number(item.unitPrice) || 0).toLocaleString('en-US')} = <strong style={{ color: '#059669' }}>Rs {((Number(item.qty) || 0) * (Number(item.unitPrice) || 0)).toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong>
+                                </span>
                               </span>
                               <div className="item-actions">
                                 <button
@@ -1564,6 +1607,24 @@ const IssueNote = () => {
                           )}
                         </div>
                       ))}
+
+                      {/* Total Value Summary */}
+                      <div style={{
+                        marginTop: '12px',
+                        padding: '10px 14px',
+                        background: '#f8fafc',
+                        border: '1px solid #e2e8f0',
+                        borderRadius: '6px',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        fontSize: '14px'
+                      }}>
+                        <span style={{ color: '#64748b', fontWeight: '600' }}>Total Issue Amount:</span>
+                        <strong style={{ color: '#4f46e5', fontSize: '15px' }}>
+                          Rs {formData.items.reduce((s, i) => s + ((Number(i.qty) || 0) * (Number(i.unitPrice) || 0)), 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </strong>
+                      </div>
                     </div>
                   )}
                 </div>
