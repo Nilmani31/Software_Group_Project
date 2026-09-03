@@ -52,6 +52,22 @@ const getStatusClass = (status) => {
 
 const formatPrice = (value) => `Rs ${(Number(value) || 0).toFixed(2)}`;
 
+const formatUnitSize = (unit, unitValue) => {
+  if (!unit) return '';
+  const str = String(unit).trim();
+  if (/^\d+/.test(str)) {
+    return str;
+  }
+  const val = (unitValue !== undefined && unitValue !== null && unitValue !== '') ? unitValue : 1;
+  return `${val}${str}`;
+};
+
+const cleanUnit = (unit) => {
+  if (!unit) return '';
+  const str = String(unit).trim();
+  return str;
+};
+
 const stripPriceSuffix = (name = '') => name.replace(/\s*\(Rs\s?\d+(\.\d+)?\)\s*$/i, '');
 
 const mergeBranchStocks = (branchStocks = []) => {
@@ -106,10 +122,10 @@ const Inventory = () => {
     name: '',
     category: '',
     unit: 'kg',
+    unitValue: '1',
     unitPrice: '',
     minStock: '',
     maxStock: '',
-    //branch: 'Colombo',
     sku: '',
     image: null
   });
@@ -220,6 +236,9 @@ const Inventory = () => {
         if (data && data.branchInventory) {
           setStockData(data.branchInventory.map(b => ({
             ...b,
+            _id: b._id || b.stockId,
+            stockId: b.stockId || b._id,
+            branchId: b.branchId,
             quantity: b.totalQuantity,
             totalValue: b.totalValue || 0,
             units: b.units || []
@@ -299,6 +318,8 @@ const Inventory = () => {
       const quantity = Number(item.quantity || item.qty) || 0;
       const unitPrice = Number(item.unitPrice) || 0;
       const branchStocks = Array.isArray(item.branchStocks) ? item.branchStocks : [];
+      const rawUnit = (item.baseUnit || item.unit || 'kg').replace(/^\d+/, '');
+      const formattedUnitSize = item.unitSize || formatUnitSize(item.unit, item.unitValue);
 
       if (!existing) {
         groups.set(key, {
@@ -306,7 +327,8 @@ const Inventory = () => {
           name: stripPriceSuffix(item.name),
           quantity,
           unitPrices: [unitPrice],
-          units: item.unit ? [item.unit] : [],
+          baseUnits: rawUnit ? [rawUnit] : [],
+          unitSizes: formattedUnitSize ? [formattedUnitSize] : [],
           branchStocks: mergeBranchStocks(branchStocks),
           variations: [item],
           totalValue: quantity * unitPrice,
@@ -318,7 +340,12 @@ const Inventory = () => {
       existing.quantity += quantity;
       existing.totalValue += quantity * unitPrice;
       existing.unitPrices.push(unitPrice);
-      if (item.unit) existing.units.push(item.unit);
+      if (rawUnit && !existing.baseUnits.includes(rawUnit)) {
+        existing.baseUnits.push(rawUnit);
+      }
+      if (formattedUnitSize && !existing.unitSizes.includes(formattedUnitSize)) {
+        existing.unitSizes.push(formattedUnitSize);
+      }
       existing.branchStocks = mergeBranchStocks([
         ...(existing.branchStocks || []),
         ...branchStocks
@@ -329,7 +356,8 @@ const Inventory = () => {
 
     return Array.from(groups.values()).map(item => {
       const uniquePrices = Array.from(new Set(item.unitPrices));
-      const uniqueUnits = Array.from(new Set(item.units));
+      const uniqueBaseUnits = Array.from(new Set(item.baseUnits.filter(Boolean)));
+      const uniqueUnitSizes = Array.from(new Set(item.unitSizes.filter(Boolean)));
       const minStock = Number(item.minStock) || 0;
       let status = 'normal';
 
@@ -339,13 +367,18 @@ const Inventory = () => {
         status = 'low';
       }
 
+      const baseUnitDisplay = uniqueBaseUnits.length > 0 ? uniqueBaseUnits.join(', ') : (item.unit || '-');
+      const unitSizeDisplay = uniqueUnitSizes.length > 0 ? uniqueUnitSizes.join(', ') : (formatUnitSize(item.unit, item.unitValue) || '-');
+
       return {
         ...item,
         uniqueId: item._id || item.id || item.uniqueId,
         itemUnitId: item.isGrouped ? undefined : item.itemUnitId,
         unitPrice: uniquePrices.length === 1 ? uniquePrices[0] : undefined,
         priceRange: getPriceRangeText(uniquePrices),
-        unit: uniqueUnits.length === 1 ? uniqueUnits[0] : 'Multiple',
+        baseUnit: baseUnitDisplay,
+        unit: baseUnitDisplay,
+        unitSize: unitSizeDisplay,
         status
       };
     });
@@ -364,6 +397,8 @@ const Inventory = () => {
         item.itemId,
         categoryName,
         item.unit,
+        item.baseUnit,
+        item.unitSize,
         item.priceRange,
         status,
         getStatusLabel(status),
@@ -423,6 +458,7 @@ const Inventory = () => {
       name: '',
       category: '',
       unit: 'kg',
+      unitValue: '1',
       unitPrice: '',
       minStock: '',
       maxStock: '',
@@ -484,12 +520,17 @@ const Inventory = () => {
     try {
       const response = await fetch('http://localhost:5005/api/items', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders()
+        },
         body: JSON.stringify({
           sku: formData.sku,
           name: formData.name,
           category: categoryId,
           unit: formData.unit,
+          unitValue: parseFloat(formData.unitValue) || 1,
+          unitAmount: parseFloat(formData.unitValue) || 1,
           unitPrice: parseFloat(formData.unitPrice) || 0,
           minStock: parseInt(formData.minStock) || 0,
           maxStock: parseInt(formData.maxStock) || 1000,
@@ -525,17 +566,17 @@ const Inventory = () => {
 
   const handleEditItem = () => {
     if (selectedItem) {
-      // Safely extract category name if it's an object
+      // Safely extract category name or id if it's an object
       let categoryValue = selectedItem.category;
       if (typeof categoryValue === 'object' && categoryValue !== null) {
-        categoryValue = categoryValue.name || categoryValue.categoryName || '';
+        categoryValue = categoryValue._id || categoryValue.name || categoryValue.categoryName || '';
       }
 
       setEditFormData({
         _id: selectedItem._id || selectedItem.id,
         name: selectedItem.name || '',
-        category: typeof selectedItem.category === 'object' ? selectedItem.category._id : selectedItem.category,
-        unit: selectedItem.unit || 'kg',
+        category: categoryValue,
+        unit: cleanUnit(selectedItem.unit) || 'kg',
         unitValue: selectedItem.unitValue || 1,
         sku: selectedItem.sku || selectedItem.itemId || '',
         quantity: selectedItem.quantity || 0,
@@ -571,7 +612,8 @@ const Inventory = () => {
     if (window.confirm(`Are you sure you want to delete ${selectedItem.name}?`)) {
       try {
         const response = await fetch(`http://localhost:5005/api/items/${selectedItem._id}`, {
-          method: 'DELETE'
+          method: 'DELETE',
+          headers: getAuthHeaders()
         });
         const result = await response.json();
         if (result.message || response.ok) {
@@ -644,48 +686,45 @@ const Inventory = () => {
       return;
     }
 
-    // Get category ObjectId from map
-    const categoryId = categoryMap[editFormData.category];
-    if (!categoryId) {
-      alert('Invalid category selected');
-      return;
+    // Get category ObjectId from map or existing category value
+    let categoryId = categoryMap[editFormData.category] || editFormData.category;
+    if (typeof categoryId === 'object' && categoryId !== null) {
+      categoryId = categoryId._id;
     }
 
     setSubmitLoading(true);
     try {
-      // First, update the item
+      const calculatedTotalQty = editableStockData && editableStockData.length > 0
+        ? editableStockData.reduce((total, stock) => total + (parseInt(stock.quantity) || 0), 0)
+        : (parseInt(editFormData.quantity) || 0);
+
+      // First, update the item with branch stocks
       const response = await fetch(`http://localhost:5005/api/items/${selectedItem._id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders()
+        },
         body: JSON.stringify({
           name: editFormData.name,
-          category: editFormData.category,
-          unit: editFormData.unit,
+          category: categoryId,
+          unit: cleanUnit(editFormData.unit),
           unitValue: parseFloat(editFormData.unitValue) || 1,
-          quantity: parseInt(editFormData.quantity) || 0,
+          quantity: calculatedTotalQty,
           minStock: parseInt(editFormData.minStock) || 0,
           maxStock: parseInt(editFormData.maxStock) || 1000,
-          image: editFormData.image
+          image: editFormData.image,
+          branchStocks: editableStockData.map(s => ({
+            branchId: s.branchId || s.branchObjectId || s._id,
+            quantity: parseInt(s.quantity) || 0
+          }))
         })
       });
 
       const result = await response.json();
       if (result._id || result.id) {
-        // Now save the stock quantities for each branch
-        if (editableStockData && editableStockData.length > 0) {
-          for (const stock of editableStockData) {
-            await fetch(`http://localhost:5005/api/stock/${stock._id}`, {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                quantity: parseInt(stock.quantity) || 0
-              })
-            });
-          }
-        }
-
         alert('Item and stock updated successfully!');
-        fetchItems();
+        await fetchItems();
         handleCloseEditModal();
         handleCloseItemDetailModal();
       } else {
@@ -796,11 +835,12 @@ const Inventory = () => {
                         <thead style={{ position: 'sticky', top: 0, zIndex: 2 }}>
                           <tr>
                             <th style={{ width: '15%', left: 0, background: 'inherit' }}>Item ID</th>
-                            <th style={{ width: '25%' }}>Name</th>
-                            <th style={{ width: '20%' }}>Category</th>
-                            <th style={{ width: '15%', textAlign: 'center' }}>Quantity</th>
+                            <th style={{ width: '22%' }}>Name</th>
+                            <th style={{ width: '18%' }}>Category</th>
+                            <th style={{ width: '11%', textAlign: 'center' }}>Quantity</th>
                             <th style={{ width: '10%', textAlign: 'center' }}>Unit</th>
-                            <th style={{ width: '15%', textAlign: 'center' }}>Status</th>
+                            <th style={{ width: '13%', textAlign: 'center' }}>Unit Size</th>
+                            <th style={{ width: '11%', textAlign: 'center' }}>Status</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -817,11 +857,12 @@ const Inventory = () => {
                                 style={{ cursor: 'pointer' }}
                               >
                                 <td style={{ width: '15%', paddingLeft: '16px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={item.sku || item.itemId}>{item.sku || item.itemId || item._id}</td>
-                                <td style={{ width: '25%' }}>{item.name}</td>
-                                <td style={{ width: '20%' }}>{categoryDisplay}</td>
-                                <td style={{ width: '15%', textAlign: 'center', fontWeight: '600' }}>{getDisplayQuantity(item)}</td>
-                                <td style={{ width: '10%', textAlign: 'center' }}>{item.unit || '-'}</td>
-                                <td style={{ width: '15%', textAlign: 'center' }}>
+                                <td style={{ width: '22%' }}>{item.name}</td>
+                                <td style={{ width: '18%' }}>{categoryDisplay}</td>
+                                <td style={{ width: '11%', textAlign: 'center', fontWeight: '600' }}>{getDisplayQuantity(item)}</td>
+                                <td style={{ width: '10%', textAlign: 'center' }}>{item.baseUnit || item.unit || '-'}</td>
+                                <td style={{ width: '13%', textAlign: 'center', fontWeight: '600', color: '#4338ca' }}>{item.unitSize || '-'}</td>
+                                <td style={{ width: '11%', textAlign: 'center' }}>
                                   <span className={`badge ${getStatusClass(item.status)}`}>
                                     {item.status === 'normal' ? '✅ Normal' : item.status === 'low' ? '⚠️ Low' : '❌ Out'}
                                   </span>
@@ -908,6 +949,21 @@ const Inventory = () => {
                         <option value="ltr">ltr</option>
                         <option value="pcs">pcs</option>
                       </select>
+                    </div>
+
+                    {/* Unit Amount / Size */}
+                    <div className="form-group-inventory">
+                      <label className="form-label-inventory">Unit Size / Amount</label>
+                      <input
+                        type="number"
+                        name="unitValue"
+                        placeholder="e.g. 1, 2, 5"
+                        value={formData.unitValue || '1'}
+                        onChange={handleInputChange}
+                        className="form-input-inventory"
+                        min="1"
+                        required
+                      />
                     </div>
 
                     {/* Unit Price */}
@@ -1064,7 +1120,7 @@ const Inventory = () => {
 
                     <div>
                       <span style={{ display: 'block', fontSize: '11px', color: '#64748b', textTransform: 'uppercase', fontWeight: '700', letterSpacing: '0.5px' }}>Unit</span>
-                      <strong style={{ fontSize: '15px', color: '#1e293b' }}>{selectedItem.unit || '-'}</strong>
+                      <strong style={{ fontSize: '15px', color: '#1e293b' }}>{cleanUnit(selectedItem.unit) || '-'}</strong>
                     </div>
 
                     <div>
@@ -1072,7 +1128,7 @@ const Inventory = () => {
                       <strong style={{ fontSize: '16px', color: '#0f172a' }}>
                         {stockData && stockData.length > 0
                           ? stockData.reduce((total, stock) => total + (Number(stock.totalQuantity) || Number(stock.quantity) || 0), 0)
-                          : (selectedItem.qty || selectedItem.quantity || 0)} {selectedItem.unit || ''}
+                          : (selectedItem.qty || selectedItem.quantity || 0)} {cleanUnit(selectedItem.unit)}
                       </strong>
                     </div>
 
@@ -1184,7 +1240,7 @@ const Inventory = () => {
                                         <span style={{ fontSize: '14px', color: '#0f172a' }}>{branchName}</span>
                                         {units.length > 1 && (
                                           <span style={{ fontSize: '11px', color: '#64748b', fontWeight: '500' }}>
-                                            Total: {stock.totalQuantity || stock.quantity || 0} {selectedItem.unit || ''}
+                                            Total: {stock.totalQuantity || stock.quantity || 0} {cleanUnit(selectedItem.unit)}
                                           </span>
                                         )}
                                       </div>
@@ -1204,7 +1260,7 @@ const Inventory = () => {
                                     </span>
                                   </td>
                                   <td style={{ padding: '10px 16px', textAlign: 'center', fontWeight: '600', color: '#1e293b' }}>
-                                    {tierQty} {selectedItem.unit || ''}
+                                    {tierQty} {cleanUnit(selectedItem.unit)}
                                   </td>
                                   <td style={{ padding: '10px 16px', textAlign: 'right', fontWeight: '700', color: '#059669' }}>
                                     Rs {tierValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -1220,7 +1276,7 @@ const Inventory = () => {
                         <tr key={branchName} style={{ borderBottom: '1px solid #f1f5f9' }}>
                           <td style={{ padding: '12px 16px', fontWeight: '600' }}>{branchName}</td>
                           <td style={{ padding: '12px 16px' }}>-</td>
-                          <td style={{ padding: '12px 16px', textAlign: 'center' }}>0</td>
+                          <td style={{ padding: '12px 16px', textAlign: 'center' }}>0 {cleanUnit(selectedItem?.unit)}</td>
                           <td style={{ padding: '12px 16px', textAlign: 'right' }}>Rs 0.00</td>
                         </tr>
                       ))
@@ -1231,7 +1287,7 @@ const Inventory = () => {
                       <tr style={{ background: '#f8fafc', fontWeight: 'bold', borderTop: '2px solid #e2e8f0' }}>
                         <td colSpan="2" style={{ padding: '14px 16px', color: '#334155' }}>Total Across All Branches</td>
                         <td style={{ padding: '14px 16px', textAlign: 'center', color: '#334155', fontSize: '15px' }}>
-                          {stockData.reduce((sum, b) => sum + (Number(b.totalQuantity) || Number(b.quantity) || 0), 0)} {selectedItem.unit || ''}
+                          {stockData.reduce((sum, b) => sum + (Number(b.totalQuantity) || Number(b.quantity) || 0), 0)} {cleanUnit(selectedItem.unit)}
                         </td>
                         <td style={{ padding: '14px 16px', textAlign: 'right', color: '#16a34a', fontSize: '15px' }}>
                           Rs {stockData.reduce((sum, b) => {
@@ -1568,7 +1624,7 @@ const Inventory = () => {
                               textTransform: 'uppercase',
                               letterSpacing: '0.3px',
                               width: '40%'
-                            }}>Total Stock</td>
+                            }}>Total Stock Across Branches</td>
                             <td style={{
                               padding: '12px',
                               textAlign: 'center',
@@ -1578,40 +1634,18 @@ const Inventory = () => {
                               fontWeight: '700',
                               width: '30%'
                             }}>
-                              {editableStockData.reduce((total, stock) => total + (stock.quantity || 0), 0)}
+                              {editableStockData.reduce((total, stock) => total + (parseInt(stock.totalQuantity) || parseInt(stock.quantity) || 0), 0)} {cleanUnit(selectedItem?.unit)}
                             </td>
                             <td style={{
                               padding: '12px',
                               textAlign: 'center',
                               borderRight: 'none',
+                              color: 'white',
+                              fontSize: '14px',
+                              fontWeight: '700',
                               width: '30%'
                             }}>
-                              <input
-                                type="number"
-                                min="0"
-                                value={editableStockData.reduce((total, stock) => total + (stock.quantity || 0), 0)}
-                                onChange={(e) => handleEditTotalQuantityChange(e.target.value)}
-                                style={{
-                                  width: '100%',
-                                  padding: '8px 10px',
-                                  border: 'none',
-                                  borderRadius: '4px',
-                                  textAlign: 'center',
-                                  fontSize: '13px',
-                                  fontWeight: '700',
-                                  color: '#667eea',
-                                  outline: 'none',
-                                  transition: 'all 0.2s ease',
-                                  backgroundColor: '#ffffff',
-                                  boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)'
-                                }}
-                                onFocus={(e) => {
-                                  e.target.style.boxShadow = '0 4px 12px rgba(102, 126, 234, 0.3)';
-                                }}
-                                onBlur={(e) => {
-                                  e.target.style.boxShadow = '0 2px 4px rgba(0, 0, 0, 0.1)';
-                                }}
-                              />
+                              {editableStockData.reduce((total, stock) => total + (parseInt(stock.quantity) || 0), 0)} {cleanUnit(selectedItem?.unit)}
                             </td>
                           </tr>
                         </>

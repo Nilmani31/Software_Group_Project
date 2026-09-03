@@ -80,15 +80,14 @@ exports.getAllItems = async (req, res) => {
             unitStatus = 'low';
           }
           
-          // Build the unit display using unitValue and unit
-          let displayUnit = unit.unit || itemObj.unit || 'kg';
-          if (unit.unitValue !== undefined && unit.unitValue !== null) {
-            displayUnit = `${unit.unitValue}${displayUnit}`;
-          }
+          // Build the unit display using unitValue and unit (e.g. 1kg, 2kg, 1pcs)
+          const rawUnit = (unit.unit || itemObj.unit || 'kg').replace(/^\d+/, '');
+          const val = (unit.unitValue !== undefined && unit.unitValue !== null && unit.unitValue !== '') ? unit.unitValue : 1;
+          const displayUnit = `${val}${rawUnit}`;
 
           // Differentiate name if there are multiple prices for the same physical unit
           let distinctName = itemObj.name;
-          const sig = `${unit.unitValue}_${unit.unit}`;
+          const sig = `${val}_${rawUnit}`;
           if (unitSignatures[sig] > 1) {
             distinctName = `${itemObj.name} (Rs${unit.unitPrice || 0})`;
           }
@@ -98,7 +97,10 @@ exports.getAllItems = async (req, res) => {
             uniqueId: `${item._id}_${unit._id}`,
             name: distinctName,
             unitPrice: unit.unitPrice || 0,
-            unit: displayUnit,
+            unit: rawUnit,
+            baseUnit: rawUnit,
+            unitValue: val,
+            unitSize: displayUnit,
             itemUnitId: unit._id,
             quantity: unitTotalQuantity,
             status: unitStatus,
@@ -119,9 +121,15 @@ exports.getAllItems = async (req, res) => {
         } else if (totalQuantity > 0 && totalQuantity < itemObj.minStock) {
           fallbackStatus = 'low';
         }
+        const rawUnit = (itemObj.unit || 'kg').replace(/^\d+/, '');
+        const val = (itemObj.unitValue !== undefined && itemObj.unitValue !== null && itemObj.unitValue !== '') ? itemObj.unitValue : 1;
+        const displayUnit = `${val}${rawUnit}`;
         itemObj.uniqueId = item._id.toString();
         itemObj.unitPrice = 0;
-        itemObj.unit = itemObj.unit || 'kg';
+        itemObj.unit = rawUnit;
+        itemObj.baseUnit = rawUnit;
+        itemObj.unitValue = val;
+        itemObj.unitSize = displayUnit;
         itemObj.quantity = totalQuantity;
         itemObj.status = fallbackStatus;
         itemObj.branchStocks = branchStocks;
@@ -379,14 +387,39 @@ exports.updateItem = async (req, res) => {
       .populate('category', 'name');
     if (!item) return res.status(404).json({ error: 'Item not found' });
     
-    // AUTO-UPDATE STOCKS IF QUANTITY CHANGED
-    if (req.body.quantity !== undefined || req.body.minStock !== undefined || req.body.maxStock !== undefined) {
+    // AUTO-UPDATE STOCKS IF BRANCHSTOCKS PROVIDED OR QUANTITY CHANGED
+    if (Array.isArray(req.body.branchStocks) && req.body.branchStocks.length > 0) {
+      try {
+        const itemUnits = await ItemUnit.find({ itemId: item._id });
+        const defaultUnit = itemUnits[0] || await ItemUnit.findOne({ itemId: item._id });
+
+        for (const bs of req.body.branchStocks) {
+          const targetBranchId = bs.branchId || bs.branchObjectId || bs._id;
+          if (targetBranchId) {
+            const qty = Math.max(0, parseInt(bs.quantity) || 0);
+            await Stock.findOneAndUpdate(
+              { itemId: item._id, branchId: targetBranchId },
+              {
+                $set: {
+                  quantity: qty,
+                  status: qty === 0 ? 'out-of-stock' : (qty <= (item.minStock || 0) ? 'low' : 'in-stock'),
+                  ...(defaultUnit && { itemUnitId: defaultUnit._id })
+                }
+              },
+              { upsert: true, new: true, setDefaultsOnInsert: true }
+            );
+          }
+        }
+        console.log('✅ Branch stocks updated directly for item:', item.name);
+      } catch (bsError) {
+        console.warn('⚠️ Warning: Could not update branch stocks:', bsError.message);
+      }
+    } else if (req.body.quantity !== undefined || req.body.minStock !== undefined || req.body.maxStock !== undefined) {
       try {
         // Get all default itemUnits for this item
         const itemUnits = await ItemUnit.find({ itemId: item._id });
         
         for (const unit of itemUnits) {
-          // Update quantity in all branch stocks for this unit
           await Stock.updateMany(
             { itemId: item._id, itemUnitId: unit._id },
             {
@@ -400,8 +433,16 @@ exports.updateItem = async (req, res) => {
         console.log('✅ Stock records updated for item:', item.name);
       } catch (stockError) {
         console.warn('⚠️  Warning: Could not update stocks:', stockError.message);
-        // Don't fail item update if stocks fail
       }
+    }
+
+    // Recalculate total item quantity and status across branches
+    const allStocks = await Stock.find({ itemId: item._id });
+    if (allStocks && allStocks.length > 0) {
+      const totalStockQty = allStocks.reduce((sum, s) => sum + (Number(s.quantity) || 0), 0);
+      item.quantity = totalStockQty;
+      item.status = totalStockQty === 0 ? 'out' : (totalStockQty <= (item.minStock || 0) ? 'low' : 'normal');
+      await item.save();
     }
     
     // UPDATE OR CREATE ITEMUNIT
@@ -409,18 +450,18 @@ exports.updateItem = async (req, res) => {
       try {
         let itemUnit = await ItemUnit.findOne({ itemId: item._id });
         const newUnitValue = req.body.unitAmount || req.body.unitValue || (itemUnit ? itemUnit.unitValue : 1);
-        const newUnit = req.body.unit || item.unit;
+        const newUnit = (req.body.unit || item.unit || 'kg').replace(/^\d+/, '');
         
         if (itemUnit) {
           if (req.body.unitPrice !== undefined) itemUnit.unitPrice = req.body.unitPrice;
           itemUnit.unitValue = newUnitValue;
           itemUnit.unit = newUnit;
-          itemUnit.name = `${item.name} - ${newUnitValue}${newUnit}`;
+          itemUnit.name = `${item.name} - ${newUnitValue > 1 ? newUnitValue : ''}${newUnit}`;
           await itemUnit.save();
           console.log('✅ ItemUnit updated');
         } else {
           itemUnit = new ItemUnit({
-            name: `${item.name} - ${newUnitValue}${newUnit}`,
+            name: `${item.name} - ${newUnitValue > 1 ? newUnitValue : ''}${newUnit}`,
             itemId: item._id,
             unit: newUnit,
             unitValue: newUnitValue,
@@ -587,11 +628,14 @@ exports.getItemStock = async (req, res) => {
       const branchKey = String(stock.branchId._id || stock.branchId);
       if (stockByBranch[branchKey]) {
         const unit = itemUnits.find(u => u._id.equals(stock.itemUnitId));
-        const unitPrice = unit ? (Number(unit.unitPrice) || 0) : 0;
+        const defaultUnitPrice = itemUnits[0]?.unitPrice || item.unitPrice || 0;
+        const unitPrice = unit ? (Number(unit.unitPrice) || 0) : defaultUnitPrice;
         const qty = Number(stock.quantity) || 0;
         const totalVal = qty * unitPrice;
 
         stockByBranch[branchKey].units.push({
+          _id: stock._id,
+          stockId: stock._id,
           unitId: stock.itemUnitId,
           unitName: unit ? unit.name : 'Standard Unit',
           unitPrice: unitPrice,
@@ -605,6 +649,27 @@ exports.getItemStock = async (req, res) => {
         
         stockByBranch[branchKey].totalQuantity += qty;
         stockByBranch[branchKey].totalValue += totalVal;
+        if (!stockByBranch[branchKey]._id) {
+          stockByBranch[branchKey]._id = stock._id;
+          stockByBranch[branchKey].stockId = stock._id;
+        }
+      }
+    });
+
+    // Ensure all branches have at least default unit row if units exist
+    Object.values(stockByBranch).forEach(branchStock => {
+      if (branchStock.units.length === 0 && itemUnits.length > 0) {
+        itemUnits.forEach(unit => {
+          branchStock.units.push({
+            unitId: unit._id,
+            unitName: unit.name,
+            unitPrice: unit.unitPrice || 0,
+            unit: unit.unit || item.unit || 'kg',
+            quantity: 0,
+            totalValue: 0,
+            status: 'out-of-stock'
+          });
+        });
       }
     });
 
