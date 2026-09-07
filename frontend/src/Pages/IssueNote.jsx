@@ -14,18 +14,23 @@ const IssueNote = () => {
   const [currentUser, setCurrentUser] = useState(null);
   const [error, setError] = useState('');
 
+  // Role check
+  const roleId = localStorage.getItem('roleId') || '';
+  const userRole = roleId.replace('ROLE_', '');
+  const canEdit = ['ADMIN', 'DIRECTOR', 'MANAGER', 'BRANCH_MANAGER'].includes(userRole);
+
   // Fetch issue notes from backend
   useEffect(() => {
     const fetchIssueNotes = async () => {
       try {
         setLoading(true);
         setError('');
-        const response = await fetch('http://localhost:5000/api/issue-notes');
+        const response = await fetch('http://localhost:5005/api/issue-notes');
         if (!response.ok) {
           throw new Error('Failed to fetch issue notes');
         }
         const data = await response.json();
-        
+
         // Transform backend data to match UI expectations - PRESERVE ALL FIELDS
         const transformedData = Array.isArray(data) ? data.map(note => ({
           // Keep all original backend fields
@@ -37,10 +42,10 @@ const IssueNote = () => {
           issuedTo: note.toBranchId?.branchName || 'Unknown',
           issueDate: note.issueDate,
           issuedBy: note.issuedBy?.name || 'System',
-          status: note.status === 'approved' ? 'Completed' : 
-                  note.status === 'pending' ? 'Pending' : 
-                  note.status === 'rejected' ? 'Rejected' :
-                  note.status || 'Pending',
+          status: note.status === 'approved' ? 'Completed' :
+            note.status === 'pending' ? 'Pending' :
+              note.status === 'rejected' ? 'Rejected' :
+                note.status || 'Pending',
           itemCount: note.items?.length || 0,
           quantity: note.items?.reduce((sum, item) => sum + (item.quantity || 0), 0) || 0,
           items: note.items || [],
@@ -48,7 +53,7 @@ const IssueNote = () => {
           remarks: note.remarks || '',
           id: note._id // Add id for compatibility
         })) : [];
-        
+
         setIssueNotes(transformedData);
         console.log('✅ Issue notes loaded:', transformedData);
       } catch (err) {
@@ -92,33 +97,33 @@ const IssueNote = () => {
         fetchItems(),
         fetchUsers()
       ]);
-      
+
       // Get current user from localStorage (stored as individual fields in Login.jsx)
       const user = {
         _id: localStorage.getItem('userId') || 'temp-user-id',
         name: localStorage.getItem('username') || 'Current User'
       };
       setCurrentUser(user);
-      
+
       setLoading(false);
     };
-    
+
     loadData();
   }, []);
 
   // Fetch issue notes from API
   const fetchIssueNotes = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/issue-notes');
+      const response = await fetch('http://localhost:5005/api/issue-notes');
       const data = await response.json();
       console.log('Fetched issue notes from API:', data);
-      
+
       // Transform API data to match component format
       const transformedData = Array.isArray(data) ? data.map(note => {
         // Handle both populated and non-populated references
         const toBranchName = note.toBranchId?.branchName || note.toBranchId?.branch_name || 'External';
         const issuedByName = note.issuedBy?.name || note.issuedBy?.username || 'System User';
-        
+
         // Map status correctly
         let displayStatus = 'Pending';
         if (note.status === 'approved') displayStatus = 'Processing';
@@ -126,10 +131,10 @@ const IssueNote = () => {
         else if (note.status === 'rejected') displayStatus = 'Rejected';
         else if (note.status === 'cancelled') displayStatus = 'Cancelled';
         else if (note.status === 'pending') displayStatus = 'Pending';
-        
+
         // Calculate total quantity
         const totalQty = (note.items || []).reduce((sum, item) => sum + (item.quantity || 0), 0);
-        
+
         return {
           id: note._id,
           issueNumber: note.issueNoteNumber,
@@ -143,14 +148,19 @@ const IssueNote = () => {
           items: (note.items || []).map(item => ({
             id: item.itemId?._id || item.itemId,
             name: item.itemId?.name || 'Unknown Item',
+            itemUnitId: item.itemUnitId?._id || item.itemUnitId,
             qty: item.quantity,
-            unit: item.itemId?.unit || item.itemUnitId?.unitName || 'unit',
+            unit: item.itemUnitId
+              ? `${item.itemUnitId.unitValue || 1}${item.itemUnitId.unit || item.itemId?.unit || 'unit'}`
+              : item.itemId?.unit || 'unit',
+            unitPrice: item.unitPrice || item.itemUnitId?.unitPrice || 0,
+            totalPrice: item.totalPrice || 0,
             availableQty: 0
           })),
           _original: note // Keep original data for API calls
         };
       }) : [];
-      
+
       console.log('Transformed issue notes:', transformedData);
       setIssueNotes(transformedData);
       setLoading(false);
@@ -163,14 +173,14 @@ const IssueNote = () => {
   // Fetch branches from API
   const fetchBranches = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/branches');
+      const response = await fetch('http://localhost:5005/api/branches');
       const data = await response.json();
-      
+
       console.log('Branches API response:', data);
-      
+
       // Handle both response formats: { success: true, data: [...] } or direct array
       const branchesArray = data.success && data.data ? data.data : (Array.isArray(data) ? data : []);
-      
+
       console.log('Fetched branches:', branchesArray.length, branchesArray);
       setBranches(branchesArray);
     } catch (err) {
@@ -182,7 +192,7 @@ const IssueNote = () => {
   // Fetch items from API
   const fetchItems = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/items');
+      const response = await fetch('http://localhost:5005/api/items');
       const data = await response.json();
       const itemsArray = Array.isArray(data) ? data : [];
       console.log('Fetched items:', itemsArray.length);
@@ -195,12 +205,12 @@ const IssueNote = () => {
   // Fetch users from API
   const fetchUsers = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/users');
+      const response = await fetch('http://localhost:5005/api/users');
       const data = await response.json();
       const usersArray = data.success && data.data ? data.data : (Array.isArray(data) ? data : []);
       console.log('Fetched users:', usersArray.length, usersArray);
       setUsers(usersArray);
-      
+
       if (usersArray.length === 0) {
         console.warn('⚠️ No users found! Please add users in the Users page.');
       }
@@ -224,10 +234,46 @@ const IssueNote = () => {
     return selectedCategory ? selectedCategory.items : [];
   };
 
+  const getItemOptionId = (item) => item.uniqueId || `${item._id || item.id}_${item.itemUnitId || 'default'}`;
+
+  const getSourceBranch = () => {
+    if (formData && formData.fromBranch) {
+      const found = branches.find(b => String(b._id || b.id) === String(formData.fromBranch));
+      if (found) return found;
+    }
+    return branches.find(branch =>
+      /main|colombo/i.test(branch.branchName || branch.branch_name || branch.name || '')
+    ) || branches[0];
+  };
+
+  const getBranchQuantity = (item, branchId) => {
+    if (!Array.isArray(item.branchStocks) || item.branchStocks.length === 0) {
+      return item.quantity || 0;
+    }
+
+    if (!branchId) {
+      return item.branchStocks.reduce((sum, stock) => sum + (stock.quantity || 0), 0);
+    }
+
+    const branchStock = item.branchStocks.find(stock =>
+      String(stock.branchObjectId || stock.branchId) === String(branchId)
+    );
+    return branchStock ? branchStock.quantity || 0 : 0;
+  };
+
+  const getIssueItemLabel = (item) => {
+    const sourceBranch = getSourceBranch();
+    const fromBranchId = sourceBranch?._id || sourceBranch?.id;
+    const availableQty = getBranchQuantity(item, fromBranchId);
+    const price = Number(item.unitPrice) || 0;
+    const cleanName = item.cleanName || item.baseItemName || item.name.replace(/\s*\(Rs\s?\d+(\.\d+)?\)\s*$/i, '');
+    return `${cleanName} | Rs ${price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} | In Stock: ${availableQty} ${item.unit || 'unit'}`;
+  };
+
   const currentData = issueNotes;
 
   const getStatusIcon = (status) => {
-    switch(status) {
+    switch (status) {
       case "Completed":
       case "Approved":
         return <FaCheckCircle className="status-icon completed" />;
@@ -241,7 +287,7 @@ const IssueNote = () => {
   };
 
   const getStatusColor = (status) => {
-    switch(status) {
+    switch (status) {
       case "Completed":
       case "Approved":
         return "completed";
@@ -255,7 +301,7 @@ const IssueNote = () => {
   };
 
   const getTypeColor = (type) => {
-    switch(type) {
+    switch (type) {
       case "Branch Transfer":
       case "Stock Request":
         return "branch";
@@ -293,7 +339,7 @@ const IssueNote = () => {
   };
 
   const handleQuantityChange = (itemId, newQty) => {
-    const updatedItems = editedItems.map(item => 
+    const updatedItems = editedItems.map(item =>
       item.id === itemId ? { ...item, qty: parseInt(newQty) || 0 } : item
     );
     setEditedItems(updatedItems);
@@ -308,7 +354,7 @@ const IssueNote = () => {
   const handleApprove = async () => {
     if (activeTab === "issueNotes" && selectedItem._original) {
       try {
-        const response = await fetch(`http://localhost:5000/api/issue-notes/${selectedItem._original._id}/approve`, {
+        const response = await fetch(`http://localhost:5005/api/issue-notes/${selectedItem._original._id}/approve`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json'
@@ -333,7 +379,7 @@ const IssueNote = () => {
     } else {
       // Fallback for old data
       if (activeTab === "issueNotes") {
-        setIssueNotes(issueNotes.map(item => 
+        setIssueNotes(issueNotes.map(item =>
           item.id === selectedItem.id ? { ...item, status: "Processing" } : item
         ));
       }
@@ -344,7 +390,7 @@ const IssueNote = () => {
 
   const handleIssueItems = () => {
     if (activeTab === "issueNotes") {
-      setIssueNotes(issueNotes.map(item => 
+      setIssueNotes(issueNotes.map(item =>
         item.id === selectedItem.id ? { ...item, status: "Completed" } : item
       ));
     }
@@ -356,7 +402,7 @@ const IssueNote = () => {
   const handleReject = async () => {
     if (activeTab === "issueNotes" && selectedItem._original) {
       try {
-        const response = await fetch(`http://localhost:5000/api/issue-notes/${selectedItem._original._id}/reject`, {
+        const response = await fetch(`http://localhost:5005/api/issue-notes/${selectedItem._original._id}/reject`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json'
@@ -382,7 +428,7 @@ const IssueNote = () => {
     } else {
       // Fallback for old data
       if (activeTab === "issueNotes") {
-        setIssueNotes(issueNotes.map(item => 
+        setIssueNotes(issueNotes.map(item =>
           item.id === selectedItem.id ? { ...item, status: "Rejected" } : item
         ));
       }
@@ -393,7 +439,7 @@ const IssueNote = () => {
 
   const handleCancelOrder = () => {
     if (activeTab === "issueNotes") {
-      setIssueNotes(issueNotes.map(item => 
+      setIssueNotes(issueNotes.map(item =>
         item.id === selectedItem.id ? { ...item, status: "Cancelled" } : item
       ));
     }
@@ -808,12 +854,18 @@ const IssueNote = () => {
   };
 
   const openCreateModal = () => {
+    const defaultBranch = branches.find(branch =>
+      /main|colombo/i.test(branch.branchName || branch.branch_name || branch.name || '')
+    ) || branches[0];
+    const defaultBranchId = defaultBranch ? String(defaultBranch._id || defaultBranch.id) : "";
+
     setShowCreateModal(true);
     setFormData({
       issueNumber: "ISS-2025-XXX",
       issueDate: new Date().toISOString().split('T')[0],
       issueType: "Training Sessions",
       trainingSession: "",
+      fromBranch: defaultBranchId,
       category: "coffee-supplies",
       items: []
     });
@@ -831,6 +883,7 @@ const IssueNote = () => {
       issueDate: new Date().toISOString().split('T')[0],
       issueType: "Training Sessions",
       trainingSession: "",
+      fromBranch: "",
       category: "coffee-supplies",
       items: []
     });
@@ -860,21 +913,37 @@ const IssueNote = () => {
     // Try to find from API items first
     let item = null;
     if (items.length > 0) {
-      item = items.find(i => i._id === selectedItemForAdd);
+      item = items.find(i => getItemOptionId(i) === selectedItemForAdd);
       if (item) {
         // Check if item already exists to avoid duplicates
-        const itemExists = formData.items.some(i => i.id === item._id);
+        const optionId = getItemOptionId(item);
+        const itemExists = formData.items.some(i => i.optionId === optionId);
         if (itemExists) {
           alert("This item is already added. Edit it instead.");
           return;
         }
 
+        const sourceBranch = getSourceBranch();
+        const fromBranchId = sourceBranch?._id || sourceBranch?.id;
+        const availableQty = getBranchQuantity(item, fromBranchId);
+        if (itemQuantity > availableQty) {
+          alert(`Only ${availableQty} ${item.unit || 'units'} available in source branch for this price range.`);
+          return;
+        }
+
+        const cleanName = item.cleanName || item.baseItemName || item.name.replace(/\s*\(Rs\s?\d+(\.\d+)?\)\s*$/i, '');
+        const unitPrice = Number(item.unitPrice) || 0;
+
         const newItem = {
           id: item._id,
-          name: item.name,
+          optionId,
+          itemUnitId: item.itemUnitId,
+          name: cleanName,
           qty: itemQuantity,
-          availableQty: item.quantity || 0,
+          availableQty,
           unit: item.unit || 'unit',
+          unitPrice: unitPrice,
+          totalPrice: itemQuantity * unitPrice,
           tempId: Date.now()
         };
 
@@ -934,7 +1003,7 @@ const IssueNote = () => {
   const handleUpdateItemQty = (tempId, newQty) => {
     setFormData(prev => ({
       ...prev,
-      items: prev.items.map(i => 
+      items: prev.items.map(i =>
         i.tempId === tempId ? { ...i, qty: parseInt(newQty) || 0 } : i
       )
     }));
@@ -948,7 +1017,7 @@ const IssueNote = () => {
     console.log("=== CREATE ISSUE NOTE START ===");
     console.log("Branches state:", branches);
     console.log("FormData:", formData);
-    
+
     if (!formData.trainingSession || formData.items.length === 0) {
       alert("Please fill all required fields and add at least one item");
       return;
@@ -966,18 +1035,19 @@ const IssueNote = () => {
     if (formData.issueType === "Branch Transfer" || formData.issueType === "Stock Transfer") {
       // formData.trainingSession now contains the branch ID directly
       toBranchId = formData.trainingSession;
-      
+
       if (!toBranchId) {
         alert("Please select a branch.");
         return;
       }
-      
+
       console.log("Selected branch ID:", toBranchId);
     }
 
-    // Get the first branch as source
-    let fromBranchId = branches[0]?._id || branches[0]?.id;
-    
+    // Stock is issued from the main branch when available.
+    const sourceBranch = getSourceBranch();
+    let fromBranchId = sourceBranch?._id || sourceBranch?.id;
+
     if (!fromBranchId) {
       console.error("No branches found in state. Branches:", branches);
       alert("No branches configured. Please go to the Branches page and add at least one branch first.");
@@ -986,11 +1056,11 @@ const IssueNote = () => {
 
     // Get user ID - try multiple sources with automatic fallback
     let issuedBy = currentUser?._id || currentUser?.id;
-    
+
     if (!issuedBy && users.length > 0) {
       issuedBy = users[0]._id || users[0].id;
     }
-    
+
     // If still no user, use a placeholder - backend will create a default system user
     if (!issuedBy) {
       console.warn("No user found. Backend will auto-create a system user.");
@@ -1000,8 +1070,9 @@ const IssueNote = () => {
     // Prepare items for API
     const apiItems = formData.items.map(item => ({
       itemId: item.id,
+      itemUnitId: item.itemUnitId,
       quantity: parseInt(item.qty) || 0,
-      unitPrice: 0,
+      unitPrice: Number(item.unitPrice) || 0,
       remarks: ''
     }));
 
@@ -1023,7 +1094,7 @@ const IssueNote = () => {
     console.log("Sending to API:", JSON.stringify(issueNoteData, null, 2));
 
     try {
-      const response = await fetch('http://localhost:5000/api/issue-notes', {
+      const response = await fetch('http://localhost:5005/api/issue-notes', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -1052,7 +1123,7 @@ const IssueNote = () => {
       }
 
       console.log('Issue note created:', data);
-      
+
       // Reset form
       setFormData({
         issueNumber: "ISS-2025-XXX",
@@ -1064,7 +1135,7 @@ const IssueNote = () => {
       });
       setSelectedItemForAdd(null);
       setItemQuantity(0);
-      
+
       alert("Issue Note created successfully!");
       closeCreateModal();
       fetchIssueNotes(); // Refresh the list
@@ -1085,26 +1156,28 @@ const IssueNote = () => {
               {/* Header Section */}
               <div className="header-section">
                 <div className="search-box">
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     placeholder="🔍 Search by issue number, branch name..."
                     className="search-input"
                   />
                 </div>
-                <button className="btn-create-issue" onClick={openCreateModal}>
-                  + Create New
-                </button>
+                {canEdit && (
+                  <button className="btn-create-issue" onClick={openCreateModal}>
+                    + Create New
+                  </button>
+                )}
               </div>
 
               {/* Toggle Tab Buttons */}
               <div className="tab-toggle-section">
-                <button 
+                <button
                   className={`tab-toggle-btn ${activeTab === "issueNotes" ? "active" : ""}`}
                   onClick={() => handleTabChange("issueNotes")}
                 >
                   📋 Issue Notes
                 </button>
-                <button 
+                <button
                   className={`tab-toggle-btn ${activeTab === "branchRequests" ? "active" : ""}`}
                   onClick={() => handleTabChange("branchRequests")}
                 >
@@ -1220,13 +1293,13 @@ const IssueNote = () => {
                 )}
               </div>
 
-         
+
 
               {/* List View - Creative Expandable */}
               {viewType === 'list' && (
                 <div className="issues-list-creative">
                   {currentData.map((item) => (
-                    <div 
+                    <div
                       key={item.id}
                       className="list-item-creative"
                     >
@@ -1265,7 +1338,7 @@ const IssueNote = () => {
                             {getStatusIcon(item.status)}
                             <span>{item.status}</span>
                           </div>
-                          <button 
+                          <button
                             className="view-details-btn"
                             onClick={() => openModal(item)}
                             title="View Details"
@@ -1300,8 +1373,8 @@ const IssueNote = () => {
               <div className="form-row">
                 <div className="form-group">
                   <label>Issue Number</label>
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     value={formData.issueNumber}
                     disabled
                     className="form-input disabled"
@@ -1311,8 +1384,8 @@ const IssueNote = () => {
                 <div className="form-group">
                   <label>Issue Date</label>
                   <div className="date-input-wrapper">
-                    <input 
-                      type="date" 
+                    <input
+                      type="date"
                       value={formData.issueDate}
                       onChange={(e) => handleFormChange('issueDate', e.target.value)}
                       className="form-input"
@@ -1322,10 +1395,35 @@ const IssueNote = () => {
                 </div>
               </div>
 
+              {/* Issuing From Branch */}
+              <div className="form-group full-width">
+                <label>Issuing From Branch (Source)</label>
+                <select
+                  value={formData.fromBranch || (getSourceBranch()?._id || getSourceBranch()?.id || '')}
+                  onChange={(e) => {
+                    handleFormChange('fromBranch', e.target.value);
+                    setSelectedItemForAdd(null);
+                    setItemQuantity(0);
+                  }}
+                  className="form-select"
+                >
+                  {branches.map(branch => {
+                    const branchName = branch.branchName || branch.branch_name || branch.name || 'Unknown';
+                    const branchCode = branch.branchCode || branch.branch_code || '';
+                    const branchId = branch._id || branch.id;
+                    return (
+                      <option key={branchId} value={branchId}>
+                        {branchName} {branchCode ? `(${branchCode})` : ''}
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+
               {/* Issue Type */}
               <div className="form-group full-width">
                 <label>Issue Type</label>
-                <select 
+                <select
                   value={formData.issueType}
                   onChange={(e) => handleFormChange('issueType', e.target.value)}
                   className="form-select"
@@ -1338,17 +1436,17 @@ const IssueNote = () => {
 
               {/* Training Session / Branch Name */}
               <div className="form-group full-width">
-                <label>{formData.issueType === "Training Sessions" ? "Training Sessions" : "Branch Name"}</label>
+                <label>{formData.issueType === "Training Sessions" ? "Training Session / Destination" : "Destination Branch (Issued To)"}</label>
                 {formData.issueType === "Training Sessions" ? (
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     value={formData.trainingSession}
                     onChange={(e) => handleFormChange('trainingSession', e.target.value)}
                     className="form-input"
                     placeholder="e.g. Barista Level 1"
                   />
                 ) : (
-                  <select 
+                  <select
                     value={formData.trainingSession}
                     onChange={(e) => handleFormChange('trainingSession', e.target.value)}
                     className="form-select"
@@ -1371,7 +1469,7 @@ const IssueNote = () => {
               {/* Category Selection - Dropdown */}
               <div className="form-group full-width">
                 <label>Select Category</label>
-                <select 
+                <select
                   value={formData.category}
                   onChange={(e) => handleFormChange('category', e.target.value)}
                   className="form-select category-select"
@@ -1391,7 +1489,7 @@ const IssueNote = () => {
                   <div className="item-select-row">
                     <div className="item-select-group">
                       <label>Select Item</label>
-                      <select 
+                      <select
                         value={selectedItemForAdd || ""}
                         onChange={(e) => setSelectedItemForAdd(e.target.value)}
                         className="form-select"
@@ -1400,8 +1498,8 @@ const IssueNote = () => {
                         {/* Show items from database if available, otherwise use hardcoded categories */}
                         {items.length > 0 ? (
                           items.map(item => (
-                            <option key={item._id} value={item._id}>
-                              {item.name} (Available: {item.quantity || 0} {item.unit})
+                            <option key={getItemOptionId(item)} value={getItemOptionId(item)}>
+                              {getIssueItemLabel(item)}
                             </option>
                           ))
                         ) : (
@@ -1417,15 +1515,15 @@ const IssueNote = () => {
                     <div className="item-qty-row">
                       <label>Quantity</label>
                       <div className="qty-input-group">
-                        <input 
-                          type="number" 
+                        <input
+                          type="number"
                           value={itemQuantity}
                           onChange={(e) => setItemQuantity(parseInt(e.target.value) || 0)}
                           className="form-input qty-input-small"
                           placeholder="0"
                           min="0"
                         />
-                        <button 
+                        <button
                           className="btn-add-item"
                           onClick={handleAddItemToForm}
                           title="Add Item"
@@ -1483,10 +1581,12 @@ const IssueNote = () => {
                             <>
                               <span className="item-info">
                                 <strong>{item.name}</strong>
-                                <span className="item-detail"> • {item.qty} {item.unit}</span>
+                                <span className="item-detail">
+                                  {" "}• {item.qty} {item.unit} @ Rs {(Number(item.unitPrice) || 0).toLocaleString('en-US')} = <strong style={{ color: '#059669' }}>Rs {((Number(item.qty) || 0) * (Number(item.unitPrice) || 0)).toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong>
+                                </span>
                               </span>
                               <div className="item-actions">
-                                <button 
+                                <button
                                   className="btn-edit-item"
                                   onClick={() => handleEditItem(item.tempId)}
                                   title="Edit Quantity"
@@ -1494,7 +1594,7 @@ const IssueNote = () => {
                                 >
                                   ✎
                                 </button>
-                                <button 
+                                <button
                                   className="btn-remove-item"
                                   onClick={() => handleRemoveItemFromForm(item.tempId)}
                                   title="Remove Item"
@@ -1507,6 +1607,24 @@ const IssueNote = () => {
                           )}
                         </div>
                       ))}
+
+                      {/* Total Value Summary */}
+                      <div style={{
+                        marginTop: '12px',
+                        padding: '10px 14px',
+                        background: '#f8fafc',
+                        border: '1px solid #e2e8f0',
+                        borderRadius: '6px',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        fontSize: '14px'
+                      }}>
+                        <span style={{ color: '#64748b', fontWeight: '600' }}>Total Issue Amount:</span>
+                        <strong style={{ color: '#4f46e5', fontSize: '15px' }}>
+                          Rs {formData.items.reduce((s, i) => s + ((Number(i.qty) || 0) * (Number(i.unitPrice) || 0)), 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </strong>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -1596,8 +1714,8 @@ const IssueNote = () => {
                   <h3 className="modal-section-title">
                     {activeTab === "issueNotes" ? "Issued Items" : "Requested Items"}
                   </h3>
-                  {selectedItem.status === "Pending" || selectedItem.status === "Processing" ? (
-                    <button 
+                  {(selectedItem.status === "Pending" || selectedItem.status === "Processing") && canEdit ? (
+                    <button
                       className={`edit-toggle-btn ${isEditing ? 'active' : ''}`}
                       onClick={() => setIsEditing(!isEditing)}
                     >
@@ -1620,8 +1738,8 @@ const IssueNote = () => {
                           {itemData.availableQty} {itemData.unit}
                         </span>
                         {isEditing ? (
-                          <input 
-                            type="number" 
+                          <input
+                            type="number"
                             min="0"
                             max={itemData.availableQty}
                             value={itemData.qty}
@@ -1666,7 +1784,7 @@ const IssueNote = () => {
                 </>
               ) : (
                 <>
-                  {selectedItem.status === "Pending" && (
+                  {selectedItem.status === "Pending" && canEdit && (
                     <>
                       <button className="modal-btn reject" onClick={handleReject}>
                         <FaBan /> Reject
@@ -1676,8 +1794,8 @@ const IssueNote = () => {
                       </button>
                     </>
                   )}
-                  
-                  {selectedItem.status === "Processing" && (
+
+                  {selectedItem.status === "Processing" && canEdit && (
                     <>
                       <button className="modal-btn cancel-order" onClick={handleCancelOrder}>
                         <FaBan /> Cancel Order
@@ -1687,7 +1805,7 @@ const IssueNote = () => {
                       </button>
                     </>
                   )}
-                  
+
                   {selectedItem.status === "Completed" && (
                     <button className="modal-btn cancel" onClick={closeModal}>
                       ← Close

@@ -3,6 +3,7 @@ const PurchaseOrder = require('../models/purchaseOrder');
 const Item = require('../models/items');
 const Stock = require('../models/stock');
 const User = require('../models/users');
+const { getBranchFilter } = require('../utils/branchFilter');
 
 // Get all GRNs with pagination
 exports.getAllGRNs = async (req, res) => {
@@ -11,12 +12,14 @@ exports.getAllGRNs = async (req, res) => {
     const limit = parseInt(req.query.limit) || 10;
     const skip = (page - 1) * limit;
 
-    const grns = await GoodsReceived.find({})
+    const branchFilter = getBranchFilter(req);
+
+    const grns = await GoodsReceived.find(branchFilter)
       .sort({ receivedDate: -1 })
       .skip(skip)
       .limit(limit);
 
-    const total = await GoodsReceived.countDocuments();
+    const total = await GoodsReceived.countDocuments(branchFilter);
 
     res.status(200).json({
       success: true,
@@ -114,7 +117,7 @@ exports.createGRN = async (req, res) => {
     const ItemUnit = require('../models/itemUnits');
 
     for (const item of items) {
-      if (item.quantityReceived > 0) {
+      if (item.quantityReceived >= 0) {
         try {
           let targetItemId = item.itemId;
           
@@ -154,9 +157,10 @@ exports.createGRN = async (req, res) => {
             if (!foundUnit) {
               const itemNameStr = item.itemName || 'Item';
               const newUnitName = parsedUnitValue > 1 ? `${parsedUnitValue}${parsedUnitName}` : parsedUnitName;
+              const unitDisplayName = `${itemNameStr} - ${newUnitName} (Rs${item.unitPrice || 0})`;
               foundUnit = new ItemUnit({
                 itemId: targetItemId,
-                name: `${itemNameStr} - ${newUnitName}`,
+                name: unitDisplayName,
                 unit: parsedUnitName,
                 unitValue: parsedUnitValue,
                 unitPrice: item.unitPrice || 0,
@@ -167,10 +171,9 @@ exports.createGRN = async (req, res) => {
                 await foundUnit.save();
                 console.log(`Created new ItemUnit from GRN: ${foundUnit._id} for ${foundUnit.name}`);
               } catch (saveErr) {
-                // If it fails (e.g. duplicate name index), append a timestamp or price to name
-                foundUnit.name = `${itemNameStr} - ${newUnitName} (Rs${item.unitPrice})`;
+                foundUnit.name = `${itemNameStr} - ${newUnitName} (Rs${item.unitPrice || 0})_${Date.now()}`;
                 await foundUnit.save();
-                console.log(`Created new ItemUnit from GRN (with price in name): ${foundUnit._id}`);
+                console.log(`Created new ItemUnit from GRN (fallback): ${foundUnit._id}`);
               }
             }
             targetItemUnitId = foundUnit._id;
@@ -433,8 +436,9 @@ exports.deleteGRN = async (req, res) => {
 exports.getGRNsByPONumber = async (req, res) => {
   try {
     const { poNumber } = req.params;
+    const branchFilter = getBranchFilter(req);
 
-    const grns = await GoodsReceived.find({ poNumber });
+    const grns = await GoodsReceived.find({ poNumber, ...branchFilter });
 
     res.status(200).json({
       success: true,
@@ -452,15 +456,18 @@ exports.getGRNsByPONumber = async (req, res) => {
 // Get GRN summary report
 exports.getGRNSummary = async (req, res) => {
   try {
-    const totalGRNs = await GoodsReceived.countDocuments();
+    const branchFilter = getBranchFilter(req);
+    const totalGRNs = await GoodsReceived.countDocuments(branchFilter);
     const thisMonth = new Date();
     thisMonth.setDate(1);
 
     const monthlyGRNs = await GoodsReceived.countDocuments({
-      receivedDate: { $gte: thisMonth }
+      receivedDate: { $gte: thisMonth },
+      ...branchFilter
     });
 
     const totalItemsReceived = await GoodsReceived.aggregate([
+      { $match: branchFilter },
       {
         $group: {
           _id: null,
@@ -516,6 +523,9 @@ exports.searchGRNs = async (req, res) => {
         ]
       };
     }
+
+    const branchFilter = getBranchFilter(req);
+    Object.assign(searchCriteria, branchFilter);
 
     const results = await GoodsReceived.find(searchCriteria).limit(20);
 

@@ -13,6 +13,7 @@ import Users from './Pages/Users';
 import Categories from './Pages/Categories';
 import GoodReceived from './Pages/GoodReceived';
 import ProtectedRoute from './Components/ProtectedRoute';
+import './Pages/SharedModals.css';
 
 function App() {
   return (

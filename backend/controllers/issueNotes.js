@@ -2,13 +2,16 @@ const IssueNote = require('../models/issueNotes');
 const IssueNoteItem = require('../models/issueNoteItems');
 const Stock = require('../models/stock');
 const Item = require('../models/items');
+const ItemUnit = require('../models/itemUnits');
 const Branch = require('../models/branches');
 const User = require('../models/users');
+const { getIssueNoteBranchFilter } = require('../utils/branchFilter');
 
 // Get all issue notes with populated fields
 exports.getAllIssueNotes = async (req, res) => {
   try {
-    const issueNotes = await IssueNote.find()
+    const branchFilter = getIssueNoteBranchFilter(req);
+    const issueNotes = await IssueNote.find(branchFilter)
       .populate('fromBranchId', 'branchName branchCode branch_name branch_code')
       .populate('toBranchId', 'branchName branchCode branch_name branch_code')
       .populate('issuedBy', 'name email username')
@@ -24,7 +27,7 @@ exports.getAllIssueNotes = async (req, res) => {
           path: 'itemId',
           select: 'name sku itemId unit description category'
         })
-        .populate('itemUnitId', 'unitName')
+        .populate('itemUnitId', 'name unit unitValue unitPrice')
         .select('-__v')
         .lean();
       return { ...note, items };
@@ -56,7 +59,7 @@ exports.getIssueNoteById = async (req, res) => {
     // Get all items for this issue note with full details
     const items = await IssueNoteItem.find({ issueNoteId: issueNote._id })
       .populate('itemId', 'name sku itemId unit description category')
-      .populate('itemUnitId', 'unitName')
+      .populate('itemUnitId', 'name unit unitValue unitPrice')
       .select('-__v')
       .lean();
     
@@ -76,11 +79,17 @@ exports.getIssueNoteById = async (req, res) => {
 exports.getIssueNotesByBranch = async (req, res) => {
   try {
     const { branchId } = req.params;
+    const branchFilter = getIssueNoteBranchFilter(req);
     
     const issueNotes = await IssueNote.find({
-      $or: [
-        { fromBranchId: branchId },
-        { toBranchId: branchId }
+      $and: [
+        branchFilter,
+        {
+          $or: [
+            { fromBranchId: branchId },
+            { toBranchId: branchId }
+          ]
+        }
       ]
     })
       .populate('fromBranchId', 'branchName branchCode branch_name branch_code')
@@ -95,7 +104,7 @@ exports.getIssueNotesByBranch = async (req, res) => {
     const issueNotesWithItems = await Promise.all(issueNotes.map(async (note) => {
       const items = await IssueNoteItem.find({ issueNoteId: note._id })
         .populate('itemId', 'name sku itemId unit')
-        .populate('itemUnitId', 'unitName')
+        .populate('itemUnitId', 'name unit unitValue unitPrice')
         .lean();
       return { ...note, items };
     }));
@@ -137,23 +146,12 @@ exports.createIssueNote = async (req, res) => {
       });
     }
 
-    // Validate branch exists - if not, create a default branch
-    let fromBranch = await Branch.findById(fromBranchId);
+    // Validate branch exists
+    const fromBranch = await Branch.findById(fromBranchId);
     if (!fromBranch) {
-      console.warn('⚠️ From branch not found, creating default branch...');
       
-      fromBranch = await Branch.create({
-        branchName: 'Main Branch',
-        branchCode: 'MAIN',
-        location: 'Head Office',
-        city: 'Main City',
-        state: 'Main State',
-        address: 'Main Office Address',
-        phoneNumber: '0000000000',
-        email: 'main@company.com'
-      });
+      return res.status(404).json({ error: 'From branch not found' });
       
-      console.log('✅ Default branch created:', fromBranch._id);
     }
 
     if (toBranchId) {
@@ -163,22 +161,10 @@ exports.createIssueNote = async (req, res) => {
       }
     }
 
-    // Validate user exists - if not, create a default system user
-    let user = await User.findById(issuedBy);
+    // Validate user exists
+    const user = await User.findById(issuedBy);
     if (!user) {
-      console.warn('⚠️ User not found, creating default system user...');
-      
-      // Create a default system user
-      user = await User.create({
-        name: 'System User',
-        username: 'system',
-        email: 'system@company.com',
-        password: 'system123', // This should be hashed in production
-        role: 'admin',
-        phoneNumber: '0000000000'
-      });
-      
-      console.log('✅ Default system user created:', user._id);
+      return res.status(404).json({ error: 'Issued by user not found' });
     }
 
     // Validate stock availability for all items
@@ -191,10 +177,15 @@ exports.createIssueNote = async (req, res) => {
         });
       }
 
-      const stockRecord = await Stock.findOne({
+      const stockQuery = {
         itemId: item.itemId,
         branchId: fromBranchId
-      });
+      };
+      if (item.itemUnitId) {
+        stockQuery.itemUnitId = item.itemUnitId;
+      }
+
+      const stockRecord = await Stock.findOne(stockQuery);
 
       if (!stockRecord || stockRecord.quantity < item.quantity) {
         return res.status(400).json({
@@ -221,12 +212,18 @@ exports.createIssueNote = async (req, res) => {
     const issueNoteItems = [];
 
     for (const item of items) {
+      let unitPrice = Number(item.unitPrice) || 0;
+      if (!unitPrice && item.itemUnitId) {
+        const itemUnit = await ItemUnit.findById(item.itemUnitId);
+        unitPrice = itemUnit?.unitPrice || 0;
+      }
+
       const issueNoteItem = new IssueNoteItem({
         issueNoteId: issueNote._id,
         itemId: item.itemId,
         itemUnitId: item.itemUnitId,
         quantity: item.quantity,
-        unitPrice: item.unitPrice || 0,
+        unitPrice,
         remarks: item.remarks
       });
 
@@ -250,7 +247,7 @@ exports.createIssueNote = async (req, res) => {
     const populatedItems = await Promise.all(issueNoteItems.map(async (item) => {
       const populatedItem = await IssueNoteItem.findById(item._id)
         .populate('itemId', 'name sku itemId unit description')
-        .populate('itemUnitId', 'unitName')
+        .populate('itemUnitId', 'name unit unitValue unitPrice')
         .lean();
       return populatedItem;
     }));
@@ -300,10 +297,15 @@ exports.approveIssueNote = async (req, res) => {
     // Update stock: deduct from source branch
     for (const item of issueNoteItems) {
       // Deduct from source branch
-      const fromStock = await Stock.findOne({
+      const stockQuery = {
         itemId: item.itemId,
         branchId: issueNote.fromBranchId
-      });
+      };
+      if (item.itemUnitId) {
+        stockQuery.itemUnitId = item.itemUnitId;
+      }
+
+      const fromStock = await Stock.findOne(stockQuery);
 
       if (!fromStock || fromStock.quantity < item.quantity) {
         const itemName = item.itemId?.name || 'Unknown Item';
@@ -320,10 +322,13 @@ exports.approveIssueNote = async (req, res) => {
 
       // If toBranchId exists, add to destination branch
       if (issueNote.toBranchId) {
-        let toStock = await Stock.findOne({
+        const destinationStockQuery = {
           itemId: item.itemId,
+          ...(item.itemUnitId && { itemUnitId: item.itemUnitId }),
           branchId: issueNote.toBranchId
-        });
+        };
+
+        let toStock = await Stock.findOne(destinationStockQuery);
 
         if (toStock) {
           toStock.quantity += item.quantity;
@@ -361,7 +366,7 @@ exports.approveIssueNote = async (req, res) => {
     // Get populated items
     const items = await IssueNoteItem.find({ issueNoteId: id })
       .populate('itemId', 'name sku itemId unit')
-      .populate('itemUnitId', 'unitName')
+      .populate('itemUnitId', 'name unit unitValue unitPrice')
       .lean();
 
     console.log('✅ Issue note approved:', issueNote.issueNoteNumber);
@@ -416,7 +421,7 @@ exports.rejectIssueNote = async (req, res) => {
     // Get populated items
     const items = await IssueNoteItem.find({ issueNoteId: id })
       .populate('itemId', 'name sku itemId unit')
-      .populate('itemUnitId', 'unitName')
+      .populate('itemUnitId', 'name unit unitValue unitPrice')
       .lean();
 
     console.log('✅ Issue note rejected:', issueNote.issueNoteNumber);
@@ -464,7 +469,7 @@ exports.updateIssueNote = async (req, res) => {
     // Get populated items
     const items = await IssueNoteItem.find({ issueNoteId: id })
       .populate('itemId', 'name sku itemId unit')
-      .populate('itemUnitId', 'unitName')
+      .populate('itemUnitId', 'name unit unitValue unitPrice')
       .lean();
 
     console.log('✅ Issue note updated:', issueNote.issueNoteNumber);

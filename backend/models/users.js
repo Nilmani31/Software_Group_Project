@@ -28,22 +28,26 @@ const userSchema = new mongoose.Schema({
   roleId: {
     type: String,
     required: true,
-    enum: ['ADMIN', 'MANAGER', 'BRANCH_MANAGER', 'DIRECTOR', 'STAFF'],
-    default: 'STAFF'
+    enum: ['ROLE_ADMIN', 'ROLE_MANAGER', 'ROLE_BRANCH_MANAGER', 'ROLE_DIRECTOR', 'ROLE_STAFF'],
+    default: 'ROLE_STAFF'
   },
   branchId: {
     type: String,
     required: true,
     default: 'MAIN_BRANCH'
   },
+  allowedBranches: [{
+    type: String
+  }],
   phoneNumber: {
     type: String,
     required: true,
     validate: {
       validator: function(v) {
-        return /\d{10,15}/.test(v);
+        // Accept phone numbers with 10-15 digits, allowing for spaces, hyphens, and +
+        return /^[\d\s\-\+()]{10,}$/.test(v) && /\d/.test(v) && (v.match(/\d/g) || []).length >= 10;
       },
-      message: props => `${props.value} is not a valid phone number!`
+      message: props => `${props.value} is not a valid phone number! (min 10 digits)`
     }
   },
   email: {

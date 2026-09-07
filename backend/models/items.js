@@ -15,19 +15,14 @@ const itemSchema = new mongoose.Schema({
 	},
 	sku: {
 		type: String,
+		required: true,
 		unique: true,
-		sparse: true,
-		default: null
+		sparse: true
 	},
 	barcode: {
 		type: String,
-		required: true,
-		unique: true,
-		default: function() {
-			// Simple auto-generated barcode (could be replaced with a real barcode generator)
-			const base = this.itemId || (this.category ? this.category.toString() : '') + (this.name ? this.name : '') + Date.now();
-			return Buffer.from(base).toString('hex').slice(0, 12).toUpperCase();
-		}
+		required: false,
+		default: null
 	},
 	name: {
 		type: String,

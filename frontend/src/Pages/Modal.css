@@ -1,49 +1,182 @@
-.modal-overlay {
+.app-modal-overlay {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0,0,0,0.5);
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.5);
   display: flex;
-  justify-content: center;
   align-items: center;
-  z-index: 1000;
-}
-
-.modal-content {
-  background: white;
+  justify-content: center;
+  z-index: 2000;
   padding: 20px;
-  border-radius: 8px;
-  max-width: 800px;
-  width: 100%;
-  max-height: 90vh; /* Add max-height */
-  overflow-y: auto; /* Add vertical scroll */
+  animation: appModalFadeIn 0.3s ease;
 }
 
-.modal-content h3 {
-  margin: 0;
-  margin-bottom: 12px;
+.app-modal-content {
+  background: #ffffff;
+  border-radius: 16px;
+  width: min(90vw, 700px);
+  max-height: 85vh;
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  animation: appModalSlideUp 0.3s ease;
+  display: flex;
+  flex-direction: column;
 }
 
-.modal-content button[aria-label="Close"] {
-  background: none;
-  border: none;
-  cursor: pointer;
+@keyframes appModalFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
-.modal-header {
+@keyframes appModalSlideUp {
+  from {
+    transform: translateY(40px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.app-modal-header {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: 24px;
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1rem;
+  align-items: flex-start;
+  color: #ffffff;
+  position: relative;
+  overflow: hidden;
+  flex-shrink: 0;
 }
 
-.modal-header h3 {
-  font-size: 1.25rem;
+.app-modal-header::after {
+  content: '';
+  position: absolute;
+  inset: auto -24px -40px auto;
+  width: 180px;
+  height: 180px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 50%;
+}
+
+.app-modal-title-section h2 {
+  margin: 0 0 6px 0;
+  color: #ffffff;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.app-modal-title-section p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 13px;
+}
+
+.app-modal-close {
+  background: rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+  border: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  position: relative;
+  z-index: 1;
+}
+
+.app-modal-close:hover {
+  background: rgba(255, 255, 255, 0.3);
+  transform: rotate(90deg);
+}
+
+.app-modal-body {
+  padding: 24px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.app-modal-body label {
+  display: block;
+  color: #12203a;
   font-weight: 700;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  margin-bottom: 8px;
+}
+
+.app-modal-body input,
+.app-modal-body select,
+.app-modal-body textarea {
+  width: 100%;
+  padding: 12px 14px;
+  border: 2px solid #e2e8f0;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #12203a;
+  font-size: 14px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+}
+
+.app-modal-body input:focus,
+.app-modal-body select:focus,
+.app-modal-body textarea:focus {
+  outline: none;
+  border-color: #667eea;
+  background: #ffffff;
+  box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.15);
 }
 
 .modal-actions {
-  margin-top: 1.5rem;
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.modal-actions button {
+  padding: 11px 24px;
+  border-radius: 8px;
+  border: 2px solid #d8bfd8;
+  background: #ffffff;
+  color: #667eea;
+  font-weight: 800;
+  font-size: 12px;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.modal-actions button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(102, 126, 234, 0.18);
+}
+
+.modal-actions button[type="submit"],
+.modal-actions button:last-child {
+  border: none;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: #ffffff;
+}
+
+@media (max-width: 640px) {
+  .app-modal-overlay {
+    padding: 12px;
+  }
+
+  .app-modal-content {
+    width: 100%;
+    max-height: 92vh;
+    border-radius: 14px;
+  }
+
+  .app-modal-header,
+  .app-modal-body {
+    padding: 20px;
+  }
 }

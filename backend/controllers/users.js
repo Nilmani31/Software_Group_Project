@@ -23,34 +23,71 @@ exports.getAllUsers = async (req, res) => {
 // CREATE USER
 exports.createUser = async (req, res) => {
   try {
-    const { username, roleId, branchId, phoneNumber, email, createdBy } = req.body;
+    const { username, roleId, branchId, phoneNumber, email, password, createdBy } = req.body;
 
- 
-    const autoPassword = generatePasswordByRole(roleId);
+    if (!username || !roleId || !branchId || !phoneNumber || !email) {
+      return res.status(400).json({
+        success: false,
+        error: 'username, roleId, branchId, phoneNumber, and email are required'
+      });
+    }
 
-    const hashedPassword = await bcrypt.hash(autoPassword, 10);
+    // Use provided password or generate one
+    let finalPassword;
+    
+    if (password) {
+      const trimmed = String(password).trim();
+      if (trimmed.length > 0) {
+        finalPassword = trimmed;
+      } else {
+        finalPassword = generatePasswordByRole(roleId);
+      }
+    } else {
+      finalPassword = generatePasswordByRole(roleId);
+    }
 
+    // Validate password exists
+    if (!finalPassword || typeof finalPassword !== 'string' || finalPassword.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Password is invalid'
+      });
+    }
+
+    const hashedPassword = await bcrypt.hash(finalPassword, 10);
+
+    // Map roleId to role (remove ROLE_ prefix if present)
+    const roleValue = roleId.startsWith('ROLE_') ? roleId.substring(5) : roleId;
+    
     const newUser = await User.create({
       username,
       password: hashedPassword,
-      role: roleId,
+      role: roleValue,
       roleId,
       branchId,
+      allowedBranches: req.body.allowedBranches || [],
       phoneNumber,
       email,
       createdBy
     });
 
     res.status(201).json({
+      success: true,
       message: "User created successfully",
+      _id: newUser._id,
+      id: newUser._id,
       userId: newUser.userId,
       username: newUser.username,
       role: newUser.role,
       roleId: newUser.roleId,
-      password: autoPassword   
+      password: finalPassword   
     });
   } catch (err) {
-    res.status(400).json({ error: err.message });
+    console.error('Create user error:', err.message);
+    res.status(400).json({
+      success: false,
+      error: err.message
+    });
   }
 };
 // UPDATE USER
@@ -58,11 +95,19 @@ exports.updateUser = async (req, res) => {
   try {
     const data = req.body;
 
-    if (data.password) {
+    // Only hash password if it's provided and not empty
+    if (data.password && data.password.trim() !== '') {
       data.password = await bcrypt.hash(data.password, 10);
+    } else {
+      // Remove password from update if it's empty to keep existing password
+      delete data.password;
     }
 
-    const updated = await User.findByIdAndUpdate(req.params.id, data, { new: true });
+    if (data.roleId) {
+      data.role = data.roleId.startsWith('ROLE_') ? data.roleId.substring(5) : data.roleId;
+    }
+
+    const updated = await User.findByIdAndUpdate(req.params.id, data, { new: true }).select('-password');
 
     if (!updated) return res.status(404).json({ error: "User not found" });
 
@@ -139,6 +184,7 @@ exports.login = async (req, res) => {
       email: user.email,
       roleId: user.roleId,
       branchId: user.branchId,
+      allowedBranches: user.allowedBranches || [],
       phoneNumber: user.phoneNumber,
       status: user.status,
       lastLoginAt: user.lastLoginAt

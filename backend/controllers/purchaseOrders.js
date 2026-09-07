@@ -1,9 +1,11 @@
 const PurchaseOrder = require('../models/purchaseOrder');
+const { getBranchFilter } = require('../utils/branchFilter');
 
 // Get all purchase orders
 exports.getAllPOs = async (req, res) => {
   try {
-    const pos = await PurchaseOrder.find().sort({ createdAt: -1 });
+    const branchFilter = getBranchFilter(req);
+    const pos = await PurchaseOrder.find(branchFilter).sort({ createdAt: -1 });
     res.status(200).json({
       success: true,
       data: pos
@@ -177,13 +179,19 @@ exports.cancelPO = async (req, res) => {
 exports.searchPOs = async (req, res) => {
   try {
     const { query } = req.query;
+    const branchFilter = getBranchFilter(req);
     
     const pos = await PurchaseOrder.find({
-      $or: [
-        { poNumber: { $regex: query, $options: 'i' } },
-        { supplier: { $regex: query, $options: 'i' } },
-        { createdBy: { $regex: query, $options: 'i' } },
-        { branch: { $regex: query, $options: 'i' } }
+      $and: [
+        branchFilter,
+        {
+          $or: [
+            { poNumber: { $regex: query, $options: 'i' } },
+            { supplier: { $regex: query, $options: 'i' } },
+            { createdBy: { $regex: query, $options: 'i' } },
+            { branch: { $regex: query, $options: 'i' } }
+          ]
+        }
       ]
     }).sort({ createdAt: -1 });
 
@@ -203,8 +211,9 @@ exports.searchPOs = async (req, res) => {
 exports.getPOsByStatus = async (req, res) => {
   try {
     const { status } = req.params;
+    const branchFilter = getBranchFilter(req);
 
-    const pos = await PurchaseOrder.find({ status }).sort({ createdAt: -1 });
+    const pos = await PurchaseOrder.find({ status, ...branchFilter }).sort({ createdAt: -1 });
 
     res.status(200).json({
       success: true,

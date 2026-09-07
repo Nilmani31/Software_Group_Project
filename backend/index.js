@@ -1,3 +1,6 @@
+const dns = require("dns");
+dns.setDefaultResultOrder("ipv4first");
+
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
@@ -29,34 +32,39 @@ const purchaseOrdersRouter = require('./routes/purchaseOrders');
 const chatRoutes = require('./routes/chat');
 const goodsReceivedRouter = require('./routes/goodsReceived');
 const imageSearchRouter = require('./routes/imageSearch');
+const dashboardRouter = require('./routes/dashboard');
 
 
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5005;
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: '*',
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-user-role', 'x-user-branch', 'x-allowed-branches']
+}));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // MongoDB Connection
 const connectDB = async () => {
   try {
-    const conn = await mongoose.connect(process.env.MONGODB_URI);
-    
+    if (!process.env.MONGODB_URI) {
+      throw new Error('MONGODB_URI is not set. Add it to backend/.env.');
+    }
+
+    const conn = await mongoose.connect(process.env.MONGODB_URI, {
+      serverSelectionTimeoutMS: 10000,
+    });
+
     console.log(`✅ MongoDB Connected: ${conn.connection.host}`);
     console.log(`📊 Database Name: ${conn.connection.name}`);
   } catch (error) {
     console.error('❌ MongoDB connection error:', error.message);
-    console.warn('⚠️  Server will continue without MongoDB. Some features may be limited.');
+    throw error;
   }
 };
-
-// Connect to MongoDB (non-blocking - continue if it fails)
-connectDB().catch(err => {
-  console.error('Failed to establish MongoDB connection:', err.message);
-});
 
 // MongoDB connection event listeners
 mongoose.connection.on('connected', () => {
@@ -85,22 +93,6 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// DEBUG: Environment variables for image search
-app.get('/api/debug/env', (req, res) => {
-  console.log('🔍 [DEBUG] Environment variables:');
-  console.log(`   ML_SERVICE_URL = ${process.env.ML_SERVICE_URL}`);
-  console.log(`   IMAGE_UPLOAD_MAX_MB = ${process.env.IMAGE_UPLOAD_MAX_MB}`);
-  console.log(`   NODE_ENV = ${process.env.NODE_ENV}`);
-  
-  res.json({
-    ML_SERVICE_URL: process.env.ML_SERVICE_URL,
-    IMAGE_UPLOAD_MAX_MB: process.env.IMAGE_UPLOAD_MAX_MB,
-    NODE_ENV: process.env.NODE_ENV
-  });
-});
-
-
-
 // Routes - Register BEFORE app.listen()
 app.use('/api/users', Userrouter);
 app.use('/api/roles', rolesRouter);
@@ -114,6 +106,7 @@ app.use('/api/issue-notes', issueNotesRouter);
 app.use('/api/goods-received', goodsReceivedRouter);
 app.use('/api/chat', chatRoutes);
 app.use('/api/image-search', imageSearchRouter);
+app.use('/api/dashboard', dashboardRouter);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
@@ -124,12 +117,19 @@ app.use((err, req, res, next) => {
   });
 });
 
-app.listen(PORT, () => {
-  console.log(`🚀 Server is running on port ${PORT}`);
-  console.log(`📱 Frontend URL: http://localhost:3000`);
-  console.log(`🔗 Backend URL: http://localhost:${PORT}`);
-});
+const startServer = async () => {
+  try {
+    await connectDB();
 
+    app.listen(PORT, () => {
+      console.log(`Server is running on port ${PORT}`);
+      console.log('Frontend URL: http://localhost:3000');
+      console.log(`Backend URL: http://localhost:${PORT}`);
+    });
+  } catch (err) {
+    console.error('Failed to start backend because MongoDB is not connected.');
+    process.exit(1);
+  }
+};
 
-
-
+startServer();

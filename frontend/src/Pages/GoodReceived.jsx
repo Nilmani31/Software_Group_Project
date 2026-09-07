@@ -27,6 +27,11 @@ export default function GoodReceived() {
   const [page, setPage] = useState(1);
   const [inventoryItems, setInventoryItems] = useState([]);
 
+  // Role check
+  const roleId = localStorage.getItem('roleId') || '';
+  const userRole = roleId.replace('ROLE_', '');
+  const canEdit = ['ADMIN', 'DIRECTOR', 'MANAGER', 'BRANCH_MANAGER'].includes(userRole);
+
   const { register, handleSubmit, control, reset, watch, setValue } = useForm({
     defaultValues: {
       items: [{ itemId: '', itemName: '', unit: '', unitPrice: '', quantityOrdered: '', quantityReceived: '' }]
@@ -59,7 +64,7 @@ export default function GoodReceived() {
   useEffect(() => {
     const fetchInventoryItems = async () => {
       try {
-        const response = await fetch('http://localhost:5000/api/items');
+        const response = await fetch('http://localhost:5005/api/items');
         const data = await response.json();
         setInventoryItems(Array.isArray(data) ? data : []);
       } catch (err) {
@@ -104,13 +109,13 @@ export default function GoodReceived() {
     if (selectedPO) {
       // Fill form fields with PO data
       setValue('po', poNumber);
-      
+
       // Determine if order is by Supplier or Branch
       const orderType = selectedPO.orderType || selectedPO.orderBy || 'Supplier';
       setCurrentPOType(orderType);
-      
+
       let supplierNameValue = '';
-      
+
       if (orderType === 'Branch') {
         // Fill with branch name for branch-type orders
         supplierNameValue = selectedPO.branch || selectedPO.branchName || '';
@@ -118,24 +123,30 @@ export default function GoodReceived() {
         // Fill with supplier name for supplier-type orders
         supplierNameValue = selectedPO.supplier || selectedPO.supplierName || '';
       }
-      
+
       setValue('supplierName', supplierNameValue);
       setValue('date', new Date().toISOString().substring(0, 10));
       setValue('receivedBy', localStorage.getItem('username') || '');
-      
+
       // Populate items table from PO items
       let poItems = [];
-      
+
       if (selectedPO.items && Array.isArray(selectedPO.items)) {
         // Handle array of items with individual properties
         poItems = selectedPO.items.map(item => {
-          // If item is a string like "Item Name x Quantity", parse it
+          // If item is a string like "Item Name - unit x Quantity", parse it
           if (typeof item === 'string') {
             const parts = item.split(' x ');
+            const fullName = parts[0] || '';
+            // Extract pure name and unit if they are separated by ' - '
+            const nameParts = fullName.split(' - ');
+            const pureName = nameParts.length > 1 ? nameParts.slice(0, -1).join(' - ') : fullName;
+            const pureUnit = nameParts.length > 1 ? nameParts[nameParts.length - 1] : '';
+
             return {
               itemId: '',
-              itemName: parts[0] || '',
-              unit: '',
+              itemName: pureName.trim(),
+              unit: pureUnit.trim(),
               unitPrice: '',
               quantityOrdered: parts[1] ? parseInt(parts[1]) : '',
               quantityReceived: ''
@@ -152,14 +163,14 @@ export default function GoodReceived() {
           };
         });
       }
-      
+
       // If no items found, start with one empty item
       if (poItems.length === 0) {
         poItems = [{ itemId: '', itemName: '', unit: '', unitPrice: '', quantityOrdered: '', quantityReceived: '' }];
       }
-      
+
       replace(poItems);
-      
+
       console.log('Selected PO:', selectedPO, 'Order Type:', orderType, 'Items:', poItems);
     }
   };
@@ -286,7 +297,7 @@ export default function GoodReceived() {
         if (response.success) {
           // Update the list
           setList(prevList =>
-            prevList.map(grn => 
+            prevList.map(grn =>
               grn._id === selected._id ? response.data : grn
             )
           );
@@ -340,7 +351,7 @@ export default function GoodReceived() {
                     <div className="inventory-search">
                       <div className="search-field">
                         <svg className="search-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                          <path fill="currentColor" d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0016 9.5 6.5 6.5 0 109.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79L20 21.49 21.49 20 15.5 14zM4 9.5C4 6.46 6.46 4 9.5 4S15 6.46 15 9.5 12.54 15 9.5 15 4 12.54 4 9.5z"/>
+                          <path fill="currentColor" d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0016 9.5 6.5 6.5 0 109.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79L20 21.49 21.49 20 15.5 14zM4 9.5C4 6.46 6.46 4 9.5 4S15 6.46 15 9.5 12.54 15 9.5 15 4 12.54 4 9.5z" />
                         </svg>
                         <input
                           type="search"
@@ -351,13 +362,15 @@ export default function GoodReceived() {
                       </div>
                     </div>
                     <div className="inventory-actions">
-                      <button className="btn btn-add" onClick={() => {
-                        reset({ items: [{ itemId: '', itemName: '', unit: '', unitPrice: '', quantityOrdered: '', quantityReceived: '' }] });
-                        setImagePreview(null);
-                        setOpenCreate(true);
-                      }} disabled={loading}>
-                        + New GRN
-                      </button>
+                      {canEdit && (
+                        <button className="btn btn-add" onClick={() => {
+                          reset({ items: [{ itemId: '', itemName: '', unit: '', unitPrice: '', quantityOrdered: '', quantityReceived: '' }] });
+                          setImagePreview(null);
+                          setOpenCreate(true);
+                        }} disabled={loading}>
+                          + New GRN
+                        </button>
+                      )}
                     </div>
                   </div>
                 </header>
@@ -471,8 +484,8 @@ export default function GoodReceived() {
                 <div className="form-layout-inventory">
                   <div className="form-group-inventory">
                     <label className="form-label-inventory">Purchase Order Number</label>
-                    <select 
-                      {...register('po')} 
+                    <select
+                      {...register('po')}
                       onChange={(e) => handlePOSelect(e.target.value)}
                       className="form-input-inventory"
                     >
@@ -482,7 +495,7 @@ export default function GoodReceived() {
                           .filter(po => po.status === 'Pending')
                           .map((po, idx) => {
                             const orderType = po.orderType || po.orderBy || 'Supplier';
-                            const displayName = orderType === 'Branch' 
+                            const displayName = orderType === 'Branch'
                               ? (po.branch || po.branchName || 'N/A')
                               : (po.supplier || po.supplierName || 'N/A');
                             const status = po.status || 'Pending';
@@ -513,13 +526,13 @@ export default function GoodReceived() {
 
                 <h4 style={{ margin: '24px 0 16px 0', fontSize: '14px', fontWeight: 700, color: '#667eea' }}>Items Received</h4>
                 <div style={{ marginBottom: '16px' }}>
-                  <div style={{ 
-                    display: 'grid', 
-                    gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr 0.8fr', 
-                    gap: '8px', 
-                    marginBottom: '12px', 
-                    fontWeight: '600', 
-                    fontSize: '12px', 
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr 0.8fr',
+                    gap: '8px',
+                    marginBottom: '12px',
+                    fontWeight: '600',
+                    fontSize: '12px',
                     color: '#667eea',
                     padding: '8px 12px',
                     backgroundColor: '#f0f4ff',
@@ -536,11 +549,11 @@ export default function GoodReceived() {
                   </div>
 
                   {fields.map((field, index) => (
-                    <div key={field.id} style={{ 
-                      display: 'grid', 
-                      gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr 0.8fr', 
-                      gap: '8px', 
-                      alignItems: 'center', 
+                    <div key={field.id} style={{
+                      display: 'grid',
+                      gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr 0.8fr',
+                      gap: '8px',
+                      alignItems: 'center',
                       marginBottom: '8px',
                       padding: '8px 12px',
                       backgroundColor: '#ffffff',
@@ -552,7 +565,8 @@ export default function GoodReceived() {
                       <select
                         {...register(`items.${index}.itemName`)}
                         className="form-input-inventory"
-                        style={{ fontSize: '13px', width: '100%', minWidth: 0, padding: '4px' }}
+                        style={{ fontSize: '13px', width: '100%', minWidth: 0, padding: '4px', backgroundColor: watch('po') ? '#f3f4f6' : 'white', pointerEvents: watch('po') ? 'none' : 'auto' }}
+                        readOnly={!!watch('po')}
                         onChange={(e) => {
                           const val = e.target.value;
                           setValue(`items.${index}.itemName`, val);
@@ -571,34 +585,41 @@ export default function GoodReceived() {
                           </option>
                         ))}
                       </select>
-                      <input {...register(`items.${index}.unit`)} placeholder="kg/units" className="form-input-inventory" style={{ fontSize: '13px', width: '100%', minWidth: 0 }} />
-                      <input {...register(`items.${index}.unitPrice`)} placeholder="Price" type="number" className="form-input-inventory" style={{ fontSize: '13px', width: '100%', minWidth: 0 }} />
-                      <input {...register(`items.${index}.quantityOrdered`)} placeholder="0" type="number" className="form-input-inventory" style={{ fontSize: '13px', width: '100%', minWidth: 0 }} />
+                      <input {...register(`items.${index}.unit`)} placeholder="kg/units" className="form-input-inventory" style={{ fontSize: '13px', width: '100%', minWidth: 0, backgroundColor: watch('po') ? '#f3f4f6' : 'white', pointerEvents: watch('po') ? 'none' : 'auto' }} readOnly={!!watch('po')} />
+                      <input {...register(`items.${index}.unitPrice`)} placeholder="Price" type="number" step="0.01" className="form-input-inventory" style={{ fontSize: '13px', width: '100%', minWidth: 0 }} />
+                      <input {...register(`items.${index}.quantityOrdered`)} placeholder="0" type="number" className="form-input-inventory" style={{ fontSize: '13px', width: '100%', minWidth: 0, backgroundColor: watch('po') ? '#f3f4f6' : 'white', pointerEvents: watch('po') ? 'none' : 'auto' }} readOnly={!!watch('po')} />
                       <input {...register(`items.${index}.quantityReceived`)} placeholder="0" type="number" className="form-input-inventory" style={{ fontSize: '13px', width: '100%', minWidth: 0 }} />
-                      <button 
-                        type="button" 
-                        onClick={() => remove(index)} 
-                        className="modal-btn-inventory cancel"
-                        style={{ padding: '6px 8px', fontSize: '11px', width: '100%', minWidth: 0 }}
-                      >
-                        Remove
-                      </button>
+                      {!watch('po') && (
+                        <button
+                          type="button"
+                          onClick={() => remove(index)}
+                          className="modal-btn-inventory cancel"
+                          style={{ padding: '6px 8px', fontSize: '11px', width: '100%', minWidth: 0 }}
+                        >
+                          Remove
+                        </button>
+                      )}
+                      {!!watch('po') && (
+                        <div style={{ textAlign: 'center', fontSize: '12px', color: '#64748b' }}>Locked</div>
+                      )}
                     </div>
                   ))}
 
-                  <button 
-                    type="button" 
-                    onClick={() => append({ itemId: '', itemName: '', unit: '', unitPrice: '', quantityOrdered: '', quantityReceived: '' })} 
-                    className="modal-btn-inventory cancel"
-                    style={{ marginTop: '8px', padding: '10px 16px' }}
-                  >
-                    + Add Item
-                  </button>
+                  {!watch('po') && (
+                    <button
+                      type="button"
+                      onClick={() => append({ itemId: '', itemName: '', unit: '', unitPrice: '', quantityOrdered: '', quantityReceived: '' })}
+                      className="modal-btn-inventory cancel"
+                      style={{ marginTop: '8px', padding: '10px 16px' }}
+                    >
+                      + Add Item
+                    </button>
+                  )}
                 </div>
 
                 <div className="modal-footer-inventory" style={{ justifyContent: 'flex-end' }}>
-                  <button 
-                    type="submit" 
+                  <button
+                    type="submit"
                     className="modal-btn-inventory submit"
                     disabled={loading}
                   >
@@ -660,18 +681,18 @@ export default function GoodReceived() {
               <div className="form-layout-inventory">
                 <div className="form-group-inventory">
                   <label className="form-label-inventory">GRN Number</label>
-                  <input 
-                    value={editableGrn.grnNumber} 
-                    className="form-input-inventory" 
+                  <input
+                    value={editableGrn.grnNumber}
+                    className="form-input-inventory"
                     readOnly
                     style={{ backgroundColor: '#f3f4f6', cursor: 'not-allowed' }}
                   />
                 </div>
                 <div className="form-group-inventory">
                   <label className="form-label-inventory">PO Number</label>
-                  <input 
-                    value={editableGrn.poNumber || ''} 
-                    onChange={e => handleGrnChange('poNumber', e.target.value)} 
+                  <input
+                    value={editableGrn.poNumber || ''}
+                    onChange={e => handleGrnChange('poNumber', e.target.value)}
                     className="form-input-inventory"
                     disabled={!isEditMode}
                     style={!isEditMode ? { backgroundColor: '#f3f4f6', cursor: 'not-allowed' } : {}}
@@ -679,10 +700,10 @@ export default function GoodReceived() {
                 </div>
                 <div className="form-group-inventory">
                   <label className="form-label-inventory">Received Date</label>
-                  <input 
-                    type="date" 
-                    value={editableGrn.receivedDate ? editableGrn.receivedDate.substring(0, 10) : ''} 
-                    onChange={e => handleGrnChange('receivedDate', e.target.value)} 
+                  <input
+                    type="date"
+                    value={editableGrn.receivedDate ? editableGrn.receivedDate.substring(0, 10) : ''}
+                    onChange={e => handleGrnChange('receivedDate', e.target.value)}
                     className="form-input-inventory"
                     disabled={!isEditMode}
                     style={!isEditMode ? { backgroundColor: '#f3f4f6', cursor: 'not-allowed' } : {}}
@@ -690,8 +711,8 @@ export default function GoodReceived() {
                 </div>
                 <div className="form-group-inventory">
                   <label className="form-label-inventory">Status</label>
-                  <input 
-                    value={editableGrn.status || ''} 
+                  <input
+                    value={editableGrn.status || ''}
                     className="form-input-inventory"
                     readOnly
                     style={{ backgroundColor: '#f3f4f6', cursor: 'not-allowed' }}
@@ -699,8 +720,8 @@ export default function GoodReceived() {
                 </div>
                 <div className="form-group-inventory">
                   <label className="form-label-inventory">Received By</label>
-                  <input 
-                    value={editableGrn.receivedBy || ''} 
+                  <input
+                    value={editableGrn.receivedBy || ''}
                     onChange={e => handleGrnChange('receivedBy', e.target.value)}
                     className="form-input-inventory"
                     disabled={!isEditMode}
@@ -711,13 +732,13 @@ export default function GoodReceived() {
 
               <h4 style={{ margin: '24px 0 16px 0', fontSize: '14px', fontWeight: 700, color: '#667eea' }}>Items Received</h4>
               <div style={{ marginBottom: '16px' }}>
-                <div style={{ 
-                  display: 'grid', 
-                  gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr', 
-                  gap: '8px', 
-                  marginBottom: '12px', 
-                  fontWeight: '600', 
-                  fontSize: '12px', 
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr',
+                  gap: '8px',
+                  marginBottom: '12px',
+                  fontWeight: '600',
+                  fontSize: '12px',
                   color: '#667eea',
                   padding: '8px 12px',
                   backgroundColor: '#f0f4ff',
@@ -732,11 +753,11 @@ export default function GoodReceived() {
                 </div>
 
                 {editableItems.map((item, index) => (
-                  <div key={index} style={{ 
-                    display: 'grid', 
-                    gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr', 
-                    gap: '8px', 
-                    alignItems: 'center', 
+                  <div key={index} style={{
+                    display: 'grid',
+                    gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr',
+                    gap: '8px',
+                    alignItems: 'center',
                     marginBottom: '8px',
                     padding: '8px 12px',
                     backgroundColor: '#ffffff',
@@ -805,29 +826,33 @@ export default function GoodReceived() {
             </div>
 
             <div className="modal-footer-inventory" style={{ justifyContent: 'space-between' }}>
-              <button 
-                className="modal-btn-inventory cancel" 
-                onClick={() => handleDeleteGrn(selected)}
-                disabled={loading}
-                style={{ backgroundColor: '#ef4444', borderColor: '#ef4444' }}
-              >
-                Delete GRN
-              </button>
+              {canEdit && (
+                <button
+                  className="modal-btn-inventory cancel"
+                  onClick={() => handleDeleteGrn(selected)}
+                  disabled={loading}
+                  style={{ backgroundColor: '#ef4444', borderColor: '#ef4444', color: 'white' }}
+                >
+                  Delete GRN
+                </button>
+              )}
               <div style={{ display: 'flex', gap: '8px' }}>
-                <button 
-                  className="modal-btn-inventory cancel" 
-                  onClick={() => setOpenView(false)} 
+                <button
+                  className="modal-btn-inventory cancel"
+                  onClick={() => setOpenView(false)}
                   disabled={loading}
                 >
                   Cancel
                 </button>
-                <button 
-                  className="modal-btn-inventory submit" 
-                  onClick={handleSave} 
-                  disabled={loading}
-                >
-                  {loading ? 'Saving...' : 'Save Changes'}
-                </button>
+                {canEdit && (
+                  <button
+                    className="modal-btn-inventory submit"
+                    onClick={handleSave}
+                    disabled={loading}
+                  >
+                    {loading ? 'Saving...' : 'Save Changes'}
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -863,16 +888,16 @@ export default function GoodReceived() {
               </div>
 
               <div className="modal-footer-inventory" style={{ justifyContent: 'flex-end' }}>
-                <button 
-                  className="modal-btn-inventory cancel" 
-                  onClick={() => setOpenDelete(false)} 
+                <button
+                  className="modal-btn-inventory cancel"
+                  onClick={() => setOpenDelete(false)}
                   disabled={loading}
                 >
                   Cancel
                 </button>
-                <button 
+                <button
                   className="modal-btn-inventory submit"
-                  onClick={confirmDelete} 
+                  onClick={confirmDelete}
                   disabled={loading}
                   style={{ backgroundColor: '#ef4444', borderColor: '#ef4444' }}
                 >

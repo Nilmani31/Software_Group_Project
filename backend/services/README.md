@@ -228,7 +228,7 @@ npm run dev
 ```bash
 # Via frontend chat UI: http://localhost:3000
 # Via direct API call:
-curl -X POST http://localhost:5000/api/chat/send-message \
+curl -X POST http://localhost:5005/api/chat/send-message \
   -H "Content-Type: application/json" \
   -d '{"userMessage":"Do we have coffee?"}'
 ```

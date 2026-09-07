@@ -17,7 +17,7 @@ const ChatAssistant = () => {
   // Get current page info
   const getCurrentPageInfo = () => {
     const path = location.pathname;
-    
+
     const pageMap = {
       '/dashboard': {
         name: 'Dashboard',
@@ -138,7 +138,7 @@ const ChatAssistant = () => {
   // Initialize Web Speech API for voice input
   useEffect(() => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    
+
     if (SpeechRecognition) {
       setVoiceSupported(true);
       const recognition = new SpeechRecognition();
@@ -208,7 +208,7 @@ const ChatAssistant = () => {
 
     try {
       // Call Node.js backend NLP service
-      const response = await fetch('http://localhost:5000/api/chat/send-message', {
+      const response = await fetch('http://localhost:5005/api/chat/send-message', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userMessage: inputMessage })
@@ -240,10 +240,10 @@ const ChatAssistant = () => {
     } catch (error) {
       console.error('Chat Error:', error);
       setIsTyping(false);
-      
+
       const errorMsg = {
         id: Date.now() + 1,
-        text: '⚠️ Chat service is not running. Make sure Node.js backend is running on port 5000.',
+        text: '⚠️ Chat service is not running. Make sure Node.js backend is running on port 5005.',
         sender: 'ai',
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       };
@@ -282,7 +282,7 @@ const ChatAssistant = () => {
   return (
     <>
       {/* Floating Chat Icon */}
-      <div 
+      <div
         className={`chat-float-button ${isOpen ? 'active' : ''}`}
         onClick={() => setIsOpen(!isOpen)}
         title={pageInfo.name}
@@ -301,7 +301,7 @@ const ChatAssistant = () => {
                 <span className="status">{pageInfo.name}</span>
               </div>
             </div>
-            <button 
+            <button
               className="minimize-btn"
               onClick={() => setIsOpen(false)}
             >
@@ -322,7 +322,7 @@ const ChatAssistant = () => {
                 </div>
               </div>
             ))}
-            
+
             {isTyping && (
               <div className="message ai typing">
                 <div className="message-content">
@@ -340,7 +340,7 @@ const ChatAssistant = () => {
           <div className="chat-input-area">
             <div className="quick-actions">
               {pageInfo.suggestions.map((suggestion, index) => (
-                <button 
+                <button
                   key={index}
                   className="quick-btn"
                   onClick={() => handleQuickAction(suggestion.query)}
@@ -350,7 +350,7 @@ const ChatAssistant = () => {
                 </button>
               ))}
             </div>
-            
+
             <div className="chat-input">
               <input
                 type="text"
@@ -372,7 +372,7 @@ const ChatAssistant = () => {
               {interimTranscript && (
                 <span className="interim-text" style={{ marginRight: '8px' }}>{interimTranscript}</span>
               )}
-              <button 
+              <button
                 className="send-btn"
                 onClick={handleSendMessage}
                 disabled={!inputMessage.trim()}
