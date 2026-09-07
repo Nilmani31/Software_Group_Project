@@ -2,6 +2,7 @@
 const User = require("../models/users");
 const bcrypt = require("bcrypt");
 const { generatePasswordByRole } = require("../utils/passwordGenerator");
+const { sendWelcomeMessage } = require("../services/messageService");
 
 // GET ALL USERS
 exports.getAllUsers = async (req, res) => {
@@ -71,6 +72,22 @@ exports.createUser = async (req, res) => {
       createdBy
     });
 
+    let messageStatus = { sent: false, reason: 'Not attempted' };
+    try {
+      messageStatus = await sendWelcomeMessage({
+        email,
+        username,
+        password: finalPassword,
+        roleId
+      });
+    } catch (messageError) {
+      console.error('Welcome message error:', messageError.message);
+      messageStatus = {
+        sent: false,
+        reason: `Message could not be sent: ${messageError.message}`
+      };
+    }
+
     res.status(201).json({
       success: true,
       message: "User created successfully",
@@ -80,7 +97,9 @@ exports.createUser = async (req, res) => {
       username: newUser.username,
       role: newUser.role,
       roleId: newUser.roleId,
-      password: finalPassword   
+      password: finalPassword,
+      messageSent: messageStatus.sent,
+      messageStatus: messageStatus.reason || 'Message sent successfully'
     });
   } catch (err) {
     console.error('Create user error:', err.message);

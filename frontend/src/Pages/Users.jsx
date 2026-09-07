@@ -138,7 +138,10 @@ export default function Users() {
       const data = await response.json();
 
       if (data.message) {
-        alert('User created successfully! Password: ' + data.password);
+        const deliveryMessage = data.messageSent
+          ? 'Login credentials were sent to ' + addForm.email + '.'
+          : 'Email was not sent (' + (data.messageStatus || 'SMTP is not configured') + ').';
+        alert('User created successfully!\n' + deliveryMessage + '\nTemporary password: ' + data.password);
         setAddForm(prev => ({ username: '', email: '', phoneNumber: '', password: '', roleId: 'ROLE_STAFF', branchId: prev.branchId || '', allowedBranches: [] }));
         setOpenAdd(false);
         fetchUsers(); // Refresh list
