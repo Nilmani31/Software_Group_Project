@@ -1,4 +1,4 @@
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 
 router = APIRouter()
 
@@ -42,3 +42,49 @@ async def embed_and_search(image: UploadFile = File(...)):
 		traceback.print_exc()
 		raise HTTPException(status_code=500, detail=str(exc)) from exc
 
+@router.post("/zero-shot-search")
+async def zero_shot_search(
+	image: UploadFile = File(...),
+	itemNames: str = Form(...),
+):
+	"""Match an uploaded photo against a plain list of item names, with no
+	stored reference photos and no Qdrant lookup. Compares the photo's CLIP
+	embedding against a text embedding of each item name and ranks by
+	cosine similarity."""
+	try:
+		import json
+
+		from app.services.clip import image_to_embedding, text_to_embedding
+
+		try:
+			names = json.loads(itemNames)
+		except json.JSONDecodeError:
+			raise HTTPException(status_code=400, detail="itemNames must be a JSON array of strings.")
+
+		if not isinstance(names, list) or not names:
+			raise HTTPException(status_code=400, detail="itemNames must be a non-empty JSON array.")
+
+		image_bytes = await image.read()
+		if not image_bytes:
+			raise HTTPException(status_code=400, detail="Empty image upload.")
+
+		image_embedding = image_to_embedding(image_bytes)
+
+		scored = []
+		for name in names:
+			prompt = f"a photo of {name}"
+			text_embedding = text_to_embedding(prompt)
+			# Both embeddings are L2-normalized, so dot product == cosine similarity
+			score = sum(a * b for a, b in zip(image_embedding, text_embedding))
+			scored.append({"name": name, "score": round(score, 4)})
+
+		scored.sort(key=lambda r: r["score"], reverse=True)
+
+		return {"success": True, "results": scored, "count": len(scored)}
+	except HTTPException:
+		raise
+	except Exception as exc:
+		print(f"❌ ERROR in zero-shot-search: {exc}")
+		import traceback
+		traceback.print_exc()
+		raise HTTPException(status_code=500, detail=str(exc)) from exc
