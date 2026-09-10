@@ -45,24 +45,24 @@ async def embed_and_search(image: UploadFile = File(...)):
 @router.post("/zero-shot-search")
 async def zero_shot_search(
 	image: UploadFile = File(...),
-	itemNames: str = Form(...),
+	items: str = Form(...),
 ):
-	"""Match an uploaded photo against a plain list of item names, with no
-	stored reference photos and no Qdrant lookup. Compares the photo's CLIP
-	embedding against a text embedding of each item name and ranks by
-	cosine similarity."""
+	"""Match an uploaded photo against a list of {name, category} items,
+	with no stored reference photos and no Qdrant lookup. Compares the
+	photo's CLIP embedding against a text embedding of each item (name +
+	category) and ranks by cosine similarity."""
 	try:
 		import json
 
 		from app.services.clip import image_to_embedding, text_to_embedding_ensemble
 
 		try:
-			names = json.loads(itemNames)
+			item_list = json.loads(items)
 		except json.JSONDecodeError:
-			raise HTTPException(status_code=400, detail="itemNames must be a JSON array of strings.")
+			raise HTTPException(status_code=400, detail="items must be a JSON array.")
 
-		if not isinstance(names, list) or not names:
-			raise HTTPException(status_code=400, detail="itemNames must be a non-empty JSON array.")
+		if not isinstance(item_list, list) or not item_list:
+			raise HTTPException(status_code=400, detail="items must be a non-empty JSON array.")
 
 		image_bytes = await image.read()
 		if not image_bytes:
@@ -71,9 +71,18 @@ async def zero_shot_search(
 		image_embedding = image_to_embedding(image_bytes)
 
 		scored = []
-		for name in names:
-			text_embedding = text_to_embedding_ensemble(name)
-			# Both embeddings are L2-normalized, so dot product == cosine similarity
+		for entry in item_list:
+			if isinstance(entry, dict):
+				name = entry.get("name")
+				category = entry.get("category") or None
+			else:
+				name = entry
+				category = None
+
+			if not name:
+				continue
+
+			text_embedding = text_to_embedding_ensemble(name, category=category)
 			score = sum(a * b for a, b in zip(image_embedding, text_embedding))
 			scored.append({"name": name, "score": round(score, 4)})
 

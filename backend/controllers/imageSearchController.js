@@ -82,25 +82,24 @@ const findItemsByImageZeroShot = async (req, res, next) => {
 			});
 		}
 
-				const items = await Item.find({}, "name").lean();
-		if (!items.length) {
+						const allItems = await Item.find({}).populate("category", "name").lean();
+		if (!allItems.length) {
 			return res.status(400).json({
 				error: "NoItems",
 				message: "No inventory items exist yet to match against.",
 			});
 		}
-		const itemNames = items.map((item) => item.name);
+		const itemsForMatching = allItems.map((item) => ({
+			name: item.name,
+			category: item.category?.name || "",
+		}));
 
-		const mlResponse = await searchByImageZeroShot(req.file, itemNames);
+		const mlResponse = await searchByImageZeroShot(req.file, itemsForMatching);
 		const scored = mlResponse.results || [];
 
-		// Look up full live item data for the top few matches, with category
-		// populated since it's stored as a MongoDB reference, not a plain string.
+		// Look up full live item data for the top few matches
 		const topNames = scored.slice(0, 5).map((r) => r.name);
-		const matchedItems = await Item.find({ name: { $in: topNames } })
-			.populate("category", "name")
-			.lean();
-
+		const matchedItems = allItems.filter((i) => topNames.includes(i.name));
 		const results = scored.slice(0, 5).map((r) => {
 			const fullItem = matchedItems.find((i) => i.name === r.name);
 			return {
@@ -125,3 +124,4 @@ module.exports = {
 	findItemsByImage,
 	findItemsByImageZeroShot,	
 };
+ 

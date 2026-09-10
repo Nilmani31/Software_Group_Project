@@ -63,26 +63,29 @@ DEFAULT_PROMPT_TEMPLATES = [
 ]
 
 
-def text_to_embedding_ensemble(name: str, templates=None):
-	"""Embed an item name using several prompt phrasings and average them
-	into one embedding. This "prompt ensembling" smooths out any one
-	template's quirks and generally improves zero-shot accuracy over a
-	single fixed prompt."""
+def text_to_embedding_ensemble(name: str, category: str = None, templates=None):
+	"""Embed an item name (optionally with its category) using several
+	prompt phrasings and average them into one embedding. Category adds a
+	disambiguating clue beyond the bare name -- e.g. distinguishing a
+	"Vodka" bottle from other clear-liquid spirits by tagging it as a
+	Liquor, or telling barista supplies apart from bartender ones."""
 	_init_model()
 
 	if templates is None:
-		templates = DEFAULT_PROMPT_TEMPLATES
+		templates = list(DEFAULT_PROMPT_TEMPLATES)
 
 	prompts = [template.format(name) for template in templates]
+
+	if category:
+		prompts.append(f"a photo of {name}, a type of {category}")
+		prompts.append(f"{name}, an item in the {category} category of a bar and kitchen inventory")
+
 	text_input = _tokenizer(prompts).to(_device)
 
 	with torch.no_grad():
 		text_features = _model.encode_text(text_input)
-		# Normalize each prompt's embedding individually first...
 		text_features = text_features / text_features.norm(dim=-1, keepdim=True)
-		# ...then average across prompts...
 		mean_features = text_features.mean(dim=0)
-		# ...then re-normalize the averaged vector back to unit length.
 		mean_features = mean_features / mean_features.norm()
 
 	return mean_features.cpu().tolist()
