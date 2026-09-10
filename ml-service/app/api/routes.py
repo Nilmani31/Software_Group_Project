@@ -54,7 +54,7 @@ async def zero_shot_search(
 	try:
 		import json
 
-		from app.services.clip import image_to_embedding, text_to_embedding
+		from app.services.clip import image_to_embedding, text_to_embedding_ensemble
 
 		try:
 			names = json.loads(itemNames)
@@ -72,8 +72,7 @@ async def zero_shot_search(
 
 		scored = []
 		for name in names:
-			prompt = f"a photo of {name}"
-			text_embedding = text_to_embedding(prompt)
+			text_embedding = text_to_embedding_ensemble(name)
 			# Both embeddings are L2-normalized, so dot product == cosine similarity
 			score = sum(a * b for a, b in zip(image_embedding, text_embedding))
 			scored.append({"name": name, "score": round(score, 4)})
