@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import Navbar from "../Components/Navbar";
 import Sidebar from "../Components/Sidebar";
 import ChatAssistant from "../Components/ChatAssistant";
+import ConfirmDialog from "../Components/ConfirmDialog";
 import "./Inventory.css";
 import "./Branches.css";
 import { FaTimes, FaEdit, FaTrash } from "react-icons/fa";
@@ -14,6 +15,7 @@ export default function Branches() {
     const [editing, setEditing] = useState(null);
     const [form, setForm] = useState({ name: "", location: "", contact_person: "", phone: "" });
     const [errors, setErrors] = useState({});
+    const [pendingAction, setPendingAction] = useState(null);
 
     useEffect(() => {
         async function fetchBranches() {
@@ -136,8 +138,15 @@ export default function Branches() {
         }
     }
 
+    function requestSave() {
+        if (editing) {
+            save();
+            return;
+        }
+        setPendingAction({ type: "add" });
+    }
+
     async function remove(id) {
-        if (!window.confirm("Are you sure you want to delete this branch?")) return;
         try {
             const res = await fetch(`${API_BASE_URL}/api/branches/${id}`, {
                 method: "DELETE",
@@ -220,7 +229,7 @@ export default function Branches() {
                                                                 <button className="icon-btn" onClick={() => openEdit(b)} title="Edit branch" type="button">
                                                                     <FaEdit />
                                                                 </button>
-                                                                <button className="icon-btn danger" onClick={() => remove(b.id)} title="Delete branch" type="button">
+                                                                <button className="icon-btn danger" onClick={() => setPendingAction({ type: "delete", id: b.id, name: b.name })} title="Delete branch" type="button">
                                                                     <FaTrash />
                                                                 </button>
                                                             </td>
@@ -244,7 +253,7 @@ export default function Branches() {
                                                             </button>
                                                             <button
                                                                 className="branch-icon-btn delete"
-                                                                onClick={() => remove(b.id)}
+                                                                onClick={() => setPendingAction({ type: "delete", id: b.id, name: b.name })}
                                                                 title="Delete branch"
                                                             >
                                                                 <FaTrash />
@@ -369,7 +378,7 @@ export default function Branches() {
                             </button>
                             <button
                                 className="branch-btn-submit"
-                                onClick={save}
+                                onClick={requestSave}
                             >
                                 {editing ? "Update Branch" : "Add Branch"}
                             </button>
@@ -377,6 +386,23 @@ export default function Branches() {
                     </div>
                 </div>
             )}
+
+            <ConfirmDialog
+                open={Boolean(pendingAction)}
+                title={pendingAction?.type === "add" ? "Add branch?" : "Delete branch?"}
+                message={pendingAction?.type === "add"
+                    ? "Are you sure you want to add this branch?"
+                    : `Are you sure you want to delete ${pendingAction?.name || "this branch"}?`}
+                confirmLabel={pendingAction?.type === "add" ? "Add" : "Delete"}
+                tone={pendingAction?.type === "add" ? "success" : "danger"}
+                onCancel={() => setPendingAction(null)}
+                onConfirm={async () => {
+                    const action = pendingAction;
+                    setPendingAction(null);
+                    if (action?.type === "add") await save();
+                    if (action?.type === "delete") await remove(action.id);
+                }}
+            />
 
             {/* Chat Assistant */}
             <ChatAssistant />

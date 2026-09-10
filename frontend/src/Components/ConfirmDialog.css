@@ -1,0 +1,58 @@
+.confirm-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2100;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(18, 32, 58, 0.5);
+  backdrop-filter: blur(3px);
+  animation: confirm-fade-in 180ms ease-out both;
+}
+
+.confirm-dialog {
+  position: relative;
+  width: min(420px, 100%);
+  padding: 30px;
+  border: 1px solid #e2e8f0;
+  border-top: 4px solid #667eea;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 20px 60px rgba(18, 32, 58, 0.3);
+  text-align: center;
+  animation: confirm-rise 220ms ease-out both;
+}
+
+.confirm-dialog-danger { border-top-color: #ef4444; }
+.confirm-dialog-success { border-top-color: #10b981; }
+
+.confirm-dialog-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #73808a;
+  cursor: pointer;
+}
+
+.confirm-dialog-close:hover { background: #ede9fe; color: #3b5ecf; }
+.confirm-dialog-icon { display: inline-grid; place-items: center; width: 52px; height: 52px; border-radius: 50%; background: #fee2e2; color: #ef4444; }
+.confirm-dialog-icon-success { background: #dcfce7; color: #10b981; }
+.confirm-dialog h2 { margin: 16px 0 8px; color: #1a3a52; font-size: 1.2rem; }
+.confirm-dialog p { margin: 0 auto; max-width: 320px; color: #64748b; font-size: 0.94rem; line-height: 1.5; }
+.confirm-dialog-actions { display: flex; justify-content: center; gap: 10px; margin-top: 24px; }
+.confirm-dialog-actions button { min-width: 104px; padding: 10px 16px; border-radius: 8px; font-weight: 700; cursor: pointer; }
+.confirm-dialog-cancel { border: 2px solid #d8bfd8; background: #ffffff; color: #667eea; }
+.confirm-dialog-cancel:hover { background: #f5f3ff; }
+.confirm-dialog-confirm { border: 1px solid #ef4444; background: #ef4444; color: #fff; }
+.confirm-dialog-confirm-success { border-color: #10b981; background: #10b981; }
+.confirm-dialog-actions button:hover { filter: brightness(0.96); transform: translateY(-1px); }
+
+@keyframes confirm-fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes confirm-rise { from { opacity: 0; transform: translateY(10px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }

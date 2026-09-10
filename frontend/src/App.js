@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import LoginPage from './Pages/Login';
 import Dashboard from './Pages/Dashboard';
@@ -16,6 +16,15 @@ import ProtectedRoute from './Components/ProtectedRoute';
 import './Pages/SharedModals.css';
 
 function App() {
+  useEffect(() => {
+    const nativeAlert = window.alert;
+    window.alert = () => {};
+
+    return () => {
+      window.alert = nativeAlert;
+    };
+  }, []);
+
   return (
     <Router>
       <Routes>

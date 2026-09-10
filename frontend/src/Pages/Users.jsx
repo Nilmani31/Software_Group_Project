@@ -4,6 +4,7 @@ import Sidebar from '../Components/Sidebar';
 import { Edit2, Trash2 } from 'lucide-react';
 import Modal from '../Components/Modal';
 import ChatAssistant from '../Components/ChatAssistant';
+import ConfirmDialog from '../Components/ConfirmDialog';
 import './Users.css';
 import './Inventory.css';
 
@@ -27,6 +28,8 @@ export default function Users() {
   // Edit user form state
   const [editForm, setEditForm] = useState({ username: '', email: '', phoneNumber: '', roleId: '', branchId: '', allowedBranches: [] });
   const [editLoading, setEditLoading] = useState(false);
+  const [userPendingDelete, setUserPendingDelete] = useState(null);
+  const [userPendingAdd, setUserPendingAdd] = useState(false);
 
   // Fetch users and roles from backend
   useEffect(() => {
@@ -115,8 +118,7 @@ export default function Users() {
   };
 
   // Handle Add User
-  const handleAddUser = async (e) => {
-    e.preventDefault();
+  const handleAddUser = async () => {
     setAddLoading(true);
     try {
       const requestBody = {
@@ -156,9 +158,18 @@ export default function Users() {
     }
   };
 
+  const requestAddUser = (e) => {
+    e.preventDefault();
+    setUserPendingAdd(true);
+  };
+
+  const confirmAddUser = async () => {
+    setUserPendingAdd(false);
+    await handleAddUser();
+  };
+
   // Handle Delete User
   const handleDeleteUser = async (userId) => {
-    if (!window.confirm('Delete this user?')) return;
     try {
       const response = await fetch(`http://localhost:5005/api/users/${userId}`, {
         method: 'DELETE',
@@ -174,6 +185,14 @@ export default function Users() {
     } catch (err) {
       alert('Error deleting user: ' + err.message);
     }
+  };
+
+  const requestDeleteUser = (userId) => setUserPendingDelete(userId);
+
+  const confirmDeleteUser = async () => {
+    const userId = userPendingDelete;
+    setUserPendingDelete(null);
+    if (userId) await handleDeleteUser(userId);
   };
 
   // Handle Edit User - Open Modal and set form
@@ -317,7 +336,7 @@ export default function Users() {
                                 <button onClick={() => handleOpenEdit(u)} className="icon-btn" aria-label="Edit user">
                                   <Edit2 size={16} />
                                 </button>
-                                <button onClick={() => handleDeleteUser(u.id)} className="icon-btn danger" aria-label="Delete user">
+                                <button onClick={() => requestDeleteUser(u.id)} className="icon-btn danger" aria-label="Delete user">
                                   <Trash2 size={16} />
                                 </button>
                               </td>
@@ -335,7 +354,7 @@ export default function Users() {
       </div>
 
       <Modal title="Add New User" open={openAdd} onClose={() => setOpenAdd(false)}>
-        <form style={{ display: 'flex', flexDirection: 'column', gap: 10 }} onSubmit={handleAddUser}>
+        <form style={{ display: 'flex', flexDirection: 'column', gap: 10 }} onSubmit={requestAddUser}>
           <div><label className="text-sm">Username</label><input className="input" placeholder="e.g. john_doe" value={addForm.username} onChange={(e) => setAddForm({ ...addForm, username: e.target.value })} required /></div>
           <div><label className="text-sm">Email</label><input className="input" type="email" placeholder="e.g. john@company.com" value={addForm.email} onChange={(e) => setAddForm({ ...addForm, email: e.target.value })} required /></div>
           <div><label className="text-sm">Phone Number</label><input className="input" placeholder="e.g. 0712345678" value={addForm.phoneNumber} onChange={(e) => setAddForm({ ...addForm, phoneNumber: e.target.value })} required /></div>
@@ -398,6 +417,22 @@ export default function Users() {
           </form>
         )}
       </Modal>
+      <ConfirmDialog
+        open={userPendingAdd}
+        title="Add this user?"
+        message={`Create an account for ${addForm.username || 'this user'} with the selected role and branch.`}
+        confirmLabel="Add user"
+        tone="success"
+        onCancel={() => setUserPendingAdd(false)}
+        onConfirm={confirmAddUser}
+      />
+      <ConfirmDialog
+        open={Boolean(userPendingDelete)}
+        title="Delete user?"
+        message="This user will be permanently removed from the system."
+        onCancel={() => setUserPendingDelete(null)}
+        onConfirm={confirmDeleteUser}
+      />
       <ChatAssistant />
     </div>
   );

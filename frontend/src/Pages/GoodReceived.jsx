@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Navbar from '../Components/Navbar';
 import Sidebar from '../Components/Sidebar';
 import ChatAssistant from '../Components/ChatAssistant';
+import ConfirmDialog from '../Components/ConfirmDialog';
 import { useForm, useFieldArray } from 'react-hook-form';
 import * as grnService from '../services/grnService';
 import * as poService from '../services/poService';
@@ -24,6 +25,7 @@ export default function GoodReceived() {
   const [imagePreview, setImagePreview] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [pendingCreate, setPendingCreate] = useState(null);
   const [page, setPage] = useState(1);
   const [inventoryItems, setInventoryItems] = useState([]);
 
@@ -237,6 +239,10 @@ export default function GoodReceived() {
   const handleDeleteGrn = (grn) => {
     setGrnToDelete(grn);
     setOpenDelete(true);
+  };
+
+  const requestCreate = (data) => {
+    setPendingCreate(data);
   };
 
   const confirmDelete = async () => {
@@ -465,7 +471,7 @@ export default function GoodReceived() {
               <button className="modal-close-btn-inventory" onClick={() => { setOpenCreate(false); setCurrentPOType('Supplier'); }} aria-label="Close">×</button>
             </div>
             <div className="modal-body-inventory">
-              <form onSubmit={handleSubmit(onCreate)} className="modal-form-inventory">
+              <form onSubmit={handleSubmit(requestCreate)} className="modal-form-inventory">
                 {error && (
                   <div style={{
                     padding: '12px 16px',
@@ -859,55 +865,28 @@ export default function GoodReceived() {
         </div>
       )}
 
-      {/* Delete Confirmation Modal */}
-      {openDelete && (
-        <div className="modal-overlay-inventory" onClick={() => setOpenDelete(false)}>
-          <div className="modal-content-inventory" style={{ maxWidth: '400px' }} onClick={e => e.stopPropagation()}>
-            <div className="modal-header-inventory">
-              <div className="modal-title-section-inventory">
-                <h2 className="modal-title-inventory">Delete GRN</h2>
-                <p className="modal-subtitle-inventory">Confirm permanent deletion</p>
-              </div>
-              <button className="modal-close-btn-inventory" onClick={() => setOpenDelete(false)} aria-label="Close">×</button>
-            </div>
-            <div className="modal-body-inventory">
-              <div style={{ padding: '16px 0' }}>
-                <p style={{ marginBottom: '12px', fontSize: '14px', color: '#1f2937' }}>
-                  Are you sure you want to delete GRN <strong>"{grnToDelete?.grnNumber}"</strong>?
-                </p>
-                <div style={{
-                  padding: '12px',
-                  backgroundColor: '#fef2f2',
-                  border: '1px solid #fee2e2',
-                  borderRadius: '6px',
-                  color: '#7f1d1d',
-                  fontSize: '13px'
-                }}>
-                  ⚠️ This action cannot be undone. All associated data will be permanently removed.
-                </div>
-              </div>
-
-              <div className="modal-footer-inventory" style={{ justifyContent: 'flex-end' }}>
-                <button
-                  className="modal-btn-inventory cancel"
-                  onClick={() => setOpenDelete(false)}
-                  disabled={loading}
-                >
-                  Cancel
-                </button>
-                <button
-                  className="modal-btn-inventory submit"
-                  onClick={confirmDelete}
-                  disabled={loading}
-                  style={{ backgroundColor: '#ef4444', borderColor: '#ef4444' }}
-                >
-                  {loading ? 'Deleting...' : 'Delete'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmDialog
+        open={openDelete || Boolean(pendingCreate)}
+        title={pendingCreate ? 'Add goods received note?' : 'Delete goods received note?'}
+        message={pendingCreate
+          ? 'Are you sure you want to add this goods received note?'
+          : `Are you sure you want to delete ${grnToDelete?.grnNumber || 'this goods received note'}?`}
+        confirmLabel={pendingCreate ? 'Add' : 'Delete'}
+        tone={pendingCreate ? 'success' : 'danger'}
+        onCancel={() => {
+          setPendingCreate(null);
+          setOpenDelete(false);
+        }}
+        onConfirm={async () => {
+          if (pendingCreate) {
+            const data = pendingCreate;
+            setPendingCreate(null);
+            await onCreate(data);
+          } else {
+            await confirmDelete();
+          }
+        }}
+      />
 
       <ChatAssistant />
     </div>

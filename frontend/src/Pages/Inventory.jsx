@@ -3,6 +3,7 @@ import Navbar from '../Components/Navbar';
 import Sidebar from '../Components/Sidebar';
 import ChatAssistant from '../Components/ChatAssistant';
 import FindItemByImageModal from '../Components/FindItemByImageModal';
+import ConfirmDialog from '../Components/ConfirmDialog';
 import './Inventory.css';
 import { FaTimes, FaEdit, FaTrash, FaImage } from 'react-icons/fa';
 import { getAuthHeaders } from '../utils/authHeaders';
@@ -144,6 +145,7 @@ const Inventory = () => {
   const [editableStockData, setEditableStockData] = useState([]);
   const [submitLoading, setSubmitLoading] = useState(false);
   const [stockData, setStockData] = useState([]);
+  const [pendingAction, setPendingAction] = useState(null);
 
   // Role check
   const roleId = localStorage.getItem('roleId') || '';
@@ -488,9 +490,11 @@ const Inventory = () => {
     const file = e.target.files[0];
     if (file) {
       const reader = new FileReader();
-      reader.onload = () => setImagePreview(reader.result);
+      reader.onload = () => {
+        setImagePreview(reader.result);
+        setFormData(prev => ({ ...prev, image: reader.result }));
+      };
       reader.readAsDataURL(file);
-      setFormData(prev => ({ ...prev, image: file }));
     }
   };
 
@@ -553,6 +557,15 @@ const Inventory = () => {
     }
   };
 
+  const requestAddItem = (e) => {
+    e.preventDefault();
+    if (!formData.name || !formData.category || !formData.unit) {
+      alert('Please fill required fields');
+      return;
+    }
+    setPendingAction({ type: 'add' });
+  };
+
   const handleRowClick = (item) => {
     setSelectedItem(item);
     setShowItemDetailModal(true);
@@ -586,7 +599,7 @@ const Inventory = () => {
       });
       // Use current stockData if available, otherwise it will be populated
       setEditableStockData(stockData.length > 0 ? [...stockData] : []);
-      setEditImagePreview(null);
+      setEditImagePreview(selectedItem.image || null);
       setShowItemDetailModal(false);
       setShowEditItemModal(true);
     }
@@ -609,7 +622,7 @@ const Inventory = () => {
   };
 
   const handleDeleteItem = async () => {
-    if (window.confirm(`Are you sure you want to delete ${selectedItem.name}?`)) {
+    if (selectedItem) {
       try {
         const response = await fetch(`http://localhost:5005/api/items/${selectedItem._id}`, {
           method: 'DELETE',
@@ -627,6 +640,10 @@ const Inventory = () => {
         alert('Error: ' + err.message);
       }
     }
+  };
+
+  const requestDeleteItem = () => {
+    if (selectedItem) setPendingAction({ type: 'delete', item: selectedItem });
   };
 
   const handleEditInputChange = (e) => {
@@ -650,9 +667,11 @@ const Inventory = () => {
     const file = e.target.files[0];
     if (file) {
       const reader = new FileReader();
-      reader.onload = () => setEditImagePreview(reader.result);
+      reader.onload = () => {
+        setEditImagePreview(reader.result);
+        setEditFormData(prev => ({ ...prev, image: reader.result }));
+      };
       reader.readAsDataURL(file);
-      setEditFormData(prev => ({ ...prev, image: file }));
     }
   };
 
@@ -898,7 +917,7 @@ const Inventory = () => {
 
             {/* Modal Body */}
             <div className="modal-body-inventory">
-              <form className="modal-form-inventory" onSubmit={handleSubmit}>
+              <form className="modal-form-inventory" onSubmit={requestAddItem}>
                 {/* Form Layout */}
                 <div className="form-layout-inventory">
                   {/* Left Column */}
@@ -1066,7 +1085,7 @@ const Inventory = () => {
               <button type="button" className="modal-btn-inventory cancel" onClick={handleCloseModal}>
                 Cancel
               </button>
-              <button type="submit" className="modal-btn-inventory submit" onClick={handleSubmit} disabled={submitLoading}>
+              <button type="button" className="modal-btn-inventory submit" onClick={requestAddItem} disabled={submitLoading}>
                 {submitLoading ? 'Adding...' : 'Add Item'}
               </button>
             </div>
@@ -1175,7 +1194,7 @@ const Inventory = () => {
                       </button>
                       <button
                         type="button"
-                        onClick={handleDeleteItem}
+                        onClick={requestDeleteItem}
                         style={{ padding: '7px 16px', fontSize: '13px', fontWeight: '600', background: '#fee2e2', color: '#dc2626', border: 'none', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
                       >
                         <FaTrash /> Delete Item
@@ -1684,6 +1703,23 @@ const Inventory = () => {
         isOpen={showFindByImageModal}
         onClose={handleCloseFindByImageModal}
         onAddAsNew={handleAddAsNewItemFromImage}
+      />
+
+      <ConfirmDialog
+        open={Boolean(pendingAction)}
+        title={pendingAction?.type === 'add' ? 'Add item?' : 'Delete item?'}
+        message={pendingAction?.type === 'add'
+          ? 'Are you sure you want to add this item?'
+          : `Are you sure you want to delete ${pendingAction?.item?.name || 'this item'}?`}
+        confirmLabel={pendingAction?.type === 'add' ? 'Add' : 'Delete'}
+        tone={pendingAction?.type === 'add' ? 'success' : 'danger'}
+        onCancel={() => setPendingAction(null)}
+        onConfirm={async () => {
+          const action = pendingAction;
+          setPendingAction(null);
+          if (action?.type === 'add') await handleSubmit({ preventDefault: () => {} });
+          if (action?.type === 'delete') await handleDeleteItem();
+        }}
       />
 
       <ChatAssistant />

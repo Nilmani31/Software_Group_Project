@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import Navbar from '../Components/Navbar'
 import Sidebar from '../Components/Sidebar'
 import ChatAssistant from '../Components/ChatAssistant'
+import ConfirmDialog from '../Components/ConfirmDialog'
 import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
 // Modal component replaced for Create PO to match Inventory design
@@ -100,6 +101,7 @@ export default function PurchaseOrder() {
     reason: ''
   })
   const [cancelErrors, setCancelErrors] = useState({})
+  const [pendingCreate, setPendingCreate] = useState(false)
   const updateCancelForm = (key, val) => setCancelForm(prev => ({ ...prev, [key]: val }))
 
   const filtered = pos.filter(po => {
@@ -414,6 +416,23 @@ export default function PurchaseOrder() {
     }
   }
 
+  const requestSubmitPO = (e) => {
+    e.preventDefault()
+    if (!poForm.orderBy) {
+      alert('Please select Order By (Supplier or Branch)')
+      return
+    }
+    if (!poForm.orderDate) {
+      alert('Please select Order Date')
+      return
+    }
+    if (cart.length === 0) {
+      alert('Please add items to the cart')
+      return
+    }
+    setPendingCreate(true)
+  }
+
   // ===== RENDER =====
 
   return (
@@ -616,7 +635,7 @@ export default function PurchaseOrder() {
               <button className="modal-close-btn-inventory" onClick={() => setOpenCreate(false)} aria-label="Close">×</button>
             </div>
             <div className="modal-body-inventory">
-              <form onSubmit={submitPO} className="modal-form-inventory">
+              <form onSubmit={requestSubmitPO} className="modal-form-inventory">
                 <h4 style={{ margin: '0 0 12px 0', fontSize: '14px', fontWeight: 700, color: '#667eea' }}>Select Item</h4>
                 <div className="form-layout-inventory">
                   <div className="form-group-inventory">
@@ -1186,7 +1205,7 @@ export default function PurchaseOrder() {
             <div className="modal-header-inventory">
               <div className="modal-title-section-inventory">
                 <h2 className="modal-title-inventory">Delete Order</h2>
-                <p className="modal-subtitle-inventory">Confirm deletion and notify stakeholders</p>
+                <p className="modal-subtitle-inventory">Confirm purchase order deletion</p>
               </div>
               <button className="modal-close-btn-inventory" onClick={() => setOpenCancel(false)} aria-label="Close">×</button>
             </div>
@@ -1264,7 +1283,7 @@ export default function PurchaseOrder() {
                 {cancelErrors.reason && <div className="field-error">{cancelErrors.reason}</div>}
               </div>
               <div className="modal-footer-inventory">
-                <button type="submit" className="modal-btn-inventory submit danger">Confirm and Inform</button>
+                <button type="submit" className="modal-btn-inventory submit danger">Confirm Delete</button>
                 <button type="button" className="modal-btn-inventory cancel" onClick={() => { setOpenCancel(false); setOpenView(true) }}>View Details</button>
                 <button type="button" className="modal-btn-inventory cancel" onClick={() => setOpenCancel(false)}>Close</button>
               </div>
@@ -1275,6 +1294,18 @@ export default function PurchaseOrder() {
     )}
 
       {/* Chat Assistant */}
+      <ConfirmDialog
+        open={pendingCreate}
+        title="Create purchase order?"
+        message="Are you sure you want to create this purchase order?"
+        confirmLabel="Create"
+        tone="success"
+        onCancel={() => setPendingCreate(false)}
+        onConfirm={async () => {
+          setPendingCreate(false)
+          await submitPO({ preventDefault: () => {} })
+        }}
+      />
       <ChatAssistant />
     </div>
   )

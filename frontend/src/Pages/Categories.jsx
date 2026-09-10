@@ -4,6 +4,7 @@ import Sidebar from '../Components/Sidebar';
 import { categories } from '../data/sample';
 import { Edit2, Trash2 } from 'lucide-react';
 import Modal from '../Components/Modal';
+import ConfirmDialog from '../Components/ConfirmDialog';
 import ChatAssistant from '../Components/ChatAssistant';
 import './Categories.css';
 import './Inventory.css';
@@ -27,6 +28,7 @@ export default function Categories() {
   const [catEditForm, setCatEditForm] = useState({ name: '', desc: '' });
 
   const [formLoading, setFormLoading] = useState(false);
+  const [pendingAction, setPendingAction] = useState(null);
 
   useEffect(() => {
     fetchRoles();
@@ -85,6 +87,15 @@ export default function Categories() {
     } finally {
       setFormLoading(false);
     }
+  };
+
+  const requestAddCategory = (e) => {
+    e.preventDefault();
+    if (!catAddForm.name) {
+      alert('Please enter category name');
+      return;
+    }
+    setPendingAction({ type: 'add-category' });
   };
 
   // Handle Update Category
@@ -193,6 +204,15 @@ const handleAddRole = async (e) => {
   }
 };
 
+const requestAddRole = (e) => {
+  e.preventDefault();
+  if (!addForm.name) {
+    alert('Please enter role name');
+    return;
+  }
+  setPendingAction({ type: 'add-role' });
+};
+
 // Handle Update Role
 const handleUpdateRole = async (e) => {
   e.preventDefault();
@@ -228,7 +248,6 @@ const handleUpdateRole = async (e) => {
 
 // Handle Delete Role
 const handleDeleteRole = async (id) => {
-  if (window.confirm('Are you sure you want to delete this role?')) {
     try {
       const response = await fetch(`http://localhost:5005/api/roles/${id}`, {
         method: 'DELETE'
@@ -243,7 +262,6 @@ const handleDeleteRole = async (id) => {
     } catch (err) {
       alert('Error deleting role: ' + err.message);
     }
-  }
 };
 
 const filteredCategories = list.filter(c => c.name.toLowerCase().includes(query.toLowerCase()));
@@ -323,15 +341,7 @@ return (
                               }} className="icon-btn" aria-label="Edit" type="button">
                                 <Edit2 size={16} />
                               </button>
-                              <button onClick={() => {
-                                if (tab === 'inventory') {
-                                  if (window.confirm('Are you sure you want to delete this category?')) {
-                                    handleDeleteCategory(item.id);
-                                  }
-                                } else {
-                                  handleDeleteRole(item.id);
-                                }
-                              }} className="icon-btn danger" aria-label="Delete" type="button">
+                              <button onClick={() => setPendingAction({ type: tab === 'inventory' ? 'delete-category' : 'delete-role', id: item.id, name: item.name })} className="icon-btn danger" aria-label="Delete" type="button">
                                 <Trash2 size={16} />
                               </button>
                             </td>
@@ -350,7 +360,7 @@ return (
 
     <Modal title={`Add New ${tab === 'inventory' ? 'Category' : 'Role'}`} open={openAdd} onClose={() => setOpenAdd(false)}>
       {tab === 'inventory' ? (
-        <form style={{ display: 'flex', flexDirection: 'column', gap: 10 }} onSubmit={handleAddCategory}>
+        <form style={{ display: 'flex', flexDirection: 'column', gap: 10 }} onSubmit={requestAddCategory}>
           <div>
             <label className="text-sm">Name</label>
             <input className="input" placeholder="Enter name" value={catAddForm.name} onChange={(e) => setCatAddForm({ ...catAddForm, name: e.target.value })} required />
@@ -365,7 +375,7 @@ return (
           </div>
         </form>
       ) : (
-        <form style={{ display: 'flex', flexDirection: 'column', gap: 10 }} onSubmit={handleAddRole}>
+        <form style={{ display: 'flex', flexDirection: 'column', gap: 10 }} onSubmit={requestAddRole}>
           <div>
             <label className="text-sm">Role Name</label>
             <input className="input" placeholder="e.g. ADMIN, MANAGER" value={addForm.name} onChange={(e) => setAddForm({ ...addForm, name: e.target.value })} required />
@@ -417,6 +427,24 @@ return (
         )
       )}
     </Modal>
+    <ConfirmDialog
+      open={Boolean(pendingAction)}
+      title={pendingAction?.type?.startsWith('add') ? 'Confirm addition' : 'Confirm deletion'}
+      message={pendingAction?.type?.startsWith('add')
+        ? `Are you sure you want to add this ${pendingAction.type === 'add-category' ? 'category' : 'role'}?`
+        : `Are you sure you want to delete ${pendingAction?.name || 'this item'}?`}
+      confirmLabel={pendingAction?.type?.startsWith('add') ? 'Add' : 'Delete'}
+      tone={pendingAction?.type?.startsWith('add') ? 'success' : 'danger'}
+      onCancel={() => setPendingAction(null)}
+      onConfirm={async () => {
+        const action = pendingAction;
+        setPendingAction(null);
+        if (action?.type === 'add-category') await handleAddCategory({ preventDefault: () => {} });
+        if (action?.type === 'add-role') await handleAddRole({ preventDefault: () => {} });
+        if (action?.type === 'delete-category') await handleDeleteCategory(action.id);
+        if (action?.type === 'delete-role') await handleDeleteRole(action.id);
+      }}
+    />
     <ChatAssistant />
   </div>
 );

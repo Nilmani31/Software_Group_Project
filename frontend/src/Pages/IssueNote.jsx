@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import Sidebar from "../Components/Sidebar";
 import Navbar from "../Components/Navbar";
 import ChatAssistant from "../Components/ChatAssistant";
+import ConfirmDialog from "../Components/ConfirmDialog";
 import "./IssueNote.css";
 import { FaEye, FaCheckCircle, FaTimesCircle, FaClock, FaEllipsisV, FaTimes, FaEdit, FaSave, FaPrint, FaCheck, FaBan } from "react-icons/fa";
 
@@ -87,6 +88,7 @@ const IssueNote = () => {
   const [selectedItemForAdd, setSelectedItemForAdd] = useState(null);
   const [itemQuantity, setItemQuantity] = useState(0);
   const [editingItemId, setEditingItemId] = useState(null); // New state for editing
+  const [pendingCreate, setPendingCreate] = useState(false);
 
   // Fetch data from API on component mount
   useEffect(() => {
@@ -1145,6 +1147,14 @@ const IssueNote = () => {
     }
   };
 
+  const requestCreateIssueNote = () => {
+    if (!formData.trainingSession || formData.items.length === 0) {
+      alert("Please fill all required fields and add at least one item");
+      return;
+    }
+    setPendingCreate(true);
+  };
+
   return (
     <div className="app-container">
       <Navbar />
@@ -1635,7 +1645,7 @@ const IssueNote = () => {
               <button className="btn-cancel" onClick={closeCreateModal} type="button">
                 Cancel
               </button>
-              <button className="btn-submit" onClick={handleCreateIssueNote} type="button">
+              <button className="btn-submit" onClick={requestCreateIssueNote} type="button">
                 Add Issue Note
               </button>
             </div>
@@ -1825,6 +1835,18 @@ const IssueNote = () => {
       )}
 
       {/* AI Chat Assistant */}
+      <ConfirmDialog
+        open={pendingCreate}
+        title="Add issue note?"
+        message="Are you sure you want to create this issue note?"
+        confirmLabel="Add"
+        tone="success"
+        onCancel={() => setPendingCreate(false)}
+        onConfirm={async () => {
+          setPendingCreate(false);
+          await handleCreateIssueNote();
+        }}
+      />
       <ChatAssistant />
     </div>
   );
