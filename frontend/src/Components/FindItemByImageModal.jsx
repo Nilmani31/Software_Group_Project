@@ -37,7 +37,7 @@ const FindItemByImageModal = ({ isOpen, onClose, onAddAsNew }) => {
       const formData = new FormData();
       formData.append('image', selectedImage);
 
-      const endpoint = `${API_BASE_URL}/image-search/search`;
+            const endpoint = `${API_BASE_URL}/image-search/zero-shot`;
       console.log('🔍 Starting image search...');
       console.log('📁 File:', selectedImage.name, selectedImage.size, 'bytes');
       console.log('🔑 FormData keys:', Array.from(formData.keys()));
