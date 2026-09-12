@@ -4,6 +4,7 @@ import Navbar from "../Components/Navbar";
 import ChatAssistant from "../Components/ChatAssistant";
 import ConfirmDialog from "../Components/ConfirmDialog";
 import "./IssueNote.css";
+import { getAuthHeaders } from "../utils/authHeaders";
 import { FaEye, FaCheckCircle, FaTimesCircle, FaClock, FaEllipsisV, FaTimes, FaEdit, FaSave, FaPrint, FaCheck, FaBan } from "react-icons/fa";
 
 const IssueNote = () => {
@@ -19,14 +20,13 @@ const IssueNote = () => {
   const roleId = localStorage.getItem('roleId') || '';
   const userRole = roleId.replace('ROLE_', '');
   const canEdit = ['ADMIN', 'DIRECTOR', 'MANAGER', 'BRANCH_MANAGER'].includes(userRole);
-
   // Fetch issue notes from backend
   useEffect(() => {
     const fetchIssueNotes = async () => {
       try {
         setLoading(true);
         setError('');
-        const response = await fetch('http://localhost:5005/api/issue-notes');
+        const response = await fetch('http://localhost:5005/api/issue-notes', { headers: getAuthHeaders() });
         if (!response.ok) {
           throw new Error('Failed to fetch issue notes');
         }
@@ -69,6 +69,7 @@ const IssueNote = () => {
     fetchIssueNotes();
   }, []);
 
+
   const [viewType, setViewType] = useState("list");
   const [activeTab, setActiveTab] = useState("issueNotes");
   const [expandedId, setExpandedId] = useState(null);
@@ -80,9 +81,9 @@ const IssueNote = () => {
   const [formData, setFormData] = useState({
     issueNumber: "ISS-2025-XXX",
     issueDate: new Date().toISOString().split('T')[0],
-    issueType: "Training Sessions",
+    issueType: "",
     trainingSession: "",
-    category: "coffee-supplies", // New field
+    category: "", // Will be set to first category when modal opens
     items: []
   });
   const [selectedItemForAdd, setSelectedItemForAdd] = useState(null);
@@ -90,6 +91,7 @@ const IssueNote = () => {
   const [editingItemId, setEditingItemId] = useState(null); // New state for editing
   const [pendingCreate, setPendingCreate] = useState(false);
 
+ 
   // Fetch data from API on component mount
   useEffect(() => {
     const loadData = async () => {
@@ -97,9 +99,9 @@ const IssueNote = () => {
         fetchIssueNotes(),
         fetchBranches(),
         fetchItems(),
-        fetchUsers()
+        fetchUsers(),
+        fetchCategories()
       ]);
-
       // Get current user from localStorage (stored as individual fields in Login.jsx)
       const user = {
         _id: localStorage.getItem('userId') || 'temp-user-id',
@@ -108,6 +110,7 @@ const IssueNote = () => {
       setCurrentUser(user);
 
       setLoading(false);
+
     };
 
     loadData();
@@ -116,7 +119,7 @@ const IssueNote = () => {
   // Fetch issue notes from API
   const fetchIssueNotes = async () => {
     try {
-      const response = await fetch('http://localhost:5005/api/issue-notes');
+      const response = await fetch('http://localhost:5005/api/issue-notes', { headers: getAuthHeaders() });
       const data = await response.json();
       console.log('Fetched issue notes from API:', data);
 
@@ -194,7 +197,7 @@ const IssueNote = () => {
   // Fetch items from API
   const fetchItems = async () => {
     try {
-      const response = await fetch('http://localhost:5005/api/items');
+      const response = await fetch('http://localhost:5005/api/items', { headers: getAuthHeaders() });
       const data = await response.json();
       const itemsArray = Array.isArray(data) ? data : [];
       console.log('Fetched items:', itemsArray.length);
@@ -224,16 +227,40 @@ const IssueNote = () => {
   // Category data with items
   const [categories, setCategories] = useState([]);
 
-  // Fetch categories from backend if needed
-  useEffect(() => {
-    // Categories will be empty for now - can be populated from backend later
-    setCategories([]);
-  }, []);
+  // Fetch categories from API
+  const fetchCategories = async () => {
+    try {
+      const response = await fetch('http://localhost:5005/api/categories', { headers: getAuthHeaders() });
+      const data = await response.json();
+      const categoriesArray = Array.isArray(data) ? data : [];
+      // Map backend fields to the shape expected by the dropdown
+      // Backend returns: { _id, categoryId, name, description, itemCount }
+      const mapped = categoriesArray.map(cat => ({
+        id: cat._id,
+        name: cat.name || cat.categoryId || 'Unknown',
+        itemId: cat._id
+      }));
+      console.log('Fetched categories:', mapped.length, mapped);
+      setCategories(mapped);
+    } catch (err) {
+      console.error('Error fetching categories:', err);
+      setCategories([]);
+    }
+  };
 
   // Get available items based on selected category
   const getAvailableItems = () => {
+    if (!formData.category) return [];
     const selectedCategory = categories.find(c => c.id === formData.category);
-    return selectedCategory ? selectedCategory.items : [];
+    if (!selectedCategory) return [];
+    // Items from the API have `category` as a string (the category name)
+    // or `categoryName` populated by the backend
+    const catName = selectedCategory.name;
+    return items.filter(item =>
+      item.category === catName ||
+      item.categoryName === catName ||
+      String(item.category) === catName
+    );
   };
 
   const getItemOptionId = (item) => item.uniqueId || `${item._id || item.id}_${item.itemUnitId || 'default'}`;
@@ -272,7 +299,19 @@ const IssueNote = () => {
     return `${cleanName} | Rs ${price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} | In Stock: ${availableQty} ${item.unit || 'unit'}`;
   };
 
-  const currentData = issueNotes;
+  const currentData = activeTab === "branchRequests"
+    ? issueNotes
+        .filter(note => note.issueType === "Branch Transfer" || note.issueType === "Stock Transfer" || note.purpose?.includes("Transfer"))
+        .map(note => ({
+          ...note,
+          requestNumber: note.issueNumber,
+          requestFrom: note.issuedTo,
+          requestedFrom: note.issuedTo,
+          requestedBy: note.issuedBy,
+          requestDate: note.issueDate,
+          requestType: note.issueType
+        }))
+    : issueNotes;
 
   const getStatusIcon = (status) => {
     switch (status) {
@@ -358,9 +397,7 @@ const IssueNote = () => {
       try {
         const response = await fetch(`http://localhost:5005/api/issue-notes/${selectedItem._original._id}/approve`, {
           method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json'
-          },
+          headers: getAuthHeaders(),
           body: JSON.stringify({
             approvedBy: currentUser?._id || users[0]?._id
           })
@@ -406,9 +443,7 @@ const IssueNote = () => {
       try {
         const response = await fetch(`http://localhost:5005/api/issue-notes/${selectedItem._original._id}/reject`, {
           method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json'
-          },
+          headers: getAuthHeaders(),
           body: JSON.stringify({
             approvedBy: currentUser?._id || users[0]?._id,
             remarks: 'Rejected by user'
@@ -856,19 +891,14 @@ const IssueNote = () => {
   };
 
   const openCreateModal = () => {
-    const defaultBranch = branches.find(branch =>
-      /main|colombo/i.test(branch.branchName || branch.branch_name || branch.name || '')
-    ) || branches[0];
-    const defaultBranchId = defaultBranch ? String(defaultBranch._id || defaultBranch.id) : "";
-
     setShowCreateModal(true);
     setFormData({
       issueNumber: "ISS-2025-XXX",
       issueDate: new Date().toISOString().split('T')[0],
-      issueType: "Training Sessions",
+      issueType: "",
       trainingSession: "",
-      fromBranch: defaultBranchId,
-      category: "coffee-supplies",
+      fromBranch: "",
+      category: "",
       items: []
     });
     setItemQuantity(0);
@@ -883,10 +913,10 @@ const IssueNote = () => {
     setFormData({
       issueNumber: "ISS-2025-XXX",
       issueDate: new Date().toISOString().split('T')[0],
-      issueType: "Training Sessions",
+      issueType: "",
       trainingSession: "",
       fromBranch: "",
-      category: "coffee-supplies",
+      category: "",
       items: []
     });
     setSelectedItemForAdd(null);
@@ -1020,6 +1050,10 @@ const IssueNote = () => {
     console.log("Branches state:", branches);
     console.log("FormData:", formData);
 
+    if (!formData.issueType) {
+      alert("Please select an issue type");
+      return;
+    }
     if (!formData.trainingSession || formData.items.length === 0) {
       alert("Please fill all required fields and add at least one item");
       return;
@@ -1056,18 +1090,27 @@ const IssueNote = () => {
       return;
     }
 
-    // Get user ID - try multiple sources with automatic fallback
-    let issuedBy = currentUser?._id || currentUser?.id;
+    // Get user ID - try multiple sources. The backend needs a MongoDB _id (24-char hex), not a human-readable userId.
+    let issuedBy = null;
 
+    // Try to find a valid MongoDB ObjectId from the currently logged-in user
+    const storedUserId = localStorage.getItem('userId') || '';
+    if (storedUserId && users.length > 0) {
+      // localStorage may store the human-readable userId (e.g. 'ADMIN_001'), not the MongoDB _id
+      const foundUser = users.find(u =>
+        u._id === storedUserId || u.userId === storedUserId || u._id === currentUser?._id
+      );
+      if (foundUser) {
+        issuedBy = foundUser._id || foundUser.id;
+      }
+    }
+
+    // Fallback: use the first user from the API response
     if (!issuedBy && users.length > 0) {
       issuedBy = users[0]._id || users[0].id;
     }
 
-    // If still no user, use a placeholder - backend will create a default system user
-    if (!issuedBy) {
-      console.warn("No user found. Backend will auto-create a system user.");
-      issuedBy = '000000000000000000000000'; // Placeholder - backend will handle it
-    }
+    // If still no user, send null and the backend will auto-resolve to an admin/System user
 
     // Prepare items for API
     const apiItems = formData.items.map(item => ({
@@ -1098,9 +1141,7 @@ const IssueNote = () => {
     try {
       const response = await fetch('http://localhost:5005/api/issue-notes', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: getAuthHeaders(),
         body: JSON.stringify(issueNoteData)
       });
 
@@ -1130,9 +1171,9 @@ const IssueNote = () => {
       setFormData({
         issueNumber: "ISS-2025-XXX",
         issueDate: new Date().toISOString().split('T')[0],
-        issueType: "Training Sessions",
+        issueType: "",
         trainingSession: "",
-        category: "coffee-supplies",
+        category: "",
         items: []
       });
       setSelectedItemForAdd(null);
@@ -1148,6 +1189,10 @@ const IssueNote = () => {
   };
 
   const requestCreateIssueNote = () => {
+    if (!formData.issueType) {
+      alert("Please select an issue type");
+      return;
+    }
     if (!formData.trainingSession || formData.items.length === 0) {
       alert("Please fill all required fields and add at least one item");
       return;
@@ -1271,7 +1316,7 @@ const IssueNote = () => {
                       </div>
                       <div className="stat-info">
                         <span className="stat-label">Approved</span>
-                        <span className="stat-value">1</span>
+                        <span className="stat-value">{currentData.filter(i => i.status === "Completed" || i.status === "Approved").length}</span>
                       </div>
                     </div>
                     <div className="stat-card">
@@ -1280,7 +1325,7 @@ const IssueNote = () => {
                       </div>
                       <div className="stat-info">
                         <span className="stat-label">Processing</span>
-                        <span className="stat-value">1</span>
+                        <span className="stat-value">{currentData.filter(i => i.status === "Processing").length}</span>
                       </div>
                     </div>
                     <div className="stat-card">
@@ -1289,14 +1334,14 @@ const IssueNote = () => {
                       </div>
                       <div className="stat-info">
                         <span className="stat-label">Pending</span>
-                        <span className="stat-value">1</span>
+                        <span className="stat-value">{currentData.filter(i => i.status === "Pending").length}</span>
                       </div>
                     </div>
                     <div className="stat-card total">
                       <div className="stat-icon">📮</div>
                       <div className="stat-info">
                         <span className="stat-label">Total Notes</span>
-                        <span className="stat-value">{issueNotes.length}</span>
+                        <span className="stat-value">{currentData.length}</span>
                       </div>
                     </div>
                   </>
@@ -1409,7 +1454,7 @@ const IssueNote = () => {
               <div className="form-group full-width">
                 <label>Issuing From Branch (Source)</label>
                 <select
-                  value={formData.fromBranch || (getSourceBranch()?._id || getSourceBranch()?.id || '')}
+                  value={formData.fromBranch || ""}
                   onChange={(e) => {
                     handleFormChange('fromBranch', e.target.value);
                     setSelectedItemForAdd(null);
@@ -1417,6 +1462,7 @@ const IssueNote = () => {
                   }}
                   className="form-select"
                 >
+                  <option value="">Select a Source Branch...</option>
                   {branches.map(branch => {
                     const branchName = branch.branchName || branch.branch_name || branch.name || 'Unknown';
                     const branchCode = branch.branchCode || branch.branch_code || '';
@@ -1438,6 +1484,7 @@ const IssueNote = () => {
                   onChange={(e) => handleFormChange('issueType', e.target.value)}
                   className="form-select"
                 >
+                  <option value="">Select Issue Type...</option>
                   <option value="Training Sessions">Training Sessions</option>
                   <option value="Branch Transfer">Branch Transfer</option>
                   <option value="Stock Transfer">Stock Transfer</option>
@@ -1484,11 +1531,19 @@ const IssueNote = () => {
                   onChange={(e) => handleFormChange('category', e.target.value)}
                   className="form-select category-select"
                 >
-                  {categories.map(cat => (
-                    <option key={cat.id} value={cat.id}>
-                      {cat.name}
-                    </option>
-                  ))}
+                  <option value="">Select a Category...</option>
+                  {categories.length === 0 ? (
+                    
+                    <option value="">No categories available - add categories in the Categories page</option>
+                  ) : (
+                    
+                    categories.map(cat => (
+                      
+                      <option key={cat.id} value={cat.id}>
+                        {cat.name}
+                      </option>
+                    ))
+                  )}
                 </select>
               </div>
 
@@ -1504,18 +1559,18 @@ const IssueNote = () => {
                         onChange={(e) => setSelectedItemForAdd(e.target.value)}
                         className="form-select"
                       >
-                        <option value="">Select an item......</option>
-                        {/* Show items from database if available, otherwise use hardcoded categories */}
-                        {items.length > 0 ? (
-                          items.map(item => (
+                         <option value="">Select an item......</option>
+                        {/* Show items from database, filtered by selected category */}
+                        {formData.category ? (
+                          getAvailableItems().map(item => (
                             <option key={getItemOptionId(item)} value={getItemOptionId(item)}>
                               {getIssueItemLabel(item)}
                             </option>
                           ))
                         ) : (
-                          getAvailableItems().map(item => (
-                            <option key={item.id} value={item.id}>
-                              {item.name}
+                          items.map(item => (
+                            <option key={getItemOptionId(item)} value={getItemOptionId(item)}>
+                              {getIssueItemLabel(item)}
                             </option>
                           ))
                         )}

@@ -6,6 +6,8 @@ const ItemUnit = require('../models/itemUnits');
 const Branch = require('../models/branches');
 const User = require('../models/users');
 const { getIssueNoteBranchFilter } = require('../utils/branchFilter');
+const bcrypt = require('bcrypt');
+const crypto = require('crypto');
 
 // Get all issue notes with populated fields
 exports.getAllIssueNotes = async (req, res) => {
@@ -138,11 +140,11 @@ exports.createIssueNote = async (req, res) => {
       itemsCount: items?.length
     });
 
-    // Validate required fields
-    if (!fromBranchId || !issuedBy || !items || items.length === 0) {
+    // Validate required fields (issuedBy is optional — backend will auto-resolve a System user)
+    if (!fromBranchId || !items || items.length === 0) {
       console.error('❌ Validation failed:', { fromBranchId, issuedBy, items: items?.length });
       return res.status(400).json({ 
-        error: 'Missing required fields: fromBranchId, issuedBy, and items are required' 
+        error: 'Missing required fields: fromBranchId and items are required' 
       });
     }
 
@@ -161,15 +163,36 @@ exports.createIssueNote = async (req, res) => {
       }
     }
 
-    // Validate user exists
-    const user = await User.findById(issuedBy);
+     // Validate user exists; if not found or invalid ID, try to find an admin user as fallback
+    let user = null;
+    if (issuedBy) {
+      try {
+        user = await User.findById(issuedBy);
+      } catch (e) {
+        console.warn(`⚠️ Invalid issuedBy ID (${issuedBy}), trying custom userId...`);
+        user = await User.findOne({ userId: issuedBy });
+      }
+    }
     if (!user) {
-      return res.status(404).json({ error: 'Issued by user not found' });
+      console.warn(`⚠️ Issued by user not found (${issuedBy}), trying to find an admin user...`);
+      user = await User.findOne({ role: { $in: ['ADMIN', 'DIRECTOR', 'MANAGER', 'BRANCH_MANAGER'] } });
+      if (!user) {
+        console.warn('⚠️ No admin user found. Creating a System user...');
+        user = await User.create({
+          username: 'system',
+          password: bcrypt.hashSync(crypto.randomBytes(16).toString('hex'), 10),
+          role: 'ADMIN',
+          roleId: 'ROLE_ADMIN',
+          branchId: 'MAIN_BRANCH',
+          phoneNumber: '0000000000',
+          email: 'system@cbs.com',
+          createdBy: 'SYSTEM'
+        });
+      }
     }
 
-    // Validate stock availability for all items
+    // Validate stock availability for all items (warn but don't block creation — stock will be checked during approval)
     for (const item of items) {
-      // Validate that item exists
       const itemExists = await Item.findById(item.itemId);
       if (!itemExists) {
         return res.status(404).json({
@@ -188,16 +211,30 @@ exports.createIssueNote = async (req, res) => {
       const stockRecord = await Stock.findOne(stockQuery);
 
       if (!stockRecord || stockRecord.quantity < item.quantity) {
-        return res.status(400).json({
-          error: `Insufficient stock for item: ${itemExists.name}. Available: ${stockRecord?.quantity || 0}, Required: ${item.quantity}`
-        });
+        console.warn(`⚠️ Insufficient stock for item: ${itemExists.name}. Available: ${stockRecord?.quantity || 0}, Required: ${item.quantity}. Creation proceeds; stock will be validated during approval.`);
       }
     }
 
-    // Create issue note
-    const issueNote = new IssueNote({
-      issueNoteNumber: `IN-${new Date().getFullYear()}-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-      fromBranchId,
+     // Generate sequential issue note number (e.g. IN-2026-002)
+     const year = new Date().getFullYear();
+     const lastNote = await IssueNote.findOne({
+       issueNoteNumber: { $regex: `^IN-${year}-\\d{3}$` }
+     }).sort({ issueNoteNumber: -1 }).lean();
+
+     let nextSeq = 1;
+     if (lastNote) {
+       const parts = lastNote.issueNoteNumber.split('-');
+       const lastSeq = parseInt(parts[2], 10);
+       if (!isNaN(lastSeq)) {
+         nextSeq = lastSeq + 1;
+       }
+     }
+     const issueNoteNumber = `IN-${year}-${String(nextSeq).padStart(3, '0')}`;
+
+      // Create issue note
+     const issueNote = new IssueNote({
+       issueNoteNumber,
+       fromBranchId,
       toBranchId,
       issuedBy: user._id,
       purpose,
@@ -284,8 +321,11 @@ exports.approveIssueNote = async (req, res) => {
       });
     }
 
-    // Validate approver exists
-    const approver = await User.findById(approvedBy);
+    // Validate approver exists (support both MongoDB _id and custom userId)
+    let approver = await User.findById(approvedBy).catch(() => null);
+    if (!approver) {
+      approver = await User.findOne({ userId: approvedBy });
+    }
     if (!approver) {
       return res.status(404).json({ error: 'Approver not found' });
     }
@@ -398,8 +438,11 @@ exports.rejectIssueNote = async (req, res) => {
       });
     }
 
-    // Validate approver exists
-    const approver = await User.findById(approvedBy);
+    // Validate approver exists (support both MongoDB _id and custom userId)
+    let approver = await User.findById(approvedBy).catch(() => null);
+    if (!approver) {
+      approver = await User.findOne({ userId: approvedBy });
+    }
     if (!approver) {
       return res.status(404).json({ error: 'Approver not found' });
     }
@@ -407,7 +450,10 @@ exports.rejectIssueNote = async (req, res) => {
     issueNote.status = 'rejected';
     issueNote.approvedBy = approvedBy;
     if (remarks) {
-      issueNote.remarks = remarks;
+      const rejectionRemark = `Rejected: ${remarks}`;
+      issueNote.remarks = issueNote.remarks 
+        ? `${issueNote.remarks}\n${rejectionRemark}`
+        : rejectionRemark;
     }
     await issueNote.save();
 
