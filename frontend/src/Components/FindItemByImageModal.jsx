@@ -1,16 +1,19 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { FaTimes, FaImage, FaSpinner } from 'react-icons/fa';
 import '../Pages/Inventory.css';
 
+
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5005/api';
 
-const FindItemByImageModal = ({ isOpen, onClose, onAddAsNew }) => {
+const FindItemByImageModal = ({ isOpen, onClose, onAddAsNew, onUseExistingItem }) => {
   const [selectedImage, setSelectedImage] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [searchCompleted, setSearchCompleted] = useState(false);
   const [searchResults, setSearchResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const abortControllerRef = useRef(null);
+  
 
   const handleImageUpload = (e) => {
     const file = e.target.files[0];
@@ -33,11 +36,14 @@ const FindItemByImageModal = ({ isOpen, onClose, onAddAsNew }) => {
     setLoading(true);
     setError(null);
 
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     try {
       const formData = new FormData();
       formData.append('image', selectedImage);
 
-            const endpoint = `${API_BASE_URL}/image-search/zero-shot`;
+      const endpoint = `${API_BASE_URL}/image-search/zero-shot`;
       console.log('🔍 Starting image search...');
       console.log('📁 File:', selectedImage.name, selectedImage.size, 'bytes');
       console.log('🔑 FormData keys:', Array.from(formData.keys()));
@@ -45,6 +51,7 @@ const FindItemByImageModal = ({ isOpen, onClose, onAddAsNew }) => {
       const response = await fetch(endpoint, {
         method: 'POST',
         body: formData,
+        signal: controller.signal,
       });
 
       console.log('📍 Response status:', response.status);
@@ -81,32 +88,40 @@ const FindItemByImageModal = ({ isOpen, onClose, onAddAsNew }) => {
       setSearchResults(data.results || []);
       setSearchCompleted(true);
     } catch (err) {
+      if (err.name === 'AbortError') {
+        console.log('🛑 Search cancelled by user');
+        return;
+      }
       console.error('❌ Search error:', err);
       setError(err.message || 'Failed to search for similar items. Please try again.');
       setSearchCompleted(false);
     } finally {
       setLoading(false);
+      abortControllerRef.current = null;
     }
   };
 
-  const handleUseThisItem = (item) => {
-    console.log('Using item:', item);
-    if (onAddAsNew) {
-      onAddAsNew({
-        ...item,
-        matchScore: item.score,
-      });
-    }
-    handleClose();
-  };
+ const handleUseThisItem = (item) => {
+  console.log('Using item:', item);
+  if (onUseExistingItem) {
+    onUseExistingItem(item);
+  }
+  handleClose();
+};
 
   const handleAddAsNewItem = () => {
     if (onAddAsNew) {
       onAddAsNew(imagePreview);
     }
   };
+  
 
   const handleClose = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    setLoading(false);
     setSelectedImage(null);
     setImagePreview(null);
     setSearchCompleted(false);

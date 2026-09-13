@@ -452,6 +452,20 @@ const Inventory = () => {
     }));
     setShowModal(true);
   };
+  const handleUseMatchedItemFromImage = (matchedItem) => {
+  // "Use This Item" means the photo matched something that already
+  // exists -- open the same item detail view used elsewhere in the app
+  // (with its existing Edit Item button) instead of creating a new item.
+  setShowFindByImageModal(false);
+  const fullItem = items.find(
+    (i) => i._id === matchedItem.productId || i.id === matchedItem.productId
+  );
+  if (fullItem) {
+    handleRowClick(fullItem);
+  } else {
+    alert(`Could not find "${matchedItem.name}" in the current item list. Try refreshing the page.`);
+  }
+};
 
   const handleCloseModal = () => {
     setShowModal(false);
@@ -1703,6 +1717,7 @@ const Inventory = () => {
         isOpen={showFindByImageModal}
         onClose={handleCloseFindByImageModal}
         onAddAsNew={handleAddAsNewItemFromImage}
+        onUseExistingItem={handleUseMatchedItemFromImage}
       />
 
       <ConfirmDialog

@@ -13,6 +13,7 @@ _model = None
 _preprocess = None
 _tokenizer = None
 _device = None
+_embedding_cache = {}
 
 
 def _init_model():
@@ -68,7 +69,16 @@ def text_to_embedding_ensemble(name: str, category: str = None, templates=None):
 	prompt phrasings and average them into one embedding. Category adds a
 	disambiguating clue beyond the bare name -- e.g. distinguishing a
 	"Vodka" bottle from other clear-liquid spirits by tagging it as a
-	Liquor, or telling barista supplies apart from bartender ones."""
+	Liquor, or telling barista supplies apart from bartender ones.
+
+	Results are cached by (name, category): an item's text embedding
+	never changes unless its name or category changes, so recomputing it
+	on every single search wastes time once the inventory has more than
+	a handful of items -- this is what was causing search timeouts."""
+	cache_key = (name, category or "")
+	if cache_key in _embedding_cache:
+		return _embedding_cache[cache_key]
+
 	_init_model()
 
 	if templates is None:
@@ -88,4 +98,6 @@ def text_to_embedding_ensemble(name: str, category: str = None, templates=None):
 		mean_features = text_features.mean(dim=0)
 		mean_features = mean_features / mean_features.norm()
 
-	return mean_features.cpu().tolist()
+	result = mean_features.cpu().tolist()
+	_embedding_cache[cache_key] = result
+	return result
