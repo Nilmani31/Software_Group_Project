@@ -5,8 +5,6 @@ import { categories } from '../data/sample';
 import { Edit2, Trash2 } from 'lucide-react';
 import Modal from '../Components/Modal';
 import ChatAssistant from '../Components/ChatAssistant';
-import './Categories.css';
-import './Inventory.css';
 
 export default function Categories() {
   const [tab, setTab] = useState('inventory');

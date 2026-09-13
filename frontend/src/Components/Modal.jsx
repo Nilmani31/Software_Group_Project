@@ -1,6 +1,5 @@
 import React from 'react'
 import { X } from 'lucide-react'
-import '../Pages/Modal.css'
 
 export default function Modal({title, children, open, onClose}){
   if(!open) return null

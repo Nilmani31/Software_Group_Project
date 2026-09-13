@@ -11,7 +11,6 @@ import {
   FaUsers,
   FaChartBar
 } from "react-icons/fa";
-import "./Sidebar.css";
 
 const Sidebar = () => {
   const [hovered, setHovered] = useState(false);
