@@ -1,4 +1,4 @@
-const Groq = require('groq-sdk');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
 const inventoryService = require('./inventoryService');
 const poService = require('./poService');
 const grnService = require('./grnService');
@@ -9,433 +9,420 @@ const issueNotesService = require('./issueNotesService');
 
 class GeminiService {
     constructor() {
-        const apiKey = process.env.GROQ_API_KEY;
+        const apiKey = process.env.GEMINI_API_KEY;
         if (!apiKey) {
-            throw new Error('GROQ_API_KEY environment variable not set');
+            throw new Error('GEMINI_API_KEY environment variable not set');
         }
 
-        this.client = new Groq({ apiKey });
+        this.genAI = new GoogleGenerativeAI(apiKey);
+        this.modelName = "gemini-3.5-flash-lite"; // lighter model to reduce quota limits
         
         // Rate limiting for quota management  
         this.lastRequestTime = 0;
-        this.minInterval = 10000; // 10 seconds between requests (Groq is generous)
+        this.minInterval = 2000; // 2 seconds between requests to stay well within 15 RPM limits
     }
 
     getSystemPrompt() {
-        return `You are an intelligent inventory management assistant. Your job is to help users manage inventory effectively.
+        return `You are a READ-ONLY inventory management assistant for CBBS (Colombo Bartender & Barista School).
 
-Available Functions you can call:
+STRICT RULES:
+- ONLY answer questions related to inventory, stock, items, purchase orders, goods received, suppliers, categories, branches, and issue notes.
+- If the user asks something outside inventory (weather, coding, math, general knowledge, personal questions), politely decline and say: "I can only help with inventory-related questions."
+- NEVER reveal any sensitive information such as passwords, API keys, database details, user emails, or internal system details.
+- When presenting data with multiple properties (e.g., lists of items, orders, or suppliers), ALWAYS use Markdown tables.
+- For other information or summaries, use concise bullet points instead of long paragraphs.
+- Keep the overall tone professional and formal, formatting your answers like a brief business report.
+- Do NOT use emojis or overly casual language. Maintain a formal tone.
+- If a function returns an error, explain it simply and professionally to the user.
+- If you are unsure which function to call, ask the user to clarify.`;
+    }
 
-INVENTORY & STOCK:
-1. checkStock(itemName) - Check stock levels for an item
-2. addStock(itemName, quantity) - Add stock 
-3. removeStock(itemName, quantity) - Remove/use stock
-4. getLowStockItems() - Show items below minimum stock
+    // Define all available tools (READ-ONLY functions only) for Gemini
+    getTools() {
+        return [{
+            functionDeclarations: [
+                // STOCK & INVENTORY
+                {
+                    name: "checkStock",
+                    description: "Check stock levels and availability for a specific item across all branches",
+                    parameters: {
+                        type: "OBJECT",
+                        properties: {
+                            itemName: {
+                                type: "STRING",
+                                description: "The name of the item to check stock for (e.g. 'coffee', 'milk', 'shaker')"
+                            }
+                        },
+                        required: ["itemName"]
+                    }
+                },
+                {
+                    name: "getLowStockItems",
+                    description: "Get all items that are below their minimum stock level and need reordering"
+                },
+                {
+                    name: "getOutOfStockItems",
+                    description: "Get all items that have zero stock and are completely out of stock"
+                },
+                {
+                    name: "getInventorySummary",
+                    description: "Get a high-level overview/summary of the entire inventory including total items, branches, stock status counts"
+                },
+                {
+                    name: "searchItem",
+                    description: "Search for items by name in the inventory catalog",
+                    parameters: {
+                        type: "OBJECT",
+                        properties: {
+                            itemName: {
+                                type: "STRING",
+                                description: "The search term to find items (e.g. 'coffee', 'milk', 'cup')"
+                            }
+                        },
+                        required: ["itemName"]
+                    }
+                },
+                {
+                    name: "getItemsByCategory",
+                    description: "Get all items that belong to a specific category",
+                    parameters: {
+                        type: "OBJECT",
+                        properties: {
+                            categoryName: {
+                                type: "STRING",
+                                description: "The category name (e.g. 'Coffee Supplies', 'Bar Supplies', 'Equipment', 'Dairy')"
+                            }
+                        },
+                        required: ["categoryName"]
+                    }
+                },
 
-PURCHASE ORDERS:
-5. viewAllPurchaseOrders() - Show all purchase orders
-6. getPendingPurchaseOrders() - Show pending orders only
+                // PURCHASE ORDERS
+                {
+                    name: "viewAllPurchaseOrders",
+                    description: "View all purchase orders in the system with their status, supplier, and amounts"
+                },
+                {
+                    name: "getPendingPurchaseOrders",
+                    description: "View only the pending/awaiting purchase orders that have not been received yet"
+                },
 
-GOODS RECEIVED:
-7. viewGoodsReceived() - Show recent goods received
-8. checkGoodsReceivedItem(itemName) - Check GRN for specific item
+                // GOODS RECEIVED NOTES (GRN)
+                {
+                    name: "viewGoodsReceived",
+                    description: "View recent goods received notes (GRN) showing what deliveries have arrived"
+                },
+                {
+                    name: "checkGoodsReceivedItem",
+                    description: "Check goods received records for a specific item to see delivery history",
+                    parameters: {
+                        type: "OBJECT",
+                        properties: {
+                            itemName: {
+                                type: "STRING",
+                                description: "The item name to search in goods received records"
+                            }
+                        },
+                        required: ["itemName"]
+                    }
+                },
+                {
+                    name: "getReconciliationReport",
+                    description: "Get a reconciliation report showing total value of goods received and monthly statistics"
+                },
+                {
+                    name: "checkPOGRNDiscrepancies",
+                    description: "Check for discrepancies between a purchase order and what was actually received in the GRN",
+                    parameters: {
+                        type: "OBJECT",
+                        properties: {
+                            poNumber: {
+                                type: "STRING",
+                                description: "The purchase order number to check (e.g. 'PO-001')"
+                            }
+                        },
+                        required: ["poNumber"]
+                    }
+                },
 
-SUPPLIERS:
-9. viewAllSuppliers() - Show all suppliers
-10. getSupplierDetails(supplierName) - Get specific supplier info
+                // SUPPLIERS
+                {
+                    name: "viewAllSuppliers",
+                    description: "View all suppliers with their contact information"
+                },
+                {
+                    name: "getSupplierDetails",
+                    description: "Get detailed information about a specific supplier",
+                    parameters: {
+                        type: "OBJECT",
+                        properties: {
+                            supplierName: {
+                                type: "STRING",
+                                description: "The name of the supplier to look up"
+                            }
+                        },
+                        required: ["supplierName"]
+                    }
+                },
 
-ROLES:
-11. viewAllRoles() - Show all roles
-12. getRoleDetails(roleName) - Get specific role details
+                // CATEGORIES & BRANCHES
+                {
+                    name: "viewAllCategories",
+                    description: "View all item categories in the system"
+                },
+                {
+                    name: "getCategoryDetails",
+                    description: "Get details about a specific category",
+                    parameters: {
+                        type: "OBJECT",
+                        properties: {
+                            categoryName: {
+                                type: "STRING",
+                                description: "The category name to look up"
+                            }
+                        },
+                        required: ["categoryName"]
+                    }
+                },
+                {
+                    name: "getBranchList",
+                    description: "View all branches/locations with their contact details"
+                },
 
-CATEGORIES:
-13. viewAllCategories() - Show all categories
-14. getCategoryDetails(categoryName) - Get specific category details
+                // ISSUE NOTES
+                {
+                    name: "viewRecentIssueNotes",
+                    description: "View recent issue notes (stock transfer records between branches)"
+                },
+                {
+                    name: "getIssueNoteDetails",
+                    description: "Get details of a specific issue note by its number",
+                    parameters: {
+                        type: "OBJECT",
+                        properties: {
+                            issueNumber: {
+                                type: "STRING",
+                                description: "The issue note number to look up"
+                            }
+                        },
+                        required: ["issueNumber"]
+                    }
+                },
+                {
+                    name: "checkIssuedItems",
+                    description: "Check how much of a specific item has been issued/transferred",
+                    parameters: {
+                        type: "OBJECT",
+                        properties: {
+                            itemName: {
+                                type: "STRING",
+                                description: "The item name to check issue history for"
+                            }
+                        },
+                        required: ["itemName"]
+                    }
+                },
 
-ISSUE NOTES:
-15. viewRecentIssueNotes() - Show recent issue notes
-16. getIssueNoteDetails(issueNumber) - Get issue note details
-17. checkIssuedItems(itemName) - Check issued quantities of an item
-
-Based on what the user asks, identify which function(s) to call with extracted parameters.
-
-IMPORTANT:
-- Always be helpful and user-friendly
-- If you need clarification, ask politely
-- Provide clear, formatted responses
-- Use emojis and formatting for clarity
-- If unsure which function to call, ask the user for clarification
-- For stock operations, always ask for quantity if not provided
-- For listings (suppliers, roles, categories), show all results
-
-Examples:
-- "Do we have coffee?" → Call checkStock("coffee")
-- "Show suppliers" → Call viewAllSuppliers()
-- "Show all roles" → Call viewAllRoles()
-- "Show categories" → Call viewAllCategories()
-- "Show issue notes" → Call viewRecentIssueNotes()`;
+                // ROLES
+                {
+                    name: "viewAllRoles",
+                    description: "View all user roles defined in the system"
+                },
+                {
+                    name: "getRoleDetails",
+                    description: "Get details about a specific user role",
+                    parameters: {
+                        type: "OBJECT",
+                        properties: {
+                            roleName: {
+                                type: "STRING",
+                                description: "The role name to look up (e.g. 'Admin', 'Manager', 'Staff')"
+                            }
+                        },
+                        required: ["roleName"]
+                    }
+                }
+            ]
+        }];
     }
 
     async chat(userMessage) {
         try {
-            // Rate limiting for quota management (Groq is generous - 10s is enough)
+            // Rate limiting
             const now = Date.now();
             const timeSinceLastRequest = now - this.lastRequestTime;
             const waitTime = Math.max(0, this.minInterval - timeSinceLastRequest);
             
             if (waitTime > 0) {
-                const waitSeconds = Math.ceil(waitTime / 1000);
-                console.log(`⏳ Rate limit: Wait ${waitSeconds}s before next request`);
+                // Return immediate rate limit error
                 return {
                     success: false,
-                    message: `⏳ Please wait ${waitSeconds} seconds before sending another message`,
-                    intent: 'RATE_LIMITED',
-                    offline: false,
-                    timestamp: new Date().toISOString(),
-                    waitSeconds: waitSeconds
+                    isStream: false,
+                    message: `⏳ Please wait ${Math.ceil(waitTime / 1000)} seconds before sending another message`,
+                    intent: 'RATE_LIMITED'
                 };
             }
 
             this.lastRequestTime = now;
-            
-            // Parse functions locally
-            const functions = this.parseFunctionsLocally(userMessage);
-            
-            let results = [];
-            let intent = 'CONVERSATION';
+            console.log(`\n📨 User message: "${userMessage}"`);
 
-            // Execute the identified functions (no API call)
-            if (functions.length > 0) {
-                results = await this.executeFunctions(functions);
-                intent = functions[0]?.name || 'CONVERSATION';
-                console.log(`📊 Execution Results:`, results);
-            }
-
-            // SINGLE API CALL: Get Groq's response with results
-            const responsePrompt = functions.length > 0
-                ? `User asked: "${userMessage}"\n\nI executed these operations with results:\n\n${results.map(r => `${r.function}: ${r.result}`).join('\n\n')}\n\nProvide a clear, helpful response based on these results. Use emojis and formatting.`
-                : `User message: "${userMessage}"\n\nRespond helpfully as an inventory assistant. Use emojis and formatting.`;
-
-            const response = await this.client.chat.completions.create({
-                model: 'llama-3.3-70b-versatile',
-                messages: [
-                    {
-                        role: 'system',
-                        content: this.getSystemPrompt()
-                    },
-                    {
-                        role: 'user',
-                        content: responsePrompt
-                    }
-                ],
-                temperature: 0.7,
-                max_tokens: 1024
+            const model = this.genAI.getGenerativeModel({ 
+                model: this.modelName,
+                systemInstruction: this.getSystemPrompt(),
+                tools: this.getTools()
             });
 
-            const responseText = response.choices[0].message.content;
-            console.log(`✅ Groq Response:\n${responseText}`);
+            // Using stateless prompt accumulation to completely bypass SDK history bugs (like missing thought_signature)
+            const allExecutedFunctions = [];
+            let accumulatedData = "";
 
-            return {
-                success: true,
-                message: responseText,
-                intent: intent,
-                offline: false,
-                timestamp: new Date().toISOString(),
-                executedFunctions: functions.map(f => f.name)
-            };
+            while (true) {
+                // Construct a stateless prompt
+                let prompt = userMessage;
+                if (accumulatedData) {
+                    prompt = `User message: ${userMessage}\n\nRetrieved Database Data:\n${accumulatedData}\n\nPlease answer the user's message using the provided database data.`;
+                }
+
+                const streamResult = await model.generateContentStream(prompt);
+                const iterator = streamResult.stream[Symbol.asyncIterator]();
+                const firstResult = await iterator.next();
+                
+                if (firstResult.done) {
+                    return { success: false, isStream: false, message: "Empty response from AI." };
+                }
+                
+                const firstChunk = firstResult.value;
+
+                if (firstChunk.functionCalls() && firstChunk.functionCalls().length > 0) {
+                    // It's a tool call turn.
+                    try { for await (const chunk of iterator) { /* drain */ } } catch (e) { }
+
+                    const response = await streamResult.response;
+                    const functionCalls = response.functionCalls();
+                    
+                    console.log(`🔧 Gemini wants to call ${functionCalls.length} function(s)`);
+
+                    for (const call of functionCalls) {
+                        const funcName = call.name;
+                        const args = call.args || {};
+                        console.log(`   📞 Calling: ${funcName}(${JSON.stringify(args)})`);
+                        allExecutedFunctions.push(funcName);
+                        
+                        let funcResult;
+                        try {
+                            funcResult = await this.executeFunction(funcName, args);
+                        } catch (err) {
+                            funcResult = { error: err.message };
+                        }
+                        
+                        accumulatedData += `\n- Result from ${funcName}: ${typeof funcResult === 'string' ? funcResult : JSON.stringify(funcResult)}`;
+                    }
+                    
+                    // Loop again, appending the new database results to the next stateless prompt
+                } else {
+                    // It's a text response! Yield the first chunk, then the rest.
+                    console.log(`✅ Started streaming final text response`);
+                    if (allExecutedFunctions.length > 0) {
+                        console.log(`📊 Functions executed: ${allExecutedFunctions.join(', ')}`);
+                    }
+
+                    async function* wrappedStream() {
+                        yield firstChunk;
+                        for await (const chunk of iterator) {
+                            yield chunk;
+                        }
+                    }
+
+                    return {
+                        success: true,
+                        isStream: true,
+                        stream: wrappedStream(),
+                        intent: allExecutedFunctions[0] || 'CONVERSATION',
+                        executedFunctions: allExecutedFunctions
+                    };
+                }
+            }
 
         } catch (error) {
-            console.error('Groq Service Error:', error);
+            console.error("Gemini Service Error:", error);
             return {
                 success: false,
-                message: `❌ Error: ${error.message}`,
-                intent: 'ERROR',
-                offline: false,
-                timestamp: new Date().toISOString()
+                isStream: false,
+                message: `Sorry, I encountered an error: ${error.message}`,
+                intent: 'ERROR'
             };
         }
     }
 
-    parseFunctionsLocally(userMessage) {
-        // LOCAL function parsing - NO API CALL
-        // Detects keywords in user message to identify what to execute
-        const functions = [];
-        const lowerMsg = userMessage.toLowerCase();
+    // Execute a single function by name
+    async executeFunction(funcName, params) {
+        try {
+            switch (funcName) {
+                // Stock & Inventory
+                case 'checkStock':
+                    return await inventoryService.checkStock(params.itemName);
+                case 'getLowStockItems':
+                    return await inventoryService.getLowStockItems();
+                case 'getOutOfStockItems':
+                    return await inventoryService.getOutOfStockItems();
+                case 'getInventorySummary':
+                    return await inventoryService.getInventorySummary();
+                case 'searchItem':
+                    return await inventoryService.searchItem(params.itemName);
+                case 'getItemsByCategory':
+                    return await inventoryService.getItemsByCategory(params.categoryName);
 
-        // Keywords mapping - Order matters! More specific patterns first
-        const functionMap = {
-            'pending order|pending purchase': { name: 'getPendingPurchaseOrders', extract: null },
-            'purchase order|purchase\\s+order': { name: 'viewAllPurchaseOrders', extract: null },
-            'low stock|low on|running low|critical stock|reorder': { name: 'getLowStockItems', extract: null },
-            'check stock|available|how much|do we have': { name: 'checkStock', extract: 'itemName' },
-            'add stock|add to|add \\d+': { name: 'addStock', extract: 'itemName,quantity' },
-            'remove stock|use|remove \\d+': { name: 'removeStock', extract: 'itemName,quantity' },
-            'goods received items|grn items|received items': { name: 'viewGoodsReceived', extract: null },
-            'goods received|grn|show received': { name: 'checkGoodsReceivedItem', extract: 'itemName' },
-            'supplier': { name: 'viewAllSuppliers', extract: 'supplierName' },
-            'role': { name: 'viewAllRoles', extract: 'roleName' },
-            'categor': { name: 'viewAllCategories', extract: 'categoryName' },
-            'issue': { name: 'viewRecentIssueNotes', extract: 'issueNumber' }
-        };
+                // Purchase Orders
+                case 'viewAllPurchaseOrders':
+                    return await poService.viewAllPurchaseOrders();
+                case 'getPendingPurchaseOrders':
+                    return await poService.getPendingPurchaseOrders();
 
-        // Check which functions are mentioned
-        for (const [keywords, funcInfo] of Object.entries(functionMap)) {
-            const pattern = new RegExp(keywords, 'i');
-            if (pattern.test(lowerMsg)) {
-                const params = this.extractParametersLocally(userMessage, funcInfo.name);
-                
-                // Special handling for list vs detail queries
-                if (funcInfo.name === 'checkGoodsReceivedItem' && !params.itemName) {
-                    functions.push({
-                        name: 'viewGoodsReceived',
-                        params: {}
-                    });
-                } else if (funcInfo.name === 'viewAllSuppliers' && params.supplierName) {
-                    functions.push({
-                        name: 'getSupplierDetails',
-                        params
-                    });
-                } else if (funcInfo.name === 'viewAllSuppliers' && !params.supplierName) {
-                    functions.push({
-                        name: 'viewAllSuppliers',
-                        params: {}
-                    });
-                } else if (funcInfo.name === 'viewAllRoles' && params.roleName) {
-                    functions.push({
-                        name: 'getRoleDetails',
-                        params
-                    });
-                } else if (funcInfo.name === 'viewAllRoles' && !params.roleName) {
-                    functions.push({
-                        name: 'viewAllRoles',
-                        params: {}
-                    });
-                } else if (funcInfo.name === 'viewAllCategories' && params.categoryName) {
-                    functions.push({
-                        name: 'getCategoryDetails',
-                        params
-                    });
-                } else if (funcInfo.name === 'viewAllCategories' && !params.categoryName) {
-                    functions.push({
-                        name: 'viewAllCategories',
-                        params: {}
-                    });
-                } else if (funcInfo.name === 'viewRecentIssueNotes' && params.issueNumber) {
-                    functions.push({
-                        name: 'getIssueNoteDetails',
-                        params
-                    });
-                } else if (funcInfo.name === 'viewRecentIssueNotes' && !params.issueNumber) {
-                    functions.push({
-                        name: 'viewRecentIssueNotes',
-                        params: {}
-                    });
-                } else {
-                    functions.push({
-                        name: funcInfo.name,
-                        params
-                    });
-                }
-                break; // Execute first matching function
+                // Goods Received
+                case 'viewGoodsReceived':
+                    return await grnService.viewGoodsReceived();
+                case 'checkGoodsReceivedItem':
+                    return await grnService.checkGoodsReceivedItem(params.itemName);
+                case 'getReconciliationReport':
+                    return await grnService.getReconciliationReport();
+                case 'checkPOGRNDiscrepancies':
+                    return await grnService.checkPOGRNDiscrepancies(params.poNumber);
+
+                // Suppliers
+                case 'viewAllSuppliers':
+                    return await suppliersService.viewAllSuppliers();
+                case 'getSupplierDetails':
+                    return await suppliersService.getSupplierDetails(params.supplierName);
+
+                // Categories & Branches
+                case 'viewAllCategories':
+                    return await categoriesService.viewAllCategories();
+                case 'getCategoryDetails':
+                    return await categoriesService.getCategoryDetails(params.categoryName);
+                case 'getBranchList':
+                    return await inventoryService.getBranchList();
+
+                // Issue Notes
+                case 'viewRecentIssueNotes':
+                    return await issueNotesService.viewRecentIssueNotes();
+                case 'getIssueNoteDetails':
+                    return await issueNotesService.getIssueNoteDetails(params.issueNumber);
+                case 'checkIssuedItems':
+                    return await issueNotesService.checkIssuedItems(params.itemName);
+
+                // Roles
+                case 'viewAllRoles':
+                    return await rolesService.viewAllRoles();
+                case 'getRoleDetails':
+                    return await rolesService.getRoleDetails(params.roleName);
+
+                default:
+                    return `❌ Unknown function: ${funcName}`;
             }
+        } catch (error) {
+            console.error(`❌ Error executing ${funcName}:`, error);
+            return `❌ Error executing ${funcName}: ${error.message}`;
         }
-
-        return functions;
-    }
-
-    extractParametersLocally(message, functionName) {
-        // LOCAL parameter extraction - NO API CALL
-        const params = {};
-        const lowerMsg = message.toLowerCase();
-
-        // Extract item name
-        if (['checkStock', 'addStock', 'removeStock', 'checkGoodsReceivedItem', 'checkIssuedItems', 'viewAllSuppliers'].includes(functionName)) {
-            const quoteMatch = message.match(/"([^"]+)"|'([^']+)'/);
-            if (quoteMatch) {
-                if (functionName === 'viewAllSuppliers') {
-                    params.supplierName = quoteMatch[1] || quoteMatch[2];
-                } else if (functionName === 'checkIssuedItems') {
-                    params.itemName = quoteMatch[1] || quoteMatch[2];
-                } else {
-                    params.itemName = quoteMatch[1] || quoteMatch[2];
-                }
-            } else {
-                const itemKeywords = ['of', 'for', 'item', 'product', 'about'];
-                for (const keyword of itemKeywords) {
-                    const regex = new RegExp(`${keyword}\\s+([a-z0-9\\s&'.]+?)(?:\\s+(?:units?|kg|liters?|g|box|packet|with|supplier))?$`, 'i');
-                    const match = message.match(regex);
-                    if (match) {
-                        const extractedName = match[1].trim();
-                        if (functionName === 'viewAllSuppliers') {
-                            params.supplierName = extractedName;
-                        } else if (functionName === 'checkIssuedItems') {
-                            params.itemName = extractedName;
-                        } else {
-                            params.itemName = extractedName;
-                        }
-                        break;
-                    }
-                }
-            }
-        }
-
-        // Extract supplier name
-        if (['getSupplierDetails', 'viewAllSuppliers'].includes(functionName)) {
-            if (!params.supplierName) {
-                const quoteMatch = message.match(/"([^"]+)"|'([^']+)'/);
-                if (quoteMatch) {
-                    params.supplierName = quoteMatch[1] || quoteMatch[2];
-                } else {
-                    const supplierMatch = message.match(/(?:about|for|tell me about|show|from)\s+([a-z0-9\s&'.]+?)(?:\s+supplier)?$/i);
-                    if (supplierMatch) {
-                        params.supplierName = supplierMatch[1].trim();
-                    }
-                }
-            }
-        }
-
-        // Extract role name
-        if (['getRoleDetails', 'viewAllRoles'].includes(functionName)) {
-            if (!params.roleName) {
-                const quoteMatch = message.match(/"([^"]+)"|'([^']+)'/);
-                if (quoteMatch) {
-                    params.roleName = quoteMatch[1] || quoteMatch[2];
-                } else {
-                    const roleMatch = message.match(/(?:about|for|tell me about|show|role)\s+([a-z0-9\s]+?)(?:\s+role)?$/i);
-                    if (roleMatch) {
-                        params.roleName = roleMatch[1].trim();
-                    }
-                }
-            }
-        }
-
-        // Extract category name
-        if (['getCategoryDetails', 'viewAllCategories'].includes(functionName)) {
-            if (!params.categoryName) {
-                const quoteMatch = message.match(/"([^"]+)"|'([^']+)'/);
-                if (quoteMatch) {
-                    params.categoryName = quoteMatch[1] || quoteMatch[2];
-                } else {
-                    const categoryMatch = message.match(/(?:about|for|tell me about|show|categor)\s+([a-z0-9\s]+?)(?:\s+categor)?$/i);
-                    if (categoryMatch) {
-                        params.categoryName = categoryMatch[1].trim();
-                    }
-                }
-            }
-        }
-
-        // Extract issue number
-        if (['getIssueNoteDetails', 'viewRecentIssueNotes'].includes(functionName)) {
-            if (!params.issueNumber) {
-                const quoteMatch = message.match(/"([^"]+)"|'([^']+)'/);
-                if (quoteMatch) {
-                    params.issueNumber = quoteMatch[1] || quoteMatch[2];
-                } else {
-                    const issueMatch = message.match(/(?:issue|note|notes?)\s+([a-z0-9\-]+)/i);
-                    if (issueMatch) {
-                        params.issueNumber = issueMatch[1].trim();
-                    }
-                }
-            }
-        }
-
-        // Extract quantity
-        if (['addStock', 'removeStock'].includes(functionName)) {
-            const numberMatch = message.match(/(\d+(?:\.\d+)?)\s*(?:kg|units?|liters?|g|pound|box|packet)/i);
-            if (numberMatch) {
-                params.quantity = parseInt(numberMatch[1]);
-            }
-        }
-
-        return params;
-    }
-
-    async executeFunctions(functions) {
-        const results = [];
-
-        for (const func of functions) {
-            try {
-                let result;
-                
-                switch (func.name) {
-                    case 'checkStock':
-                        result = await inventoryService.checkStock(func.params.itemName);
-                        break;
-                    case 'addStock':
-                        if (!func.params.quantity) {
-                            result = '❌ Please specify quantity. Example: "Add 50 units of coffee"';
-                        } else {
-                            result = await inventoryService.addStock(func.params.itemName, func.params.quantity);
-                        }
-                        break;
-                    case 'removeStock':
-                        if (!func.params.quantity) {
-                            result = '❌ Please specify quantity. Example: "Remove 10 units of milk"';
-                        } else {
-                            result = await inventoryService.removeStock(func.params.itemName, func.params.quantity);
-                        }
-                        break;
-                    case 'getLowStockItems':
-                        result = await inventoryService.getLowStockItems();
-                        break;
-                    case 'viewAllPurchaseOrders':
-                        result = await poService.viewAllPurchaseOrders();
-                        break;
-                    case 'getPendingPurchaseOrders':
-                        result = await poService.getPendingPurchaseOrders();
-                        break;
-                    case 'viewGoodsReceived':
-                        result = await grnService.viewGoodsReceived();
-                        break;
-                    case 'checkGoodsReceivedItem':
-                        result = await grnService.checkGoodsReceivedItem(func.params.itemName);
-                        break;
-                    case 'viewAllSuppliers':
-                        result = await suppliersService.viewAllSuppliers();
-                        break;
-                    case 'getSupplierDetails':
-                        result = await suppliersService.getSupplierDetails(func.params.supplierName);
-                        break;
-                    case 'viewAllRoles':
-                        result = await rolesService.viewAllRoles();
-                        break;
-                    case 'getRoleDetails':
-                        result = await rolesService.getRoleDetails(func.params.roleName);
-                        break;
-                    case 'viewAllCategories':
-                        result = await categoriesService.viewAllCategories();
-                        break;
-                    case 'getCategoryDetails':
-                        result = await categoriesService.getCategoryDetails(func.params.categoryName);
-                        break;
-                    case 'viewRecentIssueNotes':
-                        result = await issueNotesService.viewRecentIssueNotes();
-                        break;
-                    case 'getIssueNoteDetails':
-                        result = await issueNotesService.getIssueNoteDetails(func.params.issueNumber);
-                        break;
-                    case 'checkIssuedItems':
-                        result = await issueNotesService.checkIssuedItems(func.params.itemName);
-                        break;
-                    default:
-                        result = '❌ Function not recognized';
-                }
-
-                results.push({
-                    function: func.name,
-                    result: result
-                });
-
-            } catch (error) {
-                console.error(`Error executing ${func.name}:`, error);
-                results.push({
-                    function: func.name,
-                    result: `❌ Error: ${error.message}`
-                });
-            }
-        }
-
-        return results;
     }
 }
 

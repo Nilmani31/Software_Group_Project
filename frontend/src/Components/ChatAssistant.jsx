@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import './ChatAssistant.css';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 const ChatAssistant = () => {
   const location = useLocation();
@@ -16,102 +18,7 @@ const ChatAssistant = () => {
 
   // Get current page info
   const getCurrentPageInfo = () => {
-    const path = location.pathname;
-
-    const pageMap = {
-      '/dashboard': {
-        name: 'Dashboard',
-        greeting: "Hi! 📊 I can help you understand your inventory overview. Ask about low stock alerts or total inventory value.",
-        suggestions: [
-          { text: '⚠️ Show low stock alerts', query: 'What items are running low on stock?' },
-          { text: '📈 Inventory summary', query: 'How many items are out of stock?' },
-          { text: '🔍 Check item', query: 'Is Milk available?' }
-        ]
-      },
-      '/inventory': {
-        name: 'Inventory',
-        greeting: "Welcome to Inventory! 📦 I can help you search items and check their stock levels across branches.",
-        suggestions: [
-          { text: '🔍 Search item', query: 'Check stock for Mouse' },
-          { text: '📊 Stock status', query: 'Show all low stock items' },
-          { text: '🏢 By branch', query: 'What items are in Main Branch?' }
-        ]
-      },
-      '/lowstock': {
-        name: 'Low Stock',
-        greeting: "You're in Low Stock alerts! 🚨 I can help you find items that need restocking.",
-        suggestions: [
-          { text: '⚠️ Critical items', query: 'Show items in critical stock' },
-          { text: '📋 Reorder list', query: 'Which items should I order?' },
-          { text: '🏢 By branch', query: 'Low stock items in Secondary Branch' }
-        ]
-      },
-      '/issue-note': {
-        name: 'Issue Note',
-        greeting: "Managing Issue Notes! 📋 I can help you check if items are available for issue.",
-        suggestions: [
-          { text: '✅ Check availability', query: 'Is Keyboard in stock?' },
-          { text: '📦 Quick search', query: 'Can I issue Mouse?' },
-          { text: '🔍 Find item', query: 'Stock status for Monitor' }
-        ]
-      },
-      '/purchase-order': {
-        name: 'Purchase Order',
-        greeting: "Creating Purchase Orders! 🛒 I help you check what needs to be ordered.",
-        suggestions: [
-          { text: '⚠️ Items to order', query: 'Which items should I purchase?' },
-          { text: '🔍 Check supplier', query: 'Check stock for ordering' },
-          { text: '📊 Reorder levels', query: 'Show items below reorder level' }
-        ]
-      },
-      '/good-received': {
-        name: 'Good Received',
-        greeting: "Recording received goods! 📥 I can help you check current stock and verify items.",
-        suggestions: [
-          { text: '✅ Verify item', query: 'Is this item in our system?' },
-          { text: '📦 Check quantity', query: 'What was our last stock?' },
-          { text: '🔍 Find item', query: 'Check item details' }
-        ]
-      },
-      '/branches': {
-        name: 'Branches',
-        greeting: "Managing Branches! 🏢 I can help you check inventory across different branches.",
-        suggestions: [
-          { text: '🏢 Branch inventory', query: 'Show items in Main Branch' },
-          { text: '📊 Compare branches', query: 'Which branch has most stock?' },
-          { text: '🔍 Check item', query: 'Is Mouse available in all branches?' }
-        ]
-      },
-      '/categories': {
-        name: 'Categories',
-        greeting: "Managing Categories! 📂 I can help you search items by category.",
-        suggestions: [
-          { text: '📂 By category', query: 'Show all Electronics' },
-          { text: '🔍 Category items', query: 'What items are in Office Supplies?' },
-          { text: '📊 Category stock', query: 'Check stock for Computer category' }
-        ]
-      },
-      '/users': {
-        name: 'Users',
-        greeting: "Managing Users! 👥 I can help you with user information.",
-        suggestions: [
-          { text: '👤 User guide', query: 'How do I manage users?' },
-          { text: '🔐 Roles info', query: 'What are the user roles?' },
-          { text: '❓ Help', query: 'How do I add a new user?' }
-        ]
-      },
-      '/reports': {
-        name: 'Reports',
-        greeting: "Viewing Reports! 📊 I can help you understand current inventory analytics.",
-        suggestions: [
-          { text: '📈 Inventory report', query: 'Show current inventory value' },
-          { text: '📉 Trend analysis', query: 'What items are selling well?' },
-          { text: '🔍 Stock movement', query: 'Show recent transactions' }
-        ]
-      }
-    };
-
-    return pageMap[path] || {
+    return {
       name: 'Inventory System',
       greeting: "Hello! 👋 I'm your AI assistant for the CBBS Inventory System. Ask me about item availability!",
       suggestions: [
@@ -207,34 +114,99 @@ const ChatAssistant = () => {
     setIsTyping(true);
 
     try {
-      // Call Node.js backend NLP service
       const response = await fetch('http://localhost:5005/api/chat/send-message', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userMessage: inputMessage })
       });
 
-      const data = await response.json();
-      setIsTyping(false);
+      const contentType = response.headers.get('content-type');
+      if (contentType && contentType.includes('text/event-stream')) {
+        setIsTyping(false);
+        
+        const messageId = Date.now() + 1;
+        setMessages(prev => [...prev, {
+            id: messageId,
+            text: '',
+            sender: 'ai',
+            isHTML: true,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        }]);
 
-      if (data.success) {
-        const aiMessage = {
-          id: Date.now() + 1,
-          text: data.message,
-          sender: 'ai',
-          isHTML: true,
-          intent: data.intent,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-        };
-        setMessages(prev => [...prev, aiMessage]);
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder('utf-8');
+        let done = false;
+        let buffer = '';
+
+        while (!done) {
+            const { value, done: readerDone } = await reader.read();
+            done = readerDone;
+            
+            if (value) {
+                buffer += decoder.decode(value, { stream: true });
+                const blocks = buffer.split('\n\n');
+                buffer = blocks.pop(); // Keep incomplete block in buffer
+                
+                for (const block of blocks) {
+                    const lines = block.split('\n');
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            const dataStr = line.slice(6).trim();
+                            if (dataStr === '[DONE]') {
+                                done = true;
+                                break;
+                            }
+                            try {
+                                const data = JSON.parse(dataStr);
+                                if (data.type === 'meta') {
+                                    // optional: set intent metadata
+                                } else if (data.type === 'chunk') {
+                                    setMessages(prev => prev.map(msg => {
+                                        if (msg.id === messageId) {
+                                            return { ...msg, text: msg.text + data.text };
+                                        }
+                                        return msg;
+                                    }));
+                                } else if (data.type === 'error') {
+                                    setMessages(prev => prev.map(msg => {
+                                        if (msg.id === messageId) {
+                                            return { ...msg, text: msg.text + '\n❌ ' + data.message };
+                                        }
+                                        return msg;
+                                    }));
+                                }
+                            } catch (e) {
+                                console.error('Error parsing stream chunk', e);
+                            }
+                        }
+                    }
+                }
+            }
+        }
       } else {
-        const errorMsg = {
-          id: Date.now() + 1,
-          text: data.message || '❌ Error processing request',
-          sender: 'ai',
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-        };
-        setMessages(prev => [...prev, errorMsg]);
+        // Fallback for standard JSON responses
+        const data = await response.json();
+        setIsTyping(false);
+
+        if (data.success) {
+          const aiMessage = {
+            id: Date.now() + 1,
+            text: data.message,
+            sender: 'ai',
+            isHTML: true,
+            intent: data.intent,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          };
+          setMessages(prev => [...prev, aiMessage]);
+        } else {
+          const errorMsg = {
+            id: Date.now() + 1,
+            text: data.message || '❌ Error processing request',
+            sender: 'ai',
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          };
+          setMessages(prev => [...prev, errorMsg]);
+        }
       }
 
     } catch (error) {
@@ -243,7 +215,7 @@ const ChatAssistant = () => {
 
       const errorMsg = {
         id: Date.now() + 1,
-        text: '⚠️ Chat service is not running. Make sure Node.js backend is running on port 5005.',
+        text: '⚠️ Chat service error. Make sure Node.js backend is running on port 5005.',
         sender: 'ai',
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       };
@@ -314,7 +286,11 @@ const ChatAssistant = () => {
               <div key={message.id} className={`message ${message.sender}`}>
                 <div className="message-content">
                   {message.isHTML ? (
-                    <p dangerouslySetInnerHTML={{ __html: message.text.replace(/\n/g, '<br/>') }} />
+                    <div className="markdown-body">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                        {message.text}
+                      </ReactMarkdown>
+                    </div>
                   ) : (
                     <p>{message.text}</p>
                   )}

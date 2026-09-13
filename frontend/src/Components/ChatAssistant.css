@@ -387,3 +387,48 @@
 .chat-messages::-webkit-scrollbar-thumb:hover {
   background: #a8a8a8;
 }
+
+/* Markdown Styles */
+.markdown-body {
+  font-family: inherit;
+  font-size: 14px;
+}
+.markdown-body p {
+  margin: 0 0 10px 0;
+}
+.markdown-body p:last-child {
+  margin-bottom: 0;
+}
+.markdown-body ul, .markdown-body ol {
+  margin: 5px 0 10px 20px;
+  padding: 0;
+}
+.markdown-body table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 10px 0;
+  font-size: 13px;
+}
+.markdown-body th, .markdown-body td {
+  border: 1px solid #e5e7eb;
+  padding: 8px;
+  text-align: left;
+}
+.markdown-body th {
+  background-color: #f3f4f6;
+  font-weight: 600;
+  color: #374151;
+}
+.markdown-body tr:nth-child(even) {
+  background-color: #f9fafb;
+}
+.message.user .markdown-body table th {
+  background-color: rgba(255,255,255,0.2);
+  color: white;
+}
+.message.user .markdown-body table td, .message.user .markdown-body table th {
+  border-color: rgba(255,255,255,0.3);
+}
+.message.user .markdown-body tr:nth-child(even) {
+  background-color: rgba(255,255,255,0.1);
+}

@@ -81,7 +81,7 @@ async function getLowStockItems() {
     try {
         const lowStocks = await Stock.find({
             $expr: { $lt: ['$quantity', '$minStock'] }
-        }).populate('itemId', 'name').populate('branchId', 'name');
+        }).populate('itemId', 'name').populate('branchId', 'branchName');
 
         if (lowStocks.length === 0) {
             return '✅ <strong>All items are well stocked!</strong>';
@@ -89,8 +89,8 @@ async function getLowStockItems() {
 
         let response = '🚨 <strong>Low Stock Items:</strong><br>';
         lowStocks.forEach((stock, index) => {
-            const itemName = stock.itemId?.name || 'Unknown';
-            const branch = stock.branchId?.name || 'Unknown';
+            const itemName = stock.itemId?.name || 'Unknown Item';
+            const branch = stock.branchId?.branchName || 'Unknown';
             const shortBy = stock.minStock - stock.quantity;
 
             response += `${index + 1}. <strong>${itemName}</strong><br>`;
@@ -222,9 +222,164 @@ async function removeStock(itemName, quantity) {
     }
 }
 
+async function getOutOfStockItems() {
+    try {
+        const stocks = await Stock.find({ quantity: 0 })
+            .populate('itemId', 'name sku')
+            .populate('branchId', 'branchName');
+
+        if (stocks.length === 0) {
+            return '✅ <strong>No out-of-stock items!</strong> All items have available stock.';
+        }
+
+        let response = `🔴 <strong>Out of Stock Items (${stocks.length}):</strong><br><br>`;
+        stocks.forEach((stock, index) => {
+            const itemName = stock.itemId?.name || 'Unknown';
+            const branch = stock.branchId?.branchName || 'Unknown';
+            response += `${index + 1}. <strong>${itemName}</strong><br>`;
+            response += `   Branch: ${branch} | Min Required: ${stock.minStock || 0}<br><br>`;
+        });
+
+        return response;
+    } catch (error) {
+        console.error('Error getting out of stock items:', error);
+        return `❌ Error: ${error.message}`;
+    }
+}
+
+async function getInventorySummary() {
+    try {
+        const totalItems = await Item.countDocuments();
+        const stocks = await Stock.find({});
+        const items = await Item.find({});
+
+        let totalQuantity = 0;
+        let lowStockCount = 0;
+        let outOfStockCount = 0;
+        let inStockCount = 0;
+
+        items.forEach(item => {
+            const itemStocks = stocks.filter(s => String(s.itemId) === String(item._id));
+            const totalQty = itemStocks.reduce((sum, s) => sum + (s.quantity || 0), 0);
+
+            if (totalQty === 0) outOfStockCount++;
+            else if (totalQty < (item.minStock || 0)) lowStockCount++;
+            else inStockCount++;
+
+            totalQuantity += totalQty;
+        });
+
+        const branches = await Branch.countDocuments();
+
+        let response = `📊 <strong>Inventory Summary</strong><br><br>`;
+        response += `📦 Total Item Types: <strong>${totalItems}</strong><br>`;
+        response += `🏢 Total Branches: <strong>${branches}</strong><br>`;
+        response += `📈 Total Stock Units: <strong>${totalQuantity}</strong><br><br>`;
+        response += `🟢 In Stock: <strong>${inStockCount}</strong><br>`;
+        response += `🟡 Low Stock: <strong>${lowStockCount}</strong><br>`;
+        response += `🔴 Out of Stock: <strong>${outOfStockCount}</strong><br>`;
+
+        return response;
+    } catch (error) {
+        console.error('Error getting inventory summary:', error);
+        return `❌ Error: ${error.message}`;
+    }
+}
+
+async function searchItem(itemName) {
+    if (!itemName) {
+        return '❌ Please specify what to search for. Example: "Find items with coffee"';
+    }
+
+    try {
+        const items = await Item.find({
+            name: { $regex: itemName, $options: 'i' }
+        }).populate('category', 'name').limit(20);
+
+        if (items.length === 0) {
+            return `❌ No items found matching "<strong>${itemName}</strong>".`;
+        }
+
+        let response = `🔍 <strong>Search Results for "${itemName}" (${items.length} found):</strong><br><br>`;
+        items.forEach((item, index) => {
+            const category = item.category?.name || 'Uncategorized';
+            response += `${index + 1}. <strong>${item.name}</strong><br>`;
+            response += `   SKU: ${item.sku} | Category: ${category} | Unit: ${item.unit}<br><br>`;
+        });
+
+        return response;
+    } catch (error) {
+        console.error('Error searching items:', error);
+        return `❌ Error: ${error.message}`;
+    }
+}
+
+async function getItemsByCategory(categoryName) {
+    if (!categoryName) {
+        return '❌ Please specify a category. Example: "What items are in Coffee Supplies?"';
+    }
+
+    try {
+        const Category = require('../models/categories');
+        const category = await Category.findOne({
+            name: { $regex: categoryName, $options: 'i' }
+        });
+
+        if (!category) {
+            const allCategories = await Category.find({}, { name: 1 });
+            const names = allCategories.map(c => c.name).join(', ');
+            return `❌ Category "${categoryName}" not found.<br>Available: ${names}`;
+        }
+
+        const items = await Item.find({ category: category._id });
+
+        if (items.length === 0) {
+            return `📂 No items found in category "<strong>${category.name}</strong>".`;
+        }
+
+        let response = `📂 <strong>Items in ${category.name} (${items.length}):</strong><br><br>`;
+        items.forEach((item, index) => {
+            response += `${index + 1}. <strong>${item.name}</strong><br>`;
+            response += `   SKU: ${item.sku} | Unit: ${item.unit} | Status: ${item.status}<br><br>`;
+        });
+
+        return response;
+    } catch (error) {
+        console.error('Error getting items by category:', error);
+        return `❌ Error: ${error.message}`;
+    }
+}
+
+async function getBranchList() {
+    try {
+        const branches = await Branch.find({});
+
+        if (branches.length === 0) {
+            return '📭 No branches found in system.';
+        }
+
+        let response = `🏢 <strong>All Branches (${branches.length}):</strong><br><br>`;
+        branches.forEach((branch, index) => {
+            response += `${index + 1}. <strong>${branch.branchName}</strong><br>`;
+            response += `   Code: ${branch.branchCode || 'N/A'} | Location: ${branch.location || 'N/A'}<br>`;
+            response += `   Phone: ${branch.phoneNumber || 'N/A'} | Email: ${branch.email || 'N/A'}<br><br>`;
+        });
+
+        return response;
+    } catch (error) {
+        console.error('Error getting branch list:', error);
+        return `❌ Error: ${error.message}`;
+    }
+}
+
 module.exports = {
     checkStock,
     getLowStockItems,
     addStock,
-    removeStock
+    removeStock,
+    getOutOfStockItems,
+    getInventorySummary,
+    searchItem,
+    getItemsByCategory,
+    getBranchList
 };
