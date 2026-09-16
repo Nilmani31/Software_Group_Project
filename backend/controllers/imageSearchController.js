@@ -73,6 +73,11 @@ const findItemsByImage = async (req, res, next) => {
 // No reference photos needed: fetches current item names from MongoDB,
 // sends the uploaded photo + names to the ML service's zero-shot endpoint,
 // then looks up full live data for the top-matching item(s).
+// POST /api/image-search/zero-shot
+// Hybrid search: first checks Qdrant for real reference-photo matches
+// (auto-embedded whenever someone adds/edits an item with a photo via the
+// normal item forms), then fills any remaining slots with zero-shot text
+// matching for items that don't have a reference photo yet.
 const findItemsByImageZeroShot = async (req, res, next) => {
 	try {
 		if (!req.file) {
@@ -82,30 +87,67 @@ const findItemsByImageZeroShot = async (req, res, next) => {
 			});
 		}
 
-						const allItems = await Item.find({}).populate("category", "name").lean();
+		const allItems = await Item.find({}).populate("category", "name").lean();
 		if (!allItems.length) {
 			return res.status(400).json({
 				error: "NoItems",
 				message: "No inventory items exist yet to match against.",
 			});
 		}
-		const itemsForMatching = allItems.map((item) => ({
-			name: item.name,
-			category: item.category?.name || "",
-		}));
 
-		const mlResponse = await searchByImageZeroShot(req.file, itemsForMatching);
-		const scored = mlResponse.results || [];
+		// 1) Try real reference-photo matches first (Qdrant, image-to-image).
+		// Image-to-image cosine similarity runs on a much higher scale than
+		// text-to-image, so a much higher bar is used here. This threshold is
+		// a starting point based on limited testing -- re-check it once more
+		// real item photos exist and can be tested against.
+		const REAL_PHOTO_THRESHOLD = 0.75;
+		let confidentPhotoMatches = [];
+		try {
+			const qdrantResponse = await searchByImage(req.file);
+			confidentPhotoMatches = (qdrantResponse.results || [])
+				.filter((r) => (r.score || 0) >= REAL_PHOTO_THRESHOLD)
+				.map((r) => ({
+					name: r.name,
+					score: r.score,
+					productId: r.productId,
+					matchType: "photo",
+				}));
+		} catch (err) {
+			console.warn("⚠️  Real-photo (Qdrant) search failed, continuing with zero-shot only:", err.message);
+		}
 
-		// Look up full live item data for the top few matches
-		const topNames = scored.slice(0, 5).map((r) => r.name);
-		const matchedItems = allItems.filter((i) => topNames.includes(i.name));
-		const results = scored.slice(0, 5).map((r) => {
-			const fullItem = matchedItems.find((i) => i.name === r.name);
+		// 2) Fill remaining slots with zero-shot text matches for items that
+		// don't already have a confident real-photo match.
+		const matchedProductIds = new Set(confidentPhotoMatches.map((r) => String(r.productId)));
+		const remainingItems = allItems.filter((i) => !matchedProductIds.has(String(i._id)));
+
+		let confidentZeroShot = [];
+		if (remainingItems.length > 0) {
+			const itemsForMatching = remainingItems.map((item) => ({
+				name: item.name,
+				category: item.category?.name || "",
+			}));
+
+			const CONFIDENCE_THRESHOLD = 0.24;
+			const mlResponse = await searchByImageZeroShot(req.file, itemsForMatching);
+			confidentZeroShot = (mlResponse.results || [])
+				.filter((r) => r.score >= CONFIDENCE_THRESHOLD)
+				.map((r) => ({ ...r, matchType: "text" }));
+		}
+
+		// 3) Combine: real photo matches first, then zero-shot, capped at 5
+		const combined = [...confidentPhotoMatches, ...confidentZeroShot].slice(0, 5);
+
+		// 4) Attach full live item data for the response
+		const results = combined.map((r) => {
+			const fullItem = allItems.find(
+				(i) => String(i._id) === String(r.productId) || i.name === r.name
+			);
 			return {
 				name: r.name,
 				score: r.score,
-				productId: fullItem?._id || null,
+				matchType: r.matchType,
+				productId: fullItem?._id || r.productId || null,
 				sku: fullItem?.sku || "",
 				category: fullItem?.category?.name || "",
 				imageUrl: fullItem?.image || "",

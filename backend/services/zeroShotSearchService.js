@@ -28,7 +28,7 @@ const searchByImageZeroShot = async (file, items) => {
 			headers: {
 				...formData.getHeaders(),
 			},
-			timeout: 60000,
+			timeout: 120000,
 			maxContentLength: Infinity,
 			maxBodyLength: Infinity,
 		}

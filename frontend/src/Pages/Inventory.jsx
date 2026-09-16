@@ -118,6 +118,8 @@ const Inventory = () => {
   const [statusFilter, setStatusFilter] = useState('All Status');
   const [showModal, setShowModal] = useState(false);
   const [showFindByImageModal, setShowFindByImageModal] = useState(false);
+  const [referencePhotos, setReferencePhotos] = useState([]);
+const [editReferencePhotos, setEditReferencePhotos] = useState([]);
   const [imagePreview, setImagePreview] = useState(null);
   const [formData, setFormData] = useState({
     name: '',
@@ -452,10 +454,25 @@ const Inventory = () => {
     }));
     setShowModal(true);
   };
+  const handleUseMatchedItemFromImage = (matchedItem) => {
+  // "Use This Item" means the photo matched something that already
+  // exists -- open the same item detail view used elsewhere in the app
+  // (with its existing Edit Item button) instead of creating a new item.
+  setShowFindByImageModal(false);
+  const fullItem = items.find(
+    (i) => i._id === matchedItem.productId || i.id === matchedItem.productId
+  );
+  if (fullItem) {
+    handleRowClick(fullItem);
+  } else {
+    alert(`Could not find "${matchedItem.name}" in the current item list. Try refreshing the page.`);
+  }
+};
 
   const handleCloseModal = () => {
     setShowModal(false);
     setImagePreview(null);
+    setReferencePhotos([]);
     setFormData({
       name: '',
       category: '',
@@ -497,7 +514,44 @@ const Inventory = () => {
       reader.readAsDataURL(file);
     }
   };
+const handleReferencePhotosChange = (e) => {
+  const files = Array.from(e.target.files || []);
+  setReferencePhotos(files.slice(0, 10)); // matches backend's 10-file limit
+};
 
+const handleEditReferencePhotosChange = (e) => {
+  const files = Array.from(e.target.files || []);
+  setEditReferencePhotos(files.slice(0, 10));
+};
+
+// Uploads extra reference photos for search accuracy (not the item's
+// single display photo). Reuses the already-built /reference-images
+// endpoint. Content-Type is intentionally omitted so the browser can
+// set the correct multipart boundary itself.
+const uploadReferencePhotos = async (itemId, files) => {
+  if (!files || files.length === 0) return;
+  try {
+    const formData = new FormData();
+    files.forEach((file) => formData.append('images', file));
+
+    const authHeaders = { ...getAuthHeaders() };
+    delete authHeaders['Content-Type'];
+
+    const response = await fetch(`http://localhost:5005/api/items/${itemId}/reference-images`, {
+      method: 'POST',
+      headers: authHeaders,
+      body: formData,
+    });
+    const result = await response.json();
+    if (result.success) {
+      console.log(`✅ Uploaded ${result.imagesEmbedded}/${result.imagesReceived} reference photos`);
+    } else {
+      console.warn('⚠️ Reference photo upload issue:', result.message);
+    }
+  } catch (err) {
+    console.error('Error uploading reference photos:', err);
+  }
+};
 
   const handleSpinner = (field, direction) => {
     setFormData(prev => ({
@@ -542,12 +596,15 @@ const Inventory = () => {
         })
       });
 
-      const result = await response.json();
-      if (result._id || result.id) {
-        alert('Item added successfully!');
-        fetchItems();
-        handleCloseModal();
-      } else {
+     const result = await response.json();
+if (result._id || result.id) {
+  alert('Item added successfully!');
+  if (referencePhotos.length > 0) {
+    await uploadReferencePhotos(result._id || result.id, referencePhotos);
+  }
+  fetchItems();
+  handleCloseModal();
+} else {
         alert('Error: ' + (result.error || 'Failed to add item'));
       }
     } catch (err) {
@@ -609,6 +666,7 @@ const Inventory = () => {
     setShowEditItemModal(false);
     setEditImagePreview(null);
     setEditableStockData([]);
+    setEditReferencePhotos([]);
     setEditFormData({
       name: '',
       category: '',
@@ -740,13 +798,16 @@ const Inventory = () => {
         })
       });
 
-      const result = await response.json();
-      if (result._id || result.id) {
-        alert('Item and stock updated successfully!');
-        await fetchItems();
-        handleCloseEditModal();
-        handleCloseItemDetailModal();
-      } else {
+     const result = await response.json();
+if (result._id || result.id) {
+  alert('Item and stock updated successfully!');
+  if (editReferencePhotos.length > 0) {
+    await uploadReferencePhotos(result._id || result.id, editReferencePhotos);
+  }
+  await fetchItems();
+  handleCloseEditModal();
+  handleCloseItemDetailModal();
+} else {
         alert('Error: ' + (result.error || 'Failed to update item'));
       }
     } catch (err) {
@@ -1035,8 +1096,30 @@ const Inventory = () => {
                         <label htmlFor="image-input" className="upload-label-inventory"></label>
                       </div>
                     </div>
+                         
 
+                    {/* Additional Reference Photos (for image search accuracy) */}
+                    <div className="form-group-inventory">
+                      <label className="form-label-inventory">
+                        Additional Reference Photos <span style={{ fontWeight: 400, color: '#6f7990' }}>(optional, up to 10)</span>
+                      </label>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        onChange={handleReferencePhotosChange}
+                        className="form-input-inventory"
+                      />
+                      {referencePhotos.length > 0 && (
+                        <div style={{ marginTop: '6px', fontSize: '12px', color: '#4338ca' }}>
+                          {referencePhotos.length} photo{referencePhotos.length > 1 ? 's' : ''} selected -- these improve image search matching for this item, in addition to the main photo above.
+                        </div>
+                      )}
+                    </div>
+
+                    
                     {/* Minimum Stock */}
+                    
                     <div className="form-group-inventory">
                       <label className="form-label-inventory">Minimum Stock</label>
                       <div className="input-with-spinner-inventory">
@@ -1466,6 +1549,26 @@ const Inventory = () => {
                       </div>
                     </div>
 
+                    {/* Additional Reference Photos (for image search accuracy) */}
+                    <div className="edit-form-group">
+                      <label className="edit-form-label">
+                        Additional Reference Photos <span style={{ fontWeight: 400, color: '#6f7990' }}>(optional, up to 10)</span>
+                      </label>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        onChange={handleEditReferencePhotosChange}
+                        className="edit-form-input"
+                      />
+                      {editReferencePhotos.length > 0 && (
+                        <div style={{ marginTop: '6px', fontSize: '12px', color: '#4338ca' }}>
+                          {editReferencePhotos.length} photo{editReferencePhotos.length > 1 ? 's' : ''} selected -- these improve image search matching for this item, in addition to the main photo above.
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Minimum Stock */}
                     {/* Minimum Stock */}
                     <div className="edit-form-group">
                       <label className="edit-form-label">Minimum Stock</label>
@@ -1703,6 +1806,7 @@ const Inventory = () => {
         isOpen={showFindByImageModal}
         onClose={handleCloseFindByImageModal}
         onAddAsNew={handleAddAsNewItemFromImage}
+        onUseExistingItem={handleUseMatchedItemFromImage}
       />
 
       <ConfirmDialog

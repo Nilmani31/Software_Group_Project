@@ -6,6 +6,43 @@ const Stock = require('../models/stock');
 const GoodsReceived = require('../models/goodsReceived');
 const { getBranchFilter } = require('../utils/branchFilter');
 
+const { addReferenceImage } = require('../services/referenceImageService');
+
+// Converts a base64 data URL (as stored in Item.image) into a
+// multer-style file object so it can be sent to the ML service the same
+// way an uploaded file would be.
+const dataUrlToFile = (dataUrl, originalname = 'item.jpg') => {
+  if (!dataUrl || typeof dataUrl !== 'string') return null;
+  const match = /^data:(.+);base64,(.+)$/.exec(dataUrl);
+  if (!match) return null;
+  return {
+    buffer: Buffer.from(match[2], 'base64'),
+    originalname,
+    mimetype: match[1],
+  };
+};
+
+// Whenever an item is saved WITH a photo, that photo is a real reference
+// image of the actual item -- embed it via the existing ML pipeline so
+// future image searches can match against it directly, instead of only
+// falling back to zero-shot text matching. Never blocks or fails the
+// item save/update itself if this doesn't succeed.
+const autoEmbedItemImage = async (item, imageDataUrl, categoryName) => {
+  const file = dataUrlToFile(imageDataUrl, `${item.name || 'item'}.jpg`);
+  if (!file) return;
+
+  try {
+    await addReferenceImage(file, {
+      productId: item._id.toString(),
+      name: item.name,
+      category: categoryName || '',
+      sku: item.sku || '',
+    });
+    console.log(`✅ Auto-embedded reference photo for item: ${item.name}`);
+  } catch (err) {
+    console.warn(`⚠️  Could not auto-embed reference photo for ${item.name}:`, err.message);
+  }
+};
 // Get all inventory items with populated fields
 exports.getAllItems = async (req, res) => {
   try {
@@ -358,7 +395,13 @@ exports.createItem = async (req, res) => {
     }
     
     console.log('📤 Sending response:', { _id: itemObj._id, sku: itemObj.sku, itemId: itemObj.itemId });
-    
+
+
+if (image) {
+  await autoEmbedItemImage(item, image, itemObj.categoryName || itemObj.category);
+}
+
+
     res.status(201).json({
       ...itemObj,
       message: 'Item created successfully with default unit and stock for all branches'
@@ -487,9 +530,13 @@ exports.updateItem = async (req, res) => {
       itemObj.branch = itemObj.branch.branchName || itemObj.branch.branch_name || itemObj.branch.name || String(itemObj.branch._id);
     }
     
-    console.log('✅ Item updated:', { _id: itemObj._id, name: itemObj.name, hasImage: !!itemObj.image });
-    
-    res.json(itemObj);
+  console.log('✅ Item updated:', { _id: itemObj._id, name: itemObj.name, hasImage: !!itemObj.image });
+
+if (req.body.image) {
+  await autoEmbedItemImage(item, req.body.image, itemObj.categoryName || itemObj.category);
+}
+
+res.json(itemObj);
   } catch (err) {
     console.error('❌ Error updating item:', err.message);
     res.status(400).json({ error: err.message });
