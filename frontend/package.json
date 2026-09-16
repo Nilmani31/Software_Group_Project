@@ -22,6 +22,10 @@
     "xlsx": "^0.18.5"
   },
   "scripts": {
+    "build:css": "node node_modules/@tailwindcss/cli/dist/index.mjs -i src/tailwind.input.css -o src/index.css --minify",
+    "watch:css": "node node_modules/@tailwindcss/cli/dist/index.mjs -i src/tailwind.input.css -o src/index.css --watch",
+    "prestart": "npm run build:css",
+    "prebuild": "npm run build:css",
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
@@ -44,5 +48,9 @@
       "last 1 firefox version",
       "last 1 safari version"
     ]
+  },
+  "devDependencies": {
+    "@tailwindcss/cli": "^4.3.3",
+    "tailwindcss": "^4.3.3"
   }
 }

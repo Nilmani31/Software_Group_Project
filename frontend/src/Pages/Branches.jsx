@@ -3,8 +3,8 @@ import Navbar from "../Components/Navbar";
 import Sidebar from "../Components/Sidebar";
 import ChatAssistant from "../Components/ChatAssistant";
 import ConfirmDialog from "../Components/ConfirmDialog";
-import "./Inventory.css";
-import "./Branches.css";
+
+
 import { FaTimes, FaEdit, FaTrash } from "react-icons/fa";
 
 export default function Branches() {

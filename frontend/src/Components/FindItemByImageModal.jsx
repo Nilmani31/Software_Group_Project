@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { FaTimes, FaImage, FaSpinner } from 'react-icons/fa';
-import '../Pages/Inventory.css';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5005/api';
 

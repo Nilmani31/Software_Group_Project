@@ -3,7 +3,6 @@ import Sidebar from "../Components/Sidebar";
 import Navbar from "../Components/Navbar";
 import ChatAssistant from "../Components/ChatAssistant";
 import { getAuthHeaders } from "../utils/authHeaders";
-import "./LowStock.css";
 
 const LowStock = () => {
   const [lowStockItems, setLowStockItems] = useState([]);

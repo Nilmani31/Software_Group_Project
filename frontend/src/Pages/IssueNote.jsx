@@ -3,7 +3,7 @@ import Sidebar from "../Components/Sidebar";
 import Navbar from "../Components/Navbar";
 import ChatAssistant from "../Components/ChatAssistant";
 import ConfirmDialog from "../Components/ConfirmDialog";
-import "./IssueNote.css";
+
 import { getAuthHeaders } from "../utils/authHeaders";
 import { FaEye, FaCheckCircle, FaTimesCircle, FaClock, FaEllipsisV, FaTimes, FaEdit, FaSave, FaPrint, FaCheck, FaBan } from "react-icons/fa";
 

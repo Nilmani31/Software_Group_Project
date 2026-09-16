@@ -4,7 +4,7 @@ import Sidebar from '../Components/Sidebar';
 import ChatAssistant from '../Components/ChatAssistant';
 import FindItemByImageModal from '../Components/FindItemByImageModal';
 import ConfirmDialog from '../Components/ConfirmDialog';
-import './Inventory.css';
+
 import { FaTimes, FaEdit, FaTrash, FaImage } from 'react-icons/fa';
 import { getAuthHeaders } from '../utils/authHeaders';
 

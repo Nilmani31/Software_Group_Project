@@ -1,6 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
-import './ChatAssistant.css';
 
 const ChatAssistant = () => {
   const location = useLocation();

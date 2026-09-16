@@ -15,7 +15,6 @@ import {
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import * as XLSX from 'xlsx';
-import "./Report.css";
 
 export default function Report() {
   const [selectedSections, setSelectedSections] = useState([]);

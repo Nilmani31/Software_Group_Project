@@ -6,8 +6,6 @@ import ConfirmDialog from '../Components/ConfirmDialog';
 import { useForm, useFieldArray } from 'react-hook-form';
 import * as grnService from '../services/grnService';
 import * as poService from '../services/poService';
-import './GoodReceived.css';
-import './Inventory.css';
 
 export default function GoodReceived() {
   const [list, setList] = useState([]);

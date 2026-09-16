@@ -5,8 +5,7 @@ import { Edit2, Trash2 } from 'lucide-react';
 import Modal from '../Components/Modal';
 import ChatAssistant from '../Components/ChatAssistant';
 import ConfirmDialog from '../Components/ConfirmDialog';
-import './Users.css';
-import './Inventory.css';
+
 
 // Default password length
 const DEFAULT_PASSWORD_LENGTH = 12;

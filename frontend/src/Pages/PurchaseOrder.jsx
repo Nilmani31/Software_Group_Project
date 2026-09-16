@@ -6,7 +6,6 @@ import ConfirmDialog from '../Components/ConfirmDialog'
 import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
 // Modal component replaced for Create PO to match Inventory design
-import './PurchaseOrder.css'
 import { getAuthHeaders } from '../utils/authHeaders'
 
 const samplePOs = []
