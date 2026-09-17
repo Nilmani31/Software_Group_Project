@@ -1,11 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
-<<<<<<< HEAD
-=======
 import './ChatAssistant.css';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
->>>>>>> origin/upeka_dev
 
 const ChatAssistant = () => {
   const location = useLocation();

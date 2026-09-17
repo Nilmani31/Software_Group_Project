@@ -7,6 +7,7 @@ import Modal from '../Components/Modal';
 import ConfirmDialog from '../Components/ConfirmDialog';
 import ChatAssistant from '../Components/ChatAssistant';
 
+
 export default function Categories() {
   const [tab, setTab] = useState('inventory');
   const [list, setList] = useState(categories);

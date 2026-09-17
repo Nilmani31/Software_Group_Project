@@ -6,7 +6,7 @@ const Stock = require('../models/stock');
 const GoodsReceived = require('../models/goodsReceived');
 const { getBranchFilter } = require('../utils/branchFilter');
 
-const { addReferenceImage } = require('../services/referenceImageService');
+//const { addReferenceImage } = require('../services/referenceImageService');
 
 // Converts a base64 data URL (as stored in Item.image) into a
 // multer-style file object so it can be sent to the ML service the same
