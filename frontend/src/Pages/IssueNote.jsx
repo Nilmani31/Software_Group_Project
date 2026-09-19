@@ -3,6 +3,7 @@ import Sidebar from "../Components/Sidebar";
 import Navbar from "../Components/Navbar";
 import ChatAssistant from "../Components/ChatAssistant";
 import ConfirmDialog from "../Components/ConfirmDialog";
+import { getAuthHeaders } from "../utils/authHeaders";
 
 import { FaEye, FaCheckCircle, FaTimesCircle, FaClock, FaEllipsisV, FaTimes, FaEdit, FaSave, FaPrint, FaCheck, FaBan } from "react-icons/fa";
 
@@ -17,58 +18,9 @@ const IssueNote = () => {
 
   // Role check
   const roleId = localStorage.getItem('roleId') || '';
+  const defaultBranchId = localStorage.getItem('branchId') || '';
   const userRole = roleId.replace('ROLE_', '');
   const canEdit = ['ADMIN', 'DIRECTOR', 'MANAGER', 'BRANCH_MANAGER'].includes(userRole);
-
-  // Fetch issue notes from backend
-  useEffect(() => {
-    const fetchIssueNotes = async () => {
-      try {
-        setLoading(true);
-        setError('');
-        const response = await fetch('http://localhost:5005/api/issue-notes');
-        if (!response.ok) {
-          throw new Error('Failed to fetch issue notes');
-        }
-        const data = await response.json();
-
-        // Transform backend data to match UI expectations - PRESERVE ALL FIELDS
-        const transformedData = Array.isArray(data) ? data.map(note => ({
-          // Keep all original backend fields
-          ...note,
-          // Add/override with frontend-friendly field names
-          _original: note, // Save original for API calls
-          issueNumber: note.issueNoteNumber,
-          issueType: note.purpose || 'Stock Transfer',
-          issuedTo: note.toBranchId?.branchName || 'Unknown',
-          issueDate: note.issueDate,
-          issuedBy: note.issuedBy?.name || 'System',
-          status: note.status === 'approved' ? 'Completed' :
-            note.status === 'pending' ? 'Pending' :
-              note.status === 'rejected' ? 'Rejected' :
-                note.status || 'Pending',
-          itemCount: note.items?.length || 0,
-          quantity: note.items?.reduce((sum, item) => sum + (item.quantity || 0), 0) || 0,
-          items: note.items || [],
-          totalAmount: note.totalAmount,
-          remarks: note.remarks || '',
-          id: note._id // Add id for compatibility
-        })) : [];
-
-        setIssueNotes(transformedData);
-        console.log('✅ Issue notes loaded:', transformedData);
-      } catch (err) {
-        console.error('❌ Error fetching issue notes:', err);
-        setError(err.message);
-        setIssueNotes([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchIssueNotes();
-  }, []);
-
   const [viewType, setViewType] = useState("list");
   const [activeTab, setActiveTab] = useState("issueNotes");
   const [expandedId, setExpandedId] = useState(null);
@@ -77,6 +29,7 @@ const IssueNote = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [editedItems, setEditedItems] = useState([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [createMode, setCreateMode] = useState("issueNote");
   const [formData, setFormData] = useState({
     issueNumber: "ISS-2025-XXX",
     issueDate: new Date().toISOString().split('T')[0],
@@ -116,7 +69,8 @@ const IssueNote = () => {
   // Fetch issue notes from API
   const fetchIssueNotes = async () => {
     try {
-      const response = await fetch('http://localhost:5005/api/issue-notes');
+      setError('');
+      const response = await fetch('http://localhost:5005/api/issue-notes', { headers: getAuthHeaders() });
       const data = await response.json();
       console.log('Fetched issue notes from API:', data);
 
@@ -129,7 +83,7 @@ const IssueNote = () => {
         // Map status correctly
         let displayStatus = 'Pending';
         if (note.status === 'approved') displayStatus = 'Processing';
-        else if (note.status === 'completed') displayStatus = 'Completed';
+        else if (note.status === 'issued') displayStatus = 'issued';
         else if (note.status === 'rejected') displayStatus = 'Rejected';
         else if (note.status === 'cancelled') displayStatus = 'Cancelled';
         else if (note.status === 'pending') displayStatus = 'Pending';
@@ -168,6 +122,7 @@ const IssueNote = () => {
       setLoading(false);
     } catch (err) {
       console.error('Error fetching issue notes:', err);
+      setError(err.message);
       setLoading(false);
     }
   };
@@ -272,13 +227,36 @@ const IssueNote = () => {
     return `${cleanName} | Rs ${price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} | In Stock: ${availableQty} ${item.unit || 'unit'}`;
   };
 
-  const currentData = issueNotes;
+  const isBranchRequest = (note) => {
+    const original = note._original || note;
+    const purpose = original.purpose || note.issueType || '';
+    return Boolean(original.toBranchId) || /branch|stock|transfer/i.test(purpose);
+  };
+
+  const isActiveBranchRequest = (note) => {
+    const requestStatus = String(note._original?.status || note.status || '').toLowerCase();
+    return isBranchRequest(note) && ['pending', 'approved', 'processing'].includes(requestStatus);
+  };
+
+  const currentData = activeTab === "branchRequests"
+    ? issueNotes
+        .filter(isActiveBranchRequest)
+        .map(note => ({
+          ...note,
+          requestNumber: note.issueNumber,
+          requestFrom: note.issuedTo,
+          requestedFrom: note.issuedTo,
+          requestedBy: note.issuedBy,
+          requestDate: note.issueDate,
+          requestType: note.issueType
+        }))
+    : issueNotes.filter(note => !isActiveBranchRequest(note));
 
   const getStatusIcon = (status) => {
     switch (status) {
-      case "Completed":
+      case "issued":
       case "Approved":
-        return <FaCheckCircle className="status-icon completed" />;
+        return <FaCheckCircle className="status-icon issued" />;
       case "Processing":
         return <FaClock className="status-icon processing" />;
       case "Pending":
@@ -290,9 +268,9 @@ const IssueNote = () => {
 
   const getStatusColor = (status) => {
     switch (status) {
-      case "Completed":
+      case "issued":
       case "Approved":
-        return "completed";
+        return "issued";
       case "Processing":
         return "processing";
       case "Pending":
@@ -354,7 +332,7 @@ const IssueNote = () => {
   };
 
   const handleApprove = async () => {
-    if (activeTab === "issueNotes" && selectedItem._original) {
+    if (selectedItem?._original) {
       try {
         const response = await fetch(`http://localhost:5005/api/issue-notes/${selectedItem._original._id}/approve`, {
           method: 'PUT',
@@ -390,19 +368,36 @@ const IssueNote = () => {
     }
   };
 
-  const handleIssueItems = () => {
-    if (activeTab === "issueNotes") {
-      setIssueNotes(issueNotes.map(item =>
-        item.id === selectedItem.id ? { ...item, status: "Completed" } : item
-      ));
+  const handleIssueItems = async () => {
+    if (selectedItem?._original) {
+      try {
+        const response = await fetch(`http://localhost:5005/api/issue-notes/${selectedItem._original._id}/issued`, {
+          method: 'PUT',
+          headers: getAuthHeaders()
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || 'Failed to issue items');
+        }
+
+        await fetchIssueNotes();
+        closeModal();
+        alert("Items issued successfully!");
+      } catch (error) {
+        console.error('Error issuing items:', error);
+        alert('Error issuing items: ' + error.message);
+      }
+      return;
     }
+
     console.log("Issuing items:", editedItems);
     alert("Items issued successfully!");
     handlePrintInvoice();
   };
 
   const handleReject = async () => {
-    if (activeTab === "issueNotes" && selectedItem._original) {
+    if (selectedItem?._original) {
       try {
         const response = await fetch(`http://localhost:5005/api/issue-notes/${selectedItem._original._id}/reject`, {
           method: 'PUT',
@@ -440,7 +435,7 @@ const IssueNote = () => {
   };
 
   const handleCancelOrder = () => {
-    if (activeTab === "issueNotes") {
+    if (selectedItem?._original) {
       setIssueNotes(issueNotes.map(item =>
         item.id === selectedItem.id ? { ...item, status: "Cancelled" } : item
       ));
@@ -514,7 +509,7 @@ const IssueNote = () => {
             text-transform: uppercase;
           }
           
-          .status-badge-print.completed {
+          .status-badge-print.issued {
             background-color: #dcfce7;
             color: #166534;
           }
@@ -855,17 +850,13 @@ const IssueNote = () => {
     printWindow.print();
   };
 
-  const openCreateModal = () => {
-    const defaultBranch = branches.find(branch =>
-      /main|colombo/i.test(branch.branchName || branch.branch_name || branch.name || '')
-    ) || branches[0];
-    const defaultBranchId = defaultBranch ? String(defaultBranch._id || defaultBranch.id) : "";
-
+  const openCreateModal = (mode = "issueNote") => {
+    setCreateMode(mode);
     setShowCreateModal(true);
     setFormData({
       issueNumber: "ISS-2025-XXX",
       issueDate: new Date().toISOString().split('T')[0],
-      issueType: "Training Sessions",
+      issueType: mode === "branchRequest" ? "Branch Transfer" : "",
       trainingSession: "",
       fromBranch: defaultBranchId,
       category: "coffee-supplies",
@@ -1020,6 +1011,12 @@ const IssueNote = () => {
     console.log("Branches state:", branches);
     console.log("FormData:", formData);
 
+    const issueType = createMode === "branchRequest" ? "Branch Transfer" : formData.issueType;
+
+    if (!issueType) {
+      alert("Please select an issue type");
+      return;
+    }
     if (!formData.trainingSession || formData.items.length === 0) {
       alert("Please fill all required fields and add at least one item");
       return;
@@ -1034,7 +1031,7 @@ const IssueNote = () => {
 
     // Find the branch ID if it's a branch transfer
     let toBranchId = null;
-    if (formData.issueType === "Branch Transfer" || formData.issueType === "Stock Transfer") {
+    if (issueType === "Branch Transfer" || issueType === "Stock Transfer") {
       // formData.trainingSession now contains the branch ID directly
       toBranchId = formData.trainingSession;
 
@@ -1088,7 +1085,8 @@ const IssueNote = () => {
       fromBranchId: fromBranchId,
       toBranchId: toBranchId,
       issuedBy: issuedBy,
-      purpose: formData.issueType + ' - ' + formData.trainingSession,
+      creationMode: createMode,
+      purpose: issueType + ' - ' + formData.trainingSession,
       remarks: '',
       items: apiItems
     };
@@ -1138,7 +1136,7 @@ const IssueNote = () => {
       setSelectedItemForAdd(null);
       setItemQuantity(0);
 
-      alert("Issue Note created successfully!");
+      alert(createMode === "branchRequest" ? "Branch request created successfully!" : "Issue note created successfully!");
       closeCreateModal();
       fetchIssueNotes(); // Refresh the list
     } catch (error) {
@@ -1148,6 +1146,10 @@ const IssueNote = () => {
   };
 
   const requestCreateIssueNote = () => {
+    if (createMode !== "branchRequest" && !formData.issueType) {
+      alert("Please select an issue type");
+      return;
+    }
     if (!formData.trainingSession || formData.items.length === 0) {
       alert("Please fill all required fields and add at least one item");
       return;
@@ -1173,8 +1175,11 @@ const IssueNote = () => {
                   />
                 </div>
                 {canEdit && (
-                  <button className="btn-create-issue" onClick={openCreateModal}>
-                    + Create New
+                  <button
+                    className="btn-create-issue"
+                    onClick={() => openCreateModal(activeTab === "branchRequests" ? "branchRequest" : "issueNote")}
+                  >
+                    {activeTab === "branchRequests" ? "+ Create New Branch Request" : "+ Create New Issue Note"}
                   </button>
                 )}
               </div>
@@ -1228,7 +1233,7 @@ const IssueNote = () => {
               <div className="stats-row">
                 {activeTab === "issueNotes" ? (
                   <>
-                    <div className="stat-card">
+                    {/*<div className="stat-card">
                       <div className="stat-icon completed">
                         <FaCheckCircle />
                       </div>
@@ -1261,17 +1266,17 @@ const IssueNote = () => {
                         <span className="stat-label">Total Issues</span>
                         <span className="stat-value">{issueNotes.length}</span>
                       </div>
-                    </div>
+                    </div>*/}
                   </>
                 ) : (
                   <>
                     <div className="stat-card">
-                      <div className="stat-icon completed">
+                      <div className="stat-icon issued">
                         <FaCheckCircle />
                       </div>
                       <div className="stat-info">
                         <span className="stat-label">Approved</span>
-                        <span className="stat-value">1</span>
+                        <span className="stat-value">{currentData.filter(i => i.status === "issued" || i.status === "Approved").length}</span>
                       </div>
                     </div>
                     <div className="stat-card">
@@ -1366,13 +1371,13 @@ const IssueNote = () => {
         </div>
       </div>
 
-      {/* Create Issue Note Modal */}
+      {/* Create Issue Note or Branch Request Modal */}
       {showCreateModal && (
         <div className="modal-overlay" onClick={closeCreateModal}>
           <div className="modal-content create-modal" onClick={(e) => e.stopPropagation()}>
             <div className="create-modal-header">
-              <h2>Create Issue Note</h2>
-              <p>Issue stock to branches or training sessions</p>
+              <h2>{createMode === "branchRequest" ? "Create Branch Request" : "Create Issue Note"}</h2>
+              <p>{createMode === "branchRequest" ? "Request items from another branch" : "Issue stock to branches or training sessions"}</p>
               <button className="modal-close-btn" onClick={closeCreateModal}>
                 <FaTimes />
               </button>
@@ -1432,21 +1437,22 @@ const IssueNote = () => {
 
               {/* Issue Type */}
               <div className="form-group full-width">
-                <label>Issue Type</label>
+                <label>{createMode === "branchRequest" ? "Request Type" : "Issue Type"}</label>
                 <select
                   value={formData.issueType}
                   onChange={(e) => handleFormChange('issueType', e.target.value)}
                   className="form-select"
+                  disabled={createMode === "branchRequest"}
                 >
                   <option value="Training Sessions">Training Sessions</option>
                   <option value="Branch Transfer">Branch Transfer</option>
-                  <option value="Stock Transfer">Stock Transfer</option>
+                  {createMode !== "branchRequest" && <option value="Stock Transfer">Stock Transfer</option>}
                 </select>
               </div>
 
               {/* Training Session / Branch Name */}
               <div className="form-group full-width">
-                <label>{formData.issueType === "Training Sessions" ? "Training Session / Destination" : "Destination Branch (Issued To)"}</label>
+                <label>{formData.issueType === "Training Sessions" ? "Training Session / Destination" : createMode === "branchRequest" ? "Requested From Branch" : "Destination Branch (Issued To)"}</label>
                 {formData.issueType === "Training Sessions" ? (
                   <input
                     type="text"
@@ -1494,7 +1500,7 @@ const IssueNote = () => {
 
               {/* Issue Items Section */}
               <div className="form-group full-width">
-                <label>Issue Items from {categories.find(c => c.id === formData.category)?.name || 'All Items'}</label>
+                <label>{createMode === "branchRequest" ? "Requested Items" : "Issue Items"} from {categories.find(c => c.id === formData.category)?.name || 'All Items'}</label>
                 <div className="items-input-section">
                   <div className="item-select-row">
                     <div className="item-select-group">
@@ -1630,7 +1636,7 @@ const IssueNote = () => {
                         alignItems: 'center',
                         fontSize: '14px'
                       }}>
-                        <span style={{ color: '#64748b', fontWeight: '600' }}>Total Issue Amount:</span>
+                          <span style={{ color: '#64748b', fontWeight: '600' }}>Total {createMode === "branchRequest" ? "Request" : "Issue"} Amount:</span>
                         <strong style={{ color: '#4f46e5', fontSize: '15px' }}>
                           Rs {formData.items.reduce((s, i) => s + ((Number(i.qty) || 0) * (Number(i.unitPrice) || 0)), 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </strong>
@@ -1646,7 +1652,7 @@ const IssueNote = () => {
                 Cancel
               </button>
               <button className="btn-submit" onClick={requestCreateIssueNote} type="button">
-                Add Issue Note
+                {createMode === "branchRequest" ? "Create Branch Request" : "Add Issue Note"}
               </button>
             </div>
           </div>
@@ -1816,7 +1822,7 @@ const IssueNote = () => {
                     </>
                   )}
 
-                  {selectedItem.status === "Completed" && (
+                  {selectedItem.status === "issued" && (
                     <button className="modal-btn cancel" onClick={closeModal}>
                       ← Close
                     </button>
@@ -1837,8 +1843,8 @@ const IssueNote = () => {
       {/* AI Chat Assistant */}
       <ConfirmDialog
         open={pendingCreate}
-        title="Add issue note?"
-        message="Are you sure you want to create this issue note?"
+        title={createMode === "branchRequest" ? "Create branch request?" : "Add issue note?"}
+        message={createMode === "branchRequest" ? "Are you sure you want to create this branch request?" : "Are you sure you want to create this issue note?"}
         confirmLabel="Add"
         tone="success"
         onCancel={() => setPendingCreate(false)}

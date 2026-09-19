@@ -129,7 +129,8 @@ exports.createIssueNote = async (req, res) => {
       issuedBy,
       purpose,
       remarks,
-      items
+      items,
+      creationMode
     } = req.body;
 
     console.log('Extracted fields:', {
@@ -239,7 +240,7 @@ exports.createIssueNote = async (req, res) => {
       issuedBy: user._id,
       purpose,
       remarks,
-      status: 'pending'
+      status: creationMode === 'branchRequest' ? 'pending' : 'issued'
     });
 
     await issueNote.save();
@@ -338,7 +339,7 @@ exports.approveIssueNote = async (req, res) => {
     for (const item of issueNoteItems) {
       // Deduct from source branch
       const stockQuery = {
-        itemId: item.itemId,
+        itemId: item.itemId?._id || item.itemId,
         branchId: issueNote.fromBranchId
       };
       if (item.itemUnitId) {
@@ -363,8 +364,8 @@ exports.approveIssueNote = async (req, res) => {
       // If toBranchId exists, add to destination branch
       if (issueNote.toBranchId) {
         const destinationStockQuery = {
-          itemId: item.itemId,
-          ...(item.itemUnitId && { itemUnitId: item.itemUnitId }),
+          itemId: item.itemId?._id || item.itemId,
+          ...(item.itemUnitId && { itemUnitId: item.itemUnitId?._id || item.itemUnitId }),
           branchId: issueNote.toBranchId
         };
 
@@ -378,8 +379,8 @@ exports.approveIssueNote = async (req, res) => {
         } else {
           // Create new stock record for destination branch
           toStock = new Stock({
-            itemId: item.itemId,
-            itemUnitId: item.itemUnitId,
+            itemId: item.itemId?._id || item.itemId,
+            itemUnitId: item.itemUnitId?._id || item.itemUnitId,
             branchId: issueNote.toBranchId,
             quantity: item.quantity,
             minStockLevel: 0,
@@ -393,7 +394,7 @@ exports.approveIssueNote = async (req, res) => {
 
     // Update issue note status
     issueNote.status = 'approved';
-    issueNote.approvedBy = approvedBy;
+    issueNote.approvedBy = approver._id;
     await issueNote.save();
 
     const updatedIssueNote = await IssueNote.findById(id)
@@ -448,7 +449,7 @@ exports.rejectIssueNote = async (req, res) => {
     }
 
     issueNote.status = 'rejected';
-    issueNote.approvedBy = approvedBy;
+    issueNote.approvedBy = approver._id;
     if (remarks) {
       const rejectionRemark = `Rejected: ${remarks}`;
       issueNote.remarks = issueNote.remarks 
@@ -522,6 +523,45 @@ exports.updateIssueNote = async (req, res) => {
     res.json({ ...updatedIssueNote, items });
   } catch (err) {
     console.error('❌ Error updating issue note:', err.message);
+    res.status(400).json({ error: err.message });
+  }
+};
+
+// Complete issue note after items are issued
+exports.completeIssueNote = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const issueNote = await IssueNote.findById(id);
+
+    if (!issueNote) {
+      return res.status(404).json({ error: 'Issue note not found' });
+    }
+
+    if (issueNote.status !== 'approved') {
+      return res.status(400).json({
+        error: `Cannot issue items for issue note with status: ${issueNote.status}`
+      });
+    }
+
+    issueNote.status = 'issued';
+    await issueNote.save();
+
+    const updatedIssueNote = await IssueNote.findById(id)
+      .populate('fromBranchId', 'branchName branchCode branch_name branch_code')
+      .populate('toBranchId', 'branchName branchCode branch_name branch_code')
+      .populate('issuedBy', 'name email username')
+      .populate('approvedBy', 'name email username')
+      .lean();
+
+    const items = await IssueNoteItem.find({ issueNoteId: id })
+      .populate('itemId', 'name sku itemId unit')
+      .populate('itemUnitId', 'name unit unitValue unitPrice')
+      .lean();
+
+    console.log('✅ Issue note completed:', issueNote.issueNoteNumber);
+    res.json({ ...updatedIssueNote, items });
+  } catch (err) {
+    console.error('❌ Error completing issue note:', err.message);
     res.status(400).json({ error: err.message });
   }
 };

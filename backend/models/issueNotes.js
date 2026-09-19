@@ -33,7 +33,7 @@ const issueNoteSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['pending', 'approved', 'rejected', 'completed', 'cancelled'],
+    enum: ['pending', 'approved', 'rejected', 'issued', 'cancelled'],
     default: 'pending'
   },
   purpose: {

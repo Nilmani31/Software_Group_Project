@@ -23,6 +23,9 @@ router.put('/:id/approve', issueNotesController.approveIssueNote);
 // PUT reject issue note
 router.put('/:id/reject', issueNotesController.rejectIssueNote);
 
+// PUT complete issue note after items are issued
+router.put('/:id/issued', issueNotesController.completeIssueNote);
+
 // PUT update issue note (only pending)
 router.put('/:id', issueNotesController.updateIssueNote);
 

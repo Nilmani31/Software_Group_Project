@@ -36,7 +36,7 @@ exports.getDashboardStats = async (req, res) => {
     const pendingPOs = await PurchaseOrder.countDocuments({ status: 'Pending', ...branchFilter });
 
     // 5. Pending Request Orders (Issue Notes)
-    const pendingRequests = await IssueNote.countDocuments({ status: 'Pending', ...issueNoteFilter });
+    const pendingRequests = await IssueNote.countDocuments({ status: 'pending', ...issueNoteFilter });
 
     // 6. Inventory Value
     const itemUnits = await ItemUnit.find({});
