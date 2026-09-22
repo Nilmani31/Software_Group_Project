@@ -33,9 +33,9 @@ const IssueNote = () => {
   const [formData, setFormData] = useState({
     issueNumber: "ISS-2025-XXX",
     issueDate: new Date().toISOString().split('T')[0],
-    issueType: "Training Sessions",
+    issueType: "",
     trainingSession: "",
-    category: "coffee-supplies", // New field
+    category: "",
     items: []
   });
   const [selectedItemForAdd, setSelectedItemForAdd] = useState(null);
@@ -50,7 +50,8 @@ const IssueNote = () => {
         fetchIssueNotes(),
         fetchBranches(),
         fetchItems(),
-        fetchUsers()
+        fetchUsers(),
+        fetchCategories()
       ]);
 
       // Get current user from localStorage (stored as individual fields in Login.jsx)
@@ -149,7 +150,7 @@ const IssueNote = () => {
   // Fetch items from API
   const fetchItems = async () => {
     try {
-      const response = await fetch('http://localhost:5005/api/items');
+      const response = await fetch('http://localhost:5005/api/items', { headers: getAuthHeaders() });
       const data = await response.json();
       const itemsArray = Array.isArray(data) ? data : [];
       console.log('Fetched items:', itemsArray.length);
@@ -162,7 +163,7 @@ const IssueNote = () => {
   // Fetch users from API
   const fetchUsers = async () => {
     try {
-      const response = await fetch('http://localhost:5005/api/users');
+      const response = await fetch('http://localhost:5005/api/users', { headers: getAuthHeaders() });
       const data = await response.json();
       const usersArray = data.success && data.data ? data.data : (Array.isArray(data) ? data : []);
       console.log('Fetched users:', usersArray.length, usersArray);
@@ -179,16 +180,43 @@ const IssueNote = () => {
   // Category data with items
   const [categories, setCategories] = useState([]);
 
-  // Fetch categories from backend if needed
-  useEffect(() => {
-    // Categories will be empty for now - can be populated from backend later
-    setCategories([]);
-  }, []);
+  // Fetch categories from API
+  const fetchCategories = async () => {
+    try {
+      const response = await fetch('http://localhost:5005/api/categories', { headers: getAuthHeaders() });
+      const data = await response.json();
+      const categoriesArray = Array.isArray(data) ? data : [];
+      // Map backend fields ({ _id, name, categoryId, ... }) to the shape
+      // expected by the dropdown ({ id, name })
+      const mapped = categoriesArray.map(cat => ({
+        id: cat._id,
+        name: cat.name || cat.categoryId || 'Unknown',
+      }));
+      console.log('Fetched categories:', mapped.length, mapped);
+      setCategories(mapped);
+    } catch (err) {
+      console.error('Error fetching categories:', err);
+      setCategories([]);
+    }
+  };
 
   // Get available items based on selected category
   const getAvailableItems = () => {
-    const selectedCategory = categories.find(c => c.id === formData.category);
-    return selectedCategory ? selectedCategory.items : [];
+    if (!formData.category) return [];
+    const selectedCategory = categories.find(c => String(c.id) === String(formData.category));
+    if (!selectedCategory) return [];
+    const catName = selectedCategory.name;
+    const catId = String(selectedCategory.id);
+    return items.filter(item => {
+      const itemCat = item.category;
+      const itemCatName = item.categoryName;
+      return (
+        itemCat === catName ||
+        itemCatName === catName ||
+        String(itemCat) === catName ||
+        String(itemCat) === catId
+      );
+    });
   };
 
   const getItemOptionId = (item) => item.uniqueId || `${item._id || item.id}_${item.itemUnitId || 'default'}`;
@@ -451,6 +479,10 @@ const IssueNote = () => {
     }
 
     const printWindow = window.open("", "", "width=900,height=1200");
+    if (!printWindow) {
+      alert("Please allow popups for this site to print the invoice.");
+      return;
+    }
     const today = new Date();
     const formattedDate = today.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
 
@@ -841,13 +873,19 @@ const IssueNote = () => {
             <p>© 2025 CBBS Group. All rights reserved.</p>
           </div>
         </div>
-      </body>
+       </body>
       </html>
     `;
 
-    printWindow.document.write(invoiceHTML);
-    printWindow.document.close();
-    printWindow.print();
+    try {
+      printWindow.document.write(invoiceHTML);
+      printWindow.document.close();
+      printWindow.focus();
+      printWindow.print();
+    } catch (err) {
+      console.error('Print error:', err);
+      alert('Unable to print. Please check your popup blocker settings.');
+    }
   };
 
   const openCreateModal = (mode = "issueNote") => {
@@ -856,10 +894,10 @@ const IssueNote = () => {
     setFormData({
       issueNumber: "ISS-2025-XXX",
       issueDate: new Date().toISOString().split('T')[0],
-      issueType: mode === "branchRequest" ? "Branch Transfer" : "",
+      issueType: "",
       trainingSession: "",
-      fromBranch: defaultBranchId,
-      category: "coffee-supplies",
+      fromBranch: "",
+      category: "",
       items: []
     });
     setItemQuantity(0);
@@ -874,10 +912,10 @@ const IssueNote = () => {
     setFormData({
       issueNumber: "ISS-2025-XXX",
       issueDate: new Date().toISOString().split('T')[0],
-      issueType: "Training Sessions",
+      issueType: "",
       trainingSession: "",
       fromBranch: "",
-      category: "coffee-supplies",
+      category: "",
       items: []
     });
     setSelectedItemForAdd(null);
@@ -1011,7 +1049,7 @@ const IssueNote = () => {
     console.log("Branches state:", branches);
     console.log("FormData:", formData);
 
-    const issueType = createMode === "branchRequest" ? "Branch Transfer" : formData.issueType;
+    const issueType = formData.issueType;
 
     if (!issueType) {
       alert("Please select an issue type");
@@ -1086,7 +1124,7 @@ const IssueNote = () => {
       toBranchId: toBranchId,
       issuedBy: issuedBy,
       creationMode: createMode,
-      purpose: issueType + ' - ' + formData.trainingSession,
+      purpose: issueType,
       remarks: '',
       items: apiItems
     };
@@ -1096,9 +1134,7 @@ const IssueNote = () => {
     try {
       const response = await fetch('http://localhost:5005/api/issue-notes', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: getAuthHeaders(),
         body: JSON.stringify(issueNoteData)
       });
 
@@ -1128,9 +1164,9 @@ const IssueNote = () => {
       setFormData({
         issueNumber: "ISS-2025-XXX",
         issueDate: new Date().toISOString().split('T')[0],
-        issueType: "Training Sessions",
+        issueType: "",
         trainingSession: "",
-        category: "coffee-supplies",
+        category: "",
         items: []
       });
       setSelectedItemForAdd(null);
@@ -1146,7 +1182,7 @@ const IssueNote = () => {
   };
 
   const requestCreateIssueNote = () => {
-    if (createMode !== "branchRequest" && !formData.issueType) {
+    if (!formData.issueType) {
       alert("Please select an issue type");
       return;
     }
@@ -1410,19 +1446,20 @@ const IssueNote = () => {
                 </div>
               </div>
 
-              {/* Issuing From Branch */}
-              <div className="form-group full-width">
-                <label>Issuing From Branch (Source)</label>
-                <select
-                  value={formData.fromBranch || (getSourceBranch()?._id || getSourceBranch()?.id || '')}
-                  onChange={(e) => {
-                    handleFormChange('fromBranch', e.target.value);
-                    setSelectedItemForAdd(null);
-                    setItemQuantity(0);
-                  }}
-                  className="form-select"
-                >
-                  {branches.map(branch => {
+               {/* Issuing From Branch */}
+               <div className="form-group full-width">
+                 <label>Issuing From Branch (Source)</label>
+                 <select
+                   value={formData.fromBranch || ""}
+                   onChange={(e) => {
+                     handleFormChange('fromBranch', e.target.value);
+                     setSelectedItemForAdd(null);
+                     setItemQuantity(0);
+                   }}
+                   className="form-select"
+                 >
+                   <option value="">Select a Source Branch...</option>
+                   {branches.map(branch => {
                     const branchName = branch.branchName || branch.branch_name || branch.name || 'Unknown';
                     const branchCode = branch.branchCode || branch.branch_code || '';
                     const branchId = branch._id || branch.id;
@@ -1442,8 +1479,10 @@ const IssueNote = () => {
                   value={formData.issueType}
                   onChange={(e) => handleFormChange('issueType', e.target.value)}
                   className="form-select"
-                  disabled={createMode === "branchRequest"}
+                  
                 >
+                  
+                  <option value="">Select Issue Type...</option>
                   <option value="Training Sessions">Training Sessions</option>
                   <option value="Branch Transfer">Branch Transfer</option>
                   {createMode !== "branchRequest" && <option value="Stock Transfer">Stock Transfer</option>}
@@ -1490,11 +1529,18 @@ const IssueNote = () => {
                   onChange={(e) => handleFormChange('category', e.target.value)}
                   className="form-select category-select"
                 >
-                  {categories.map(cat => (
-                    <option key={cat.id} value={cat.id}>
-                      {cat.name}
-                    </option>
-                  ))}
+                  {categories.length === 0 ? (
+                    <option value="">No categories available - add categories in the Categories page</option>
+                  ) : (
+                    <>
+                      <option value="" disabled>Select a Category...</option>
+                      {categories.map(cat => (
+                        <option key={cat.id} value={cat.id}>
+                          {cat.name}
+                        </option>
+                      ))}
+                    </>
+                  )}
                 </select>
               </div>
 
@@ -1510,18 +1556,22 @@ const IssueNote = () => {
                         onChange={(e) => setSelectedItemForAdd(e.target.value)}
                         className="form-select"
                       >
-                        <option value="">Select an item......</option>
-                        {/* Show items from database if available, otherwise use hardcoded categories */}
-                        {items.length > 0 ? (
+                         <option value="">Select an item......</option>
+                        {/* Show items from database, filtered by selected category */}
+                        {formData.category ? (
+                          getAvailableItems().length > 0 ? (
+                            getAvailableItems().map(item => (
+                              <option key={getItemOptionId(item)} value={getItemOptionId(item)}>
+                                {getIssueItemLabel(item)}
+                              </option>
+                            ))
+                          ) : (
+                            <option value="" disabled>No items found for this category</option>
+                          )
+                        ) : (
                           items.map(item => (
                             <option key={getItemOptionId(item)} value={getItemOptionId(item)}>
                               {getIssueItemLabel(item)}
-                            </option>
-                          ))
-                        ) : (
-                          getAvailableItems().map(item => (
-                            <option key={item.id} value={item.id}>
-                              {item.name}
                             </option>
                           ))
                         )}
