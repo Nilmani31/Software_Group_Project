@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   PieChart,
   Pie,
@@ -15,15 +15,78 @@ import {
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import * as XLSX from 'xlsx';
+import { getAuthHeaders } from '../utils/authHeaders';
+import { Activity, AlertTriangle, BarChart3, Boxes, CalendarDays, Check, ChevronDown, Download, FileSpreadsheet, GitCompare, Search, X } from 'lucide-react';
 
 export default function Report() {
   const [selectedSections, setSelectedSections] = useState([]);
   const [dateRange, setDateRange] = useState({
-    startDate: '2025-01-01',
-    endDate: '2025-12-31'
+    startDate: '',
+    endDate: ''
   });
   const [selectedItems, setSelectedItems] = useState([]);
   const [selectedBranches, setSelectedBranches] = useState([]);
+  const [items, setItems] = useState([]);
+  const [branches, setBranches] = useState([]);
+  const [purchaseOrders, setPurchaseOrders] = useState([]);
+  const [goodsReceived, setGoodsReceived] = useState([]);
+  const [issueNotes, setIssueNotes] = useState([]);
+  const [itemSearch, setItemSearch] = useState('');
+  const [branchSearch, setBranchSearch] = useState('');
+  const [itemCategory, setItemCategory] = useState('All categories');
+  const [openSelector, setOpenSelector] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    const loadReportData = async () => {
+      try {
+        setLoading(true);
+        setError('');
+        const headers = getAuthHeaders();
+        const requests = [
+          ['items', 'http://localhost:5005/api/items'],
+          ['branches', 'http://localhost:5005/api/branches'],
+          ['purchase orders', 'http://localhost:5005/api/purchase-orders'],
+          ['goods received', 'http://localhost:5005/api/goods-received?limit=1000'],
+          ['issue notes', 'http://localhost:5005/api/issue-notes']
+        ];
+        const results = await Promise.allSettled(
+          requests.map(async ([name, url]) => {
+            const response = await fetch(url, { headers });
+            if (!response.ok) throw new Error(`${name} request failed (${response.status})`);
+            return [name, await response.json()];
+          })
+        );
+        const failedRequests = [];
+
+        results.forEach(result => {
+          if (result.status === 'rejected') {
+            failedRequests.push(result.reason.message);
+            return;
+          }
+
+          const [name, data] = result.value;
+          if (name === 'items') setItems(Array.isArray(data) ? data : []);
+          if (name === 'branches') setBranches(data.success && Array.isArray(data.data) ? data.data : (Array.isArray(data) ? data : []));
+          if (name === 'purchase orders') setPurchaseOrders(data.success && Array.isArray(data.data) ? data.data : []);
+          if (name === 'goods received') setGoodsReceived(data.success && Array.isArray(data.data) ? data.data : []);
+          if (name === 'issue notes') setIssueNotes(Array.isArray(data) ? data : []);
+        });
+
+        if (failedRequests.length > 0) {
+          setError(`Some report data could not be loaded: ${failedRequests.join(', ')}`);
+        }
+      } catch (loadError) {
+        console.error('Error loading report data:', loadError);
+        setError(loadError.message || 'Unable to load report data.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadReportData();
+  }, []);
 
   const options = [
     "Pie Chart",
@@ -32,25 +95,32 @@ export default function Report() {
     "Low Stock Report",
     "Transaction History",
   ];
+  const allReset = () => {
+    setSelectedSections([]);
+    setSelectedItems([]);
+    setSelectedBranches([]);
+    setItemSearch('');
+    setBranchSearch('');
+    setItemCategory('All categories');
+    setOpenSelector(null);
+    setDateRange({
+      startDate: '',
+      endDate: ''
+    });
+  };
 
-  const availableItems = [
-    "Espresso machine",
-    "Coffee grinder", 
-    "Tamper",
-    "Portafilters",
-    "Coffee beans",
-    "Milk frother",
-    "Coffee cups",
-    "Cleaning supplies"
-  ];
 
-  const availableBranches = [
-    "Main Campus - Colombo",
-    "Branch 1 - Kandy",
-    "Branch 2 - Galle",
-    "Branch 3 - Negombo",
-    "Branch 4 - Kurunegala"
-  ];
+  const availableItems = [...new Set(items.map(item => item.name).filter(Boolean))];
+  const getBranchName = (branch) => branch.branchName || branch.branch_name || branch.name || branch.branchId || 'Unknown Branch';
+  const availableBranches = [...new Set(branches.map(getBranchName).filter(Boolean))];
+  const itemCategories = ['All categories', ...new Set(items.map(item => item.categoryName || item.category?.name || item.category).filter(Boolean))];
+  const itemCategoryMap = new Map(items.map(item => [item.name, item.categoryName || item.category?.name || item.category || 'Uncategorized']));
+  const visibleItems = availableItems.filter(item => {
+    const matchesSearch = item.toLowerCase().includes(itemSearch.toLowerCase());
+    const matchesCategory = itemCategory === 'All categories' || itemCategoryMap.get(item) === itemCategory;
+    return matchesSearch && matchesCategory;
+  });
+  const visibleBranches = availableBranches.filter(branch => branch.toLowerCase().includes(branchSearch.toLowerCase()));
 
   const toggleSection = (option) => {
     setSelectedSections((prev) =>
@@ -76,6 +146,35 @@ export default function Report() {
     );
   };
 
+  const toggleVisibleItems = () => {
+    const allVisibleSelected = visibleItems.every(item => selectedItems.includes(item));
+    setSelectedItems(prev => allVisibleSelected
+      ? prev.filter(item => !visibleItems.includes(item))
+      : [...new Set([...prev, ...visibleItems])]
+    );
+  };
+
+  const toggleVisibleBranches = () => {
+    const allVisibleSelected = visibleBranches.every(branch => selectedBranches.includes(branch));
+    setSelectedBranches(prev => allVisibleSelected
+      ? prev.filter(branch => !visibleBranches.includes(branch))
+      : [...new Set([...prev, ...visibleBranches])]
+    );
+  };
+
+  const applyPreset = (preset) => {
+    if (preset === 'low-stock') {
+      setSelectedSections(['Low Stock Report', 'Current Stock Balance']);
+    }
+    if (preset === 'branch-compare') {
+      setSelectedSections(['Current Stock Balance', 'Pie Chart']);
+      setOpenSelector('branches');
+    }
+    if (preset === 'monthly-usage') {
+      setSelectedSections(['Line Chart', 'Transaction History']);
+    }
+  };
+
   const handleDateChange = (field, value) => {
     setDateRange(prev => ({
       ...prev,
@@ -83,92 +182,149 @@ export default function Report() {
     }));
   };
 
-  // ✅ Sample data used by both charts
-  const pieData = [
-    { name: "Espresso machine", value: 400 },
-    { name: "Coffee grinder", value: 300 },
-    { name: "Tamper", value: 300 },
-    { name: "Portafilters", value: 200 },
-  ];
+  const selectedItemSet = new Set(selectedItems);
+  const selectedBranchSet = new Set(selectedBranches);
+  const isInDateRange = (date) => {
+    if (!date) return false;
+    const value = new Date(date);
+    if (Number.isNaN(value.getTime())) return false;
+    const startsAfter = !dateRange.startDate || value >= new Date(`${dateRange.startDate}T00:00:00`);
+    const endsBefore = !dateRange.endDate || value <= new Date(`${dateRange.endDate}T23:59:59`);
+    return startsAfter && endsBefore;
+  };
+  const matchesItemFilter = (name) => selectedItemSet.size === 0 || selectedItemSet.has(name);
+  const matchesBranchFilter = (name) => selectedBranchSet.size === 0 || selectedBranchSet.has(name);
+  const getStockBranchName = (stock) => stock.branchName || stock.branch_name || stock.branch?.branchName || stock.branch?.name;
+  const getTransactionBranchName = (transaction) => (
+    transaction.branchName || transaction.branch || transaction.createdByBranch ||
+    transaction.fromBranchId?.branchName || transaction.fromBranchId?.branch_name ||
+    transaction.toBranchId?.branchName || transaction.toBranchId?.branch_name
+  );
 
-  const lineData = [
-    { month: "Jan", usage: 20 },
-    { month: "Feb", usage: 30 },
-    { month: "Mar", usage: 25 },
-    { month: "Apr", usage: 40 },
-    { month: "May", usage: 32 },
-  ];
+  const stockData = items
+    .filter(item => matchesItemFilter(item.name))
+    .map(item => {
+      const branchStocks = Array.isArray(item.branchStocks) ? item.branchStocks.filter(stock => matchesBranchFilter(getStockBranchName(stock))) : [];
+      const quantity = selectedBranches.length > 0
+        ? branchStocks.reduce((sum, stock) => sum + Number(stock.quantity || 0), 0)
+        : Number(item.quantity || 0);
+      const minimum = Number(item.minStock || 0);
+      return {
+        itemName: item.name,
+        category: item.categoryName || item.category?.name || item.category || 'Uncategorized',
+        quantity,
+        status: quantity <= 0 ? 'Out' : quantity <= minimum ? 'Low' : 'Normal'
+      };
+    });
 
-  const COLORS = ["#667eea", "#764ba2", "#8b9dc3", "#5a67d8"];
+  const comparisonData = items
+    .filter(item => matchesItemFilter(item.name))
+    .map(item => {
+      const branchStocks = Array.isArray(item.branchStocks) ? item.branchStocks : [];
+      const quantities = selectedBranches.reduce((result, branchName) => {
+        const branchStock = branchStocks.find(stock => getStockBranchName(stock) === branchName);
+        result[branchName] = Number(branchStock?.quantity || 0);
+        return result;
+      }, {});
+      return {
+        itemName: item.name,
+        category: item.categoryName || item.category?.name || item.category || 'Uncategorized',
+        quantities,
+        total: Object.values(quantities).reduce((sum, quantity) => sum + quantity, 0),
+        minimum: Number(item.minStock || 0)
+      };
+    });
 
-  // Sample data for tables
-  const stockData = [
-    { itemName: "Coffee Beans (Arabica)", category: "Ingredients", quantity: 25, status: "Normal" },
-    { itemName: "Milk Powder", category: "Ingredients", quantity: 15, status: "Low" },
-    { itemName: "Espresso Machine", category: "Equipment", quantity: 3, status: "Normal" },
-    { itemName: "Coffee Cups", category: "Supplies", quantity: 150, status: "High" },
-    { itemName: "Cleaning Supplies", category: "Maintenance", quantity: 8, status: "Low" }
-  ];
-
-  const lowStockData = [
-    { item: "Coffee Beans (Arabica)", available: 15, reorderLevel: 50, supplier: "CoffeeLanka" },
-    { item: "Milk Powder", available: 10, reorderLevel: 30, supplier: "Maliban" },
-    { item: "Cleaning Supplies", available: 8, reorderLevel: 20, supplier: "CleanCo" }
-  ];
+  const lowStockData = stockData
+    .filter(item => item.status === 'Low' || item.status === 'Out')
+    .map(item => ({ item: item.itemName, available: item.quantity, reorderLevel: items.find(source => source.name === item.itemName)?.minStock || 0, supplier: 'Not specified' }));
 
   const transactionData = [
-    { invoiceNo: "INV001", supplier: "CoffeeLanka", date: "2025-10-01", status: "Completed", total: "24,000" },
-    { invoiceNo: "INV002", supplier: "CoffeeLanka", date: "2025-10-03", status: "Pending", total: "12,000" },
-    { invoiceNo: "INV003", supplier: "Maliban", date: "2025-10-05", status: "Completed", total: "8,500" },
-    { invoiceNo: "INV004", supplier: "CleanCo", date: "2025-10-07", status: "Processing", total: "3,200" }
-  ];
+    ...purchaseOrders.map(order => ({ invoiceNo: order.poNumber, supplier: order.supplier || order.orderDetails?.supplierName || 'N/A', branchName: order.branchName || order.branch || order.createdByBranch, date: order.orderDate, status: order.status, total: order.total || '0', items: order.items || order.orderDetails?.items || [] })),
+    ...goodsReceived.map(grn => ({ invoiceNo: grn.grnNumber, supplier: grn.supplierName || 'N/A', branchName: grn.branchName || grn.branch, date: grn.receivedDate, status: grn.status || 'RECEIVED', total: grn.items?.reduce((sum, item) => sum + Number(item.quantityReceived || 0) * Number(item.unitPrice || 0), 0) || 0, items: grn.items || [] })),
+    ...issueNotes.map(note => ({ invoiceNo: note.issueNoteNumber, supplier: note.toBranchId?.branchName || note.purpose || 'Issue Note', branchName: getTransactionBranchName(note), date: note.issueDate, status: note.status, total: note.totalAmount || 0, items: note.items }))
+  ].filter(transaction => isInDateRange(transaction.date) && matchesBranchFilter(getTransactionBranchName(transaction)) && (selectedItemSet.size === 0 || (transaction.items || []).some(item => matchesItemFilter(item.itemName || item.name || item.itemId?.name))));
+
+  const pieData = stockData.filter(item => item.quantity > 0).map(item => ({ name: item.itemName, value: item.quantity }));
+  const monthlyUsage = issueNotes
+    .filter(note => isInDateRange(note.issueDate) && matchesBranchFilter(getTransactionBranchName(note)))
+    .reduce((months, note) => {
+      const month = new Date(note.issueDate).toLocaleString('en-US', { month: 'short' });
+      const quantity = (note.items || [])
+        .filter(item => matchesItemFilter(item.itemName || item.name || item.itemId?.name))
+        .reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+      months[month] = (months[month] || 0) + quantity;
+      return months;
+    }, {});
+  const lineData = Object.entries(monthlyUsage).map(([month, usage]) => ({ month, usage }));
+  const COLORS = ["#667eea", "#764ba2", "#8b9dc3", "#5a67d8", "#22a06b", "#e07a24"];
+  const totalStock = stockData.reduce((sum, item) => sum + item.quantity, 0);
+  const lowStockCount = lowStockData.length;
+  const reportScopeLabel = selectedSections.length ? `${selectedSections.length} views selected` : 'Build your report';
 
   // Export to PDF function
   const exportToPDF = async () => {
     try {
-      const element = document.querySelector('.report-content');
-      const canvas = await html2canvas(element, {
-        scale: 2,
-        useCORS: true,
-        allowTaint: false
-      });
-      
-      const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF('p', 'mm', 'a4');
-      
-      // Add title
-      pdf.setFontSize(20);
-      pdf.text('CBBS Inventory Report', 20, 20);
-      
-      // Add date range
-      pdf.setFontSize(12);
-      pdf.text(`Date Range: ${dateRange.startDate} to ${dateRange.endDate}`, 20, 35);
-      
-      // Add selected filters info
-      if (selectedSections.length > 0) {
-        pdf.text(`Report Sections: ${selectedSections.join(', ')}`, 20, 45);
-      }
-      
-      // Calculate image dimensions to fit page
+      const pdf = new jsPDF('l', 'mm', 'a4');
+      const cards = Array.from(document.querySelectorAll('.report-content > .report-card'));
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = pdf.internal.pageSize.getHeight();
-      const imgWidth = pdfWidth - 40; // 20mm margin on each side
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
-      
-      let heightLeft = imgHeight;
-      let position = 55; // Start below the title
-      
-      // Add image to PDF (handle multiple pages if needed)
-      pdf.addImage(imgData, 'PNG', 20, position, imgWidth, imgHeight);
-      heightLeft -= (pdfHeight - position);
-      
-      while (heightLeft >= 0) {
-        position = heightLeft - imgHeight;
-        pdf.addPage();
-        pdf.addImage(imgData, 'PNG', 20, position, imgWidth, imgHeight);
-        heightLeft -= pdfHeight;
+      const margin = 15;
+      const imageWidth = pdfWidth - margin * 2;
+      let hasContent = false;
+
+      for (const [cardIndex, card] of cards.entries()) {
+        const canvas = await html2canvas(card, {
+          scale: 3,
+          useCORS: true,
+          allowTaint: false,
+          backgroundColor: '#ffffff',
+          windowWidth: Math.max(card.scrollWidth, 1200),
+          logging: false,
+          onclone: clonedDocument => {
+            const clonedCards = clonedDocument.querySelectorAll('.report-content > .report-card');
+            const clonedCard = clonedCards[cardIndex];
+            if (clonedCard) {
+              clonedCard.style.width = '1200px';
+              clonedCard.style.maxWidth = '1200px';
+            }
+          }
+        });
+        const imageData = canvas.toDataURL('image/png');
+        const imageHeight = (canvas.height * imageWidth) / canvas.width;
+        const firstPageTop = cardIndex === 0 ? 45 : 20;
+        const usableHeight = pdfHeight - firstPageTop - margin;
+        let remainingHeight = imageHeight;
+        let imageTop = firstPageTop;
+
+        if (hasContent) pdf.addPage();
+        pdf.setFontSize(cardIndex === 0 ? 18 : 13);
+        pdf.text(cardIndex === 0 ? 'CBBS Inventory Report' : 'CBBS Inventory Report - continued', margin, 15);
+        pdf.setFontSize(9);
+        pdf.text(`Date range: ${dateRange.startDate || 'All time'} to ${dateRange.endDate || 'Today'}`, margin, 27);
+        hasContent = true;
+
+        while (remainingHeight > 0) {
+          const pageHeight = Math.min(remainingHeight, usableHeight);
+          pdf.addImage(imageData, 'PNG', margin, imageTop, imageWidth, imageHeight);
+          remainingHeight -= pageHeight;
+
+          if (remainingHeight > 0) {
+            pdf.addPage();
+            pdf.setFontSize(13);
+            pdf.text('CBBS Inventory Report - continued', margin, 15);
+            imageTop = 20 - (imageHeight - remainingHeight);
+          }
+        }
       }
-      
+
+      if (!hasContent) {
+        pdf.setFontSize(18);
+        pdf.text('CBBS Inventory Report', margin, 25);
+        pdf.setFontSize(11);
+        pdf.text('Select at least one report section before exporting.', margin, 38);
+      }
+
       // Generate filename with timestamp
       const timestamp = new Date().toISOString().slice(0, 10);
       pdf.save(`CBBS_Inventory_Report_${timestamp}.pdf`);
@@ -272,18 +428,34 @@ export default function Report() {
 
   return (
     <div className="report-page">
-      {/* Header */}
-      <div className="report-header">
-        <h2>Comprehensive Inventory Reports and Insights</h2>
-        <div className="export-buttons">
-          <button className="btn export" onClick={exportToPDF}>
-            📄 Export PDF
-          </button>
-          <button className="btn export" onClick={exportToCSV}>
-            📊 Export Excel
-          </button>
+      <div className="report-hero">
+        <div className="report-hero-copy">
+          <div className="report-kicker"><BarChart3 size={15} /> Operations intelligence</div>
+          <h2>Inventory, with a clearer point of view.</h2>
+          <p>Assemble a focused snapshot of stock, movement, and risk across your branches.</p>
+        </div>
+        <div className="report-hero-actions">
+          <span className="report-status"><span className="status-dot" /> Live data</span>
+          <button className="btn export" onClick={exportToPDF}><Download size={16} /> PDF</button>
+          <button className="btn export" onClick={exportToCSV}><FileSpreadsheet size={16} /> Excel</button>
+          <button className="btn reset" onClick={allReset}>Reset</button>
         </div>
       </div>
+
+      <div className="report-overview">
+        <div className="overview-intro"><span className="overview-eyebrow">Report studio</span><strong>{reportScopeLabel}</strong><span>Choose the evidence your team needs today.</span></div>
+        <div className="overview-stat"><Boxes size={18} /><span>Tracked stock</span><strong>{totalStock.toLocaleString()}</strong></div>
+        <div className="overview-stat overview-alert"><AlertTriangle size={18} /><span>Needs attention</span><strong>{lowStockCount}</strong></div>
+        <div className="overview-stat"><Activity size={18} /><span>Transactions</span><strong>{transactionData.length}</strong></div>
+      </div>
+
+      <div className="report-header">
+        <div><span className="section-eyebrow">01 / Compose</span><h3>Choose your report lens</h3></div>
+        <span className="report-date-note"><CalendarDays size={15} /> {dateRange.startDate || dateRange.endDate ? `${dateRange.startDate || 'Any time'} - ${dateRange.endDate || 'Today'}` : 'All available dates'}</span>
+      </div>
+
+      {loading && <div className="report-card">Loading report data...</div>}
+      {error && <div className="report-card" role="alert">{error}</div>}
 
       {/* Filter Section */}
       <div className="report-filter-card">
@@ -329,64 +501,67 @@ export default function Report() {
           </div>
         </div>
 
-        {/* Items Filter */}
-        <div className="filter-section">
-          <h4>📦 Select Items</h4>
-          <div className="items-filter">
-            <div className="filter-header">
-              <button 
-                className="select-all-btn"
-                onClick={() => setSelectedItems(selectedItems.length === availableItems.length ? [] : availableItems)}
-              >
-                {selectedItems.length === availableItems.length ? 'Deselect All' : 'Select All'}
-              </button>
-              <span className="selected-count">
-                {selectedItems.length} of {availableItems.length} selected
-              </span>
+        <div className="filter-section report-builder-section">
+          <div className="section-heading-row">
+            <div>
+              <h4>📦 Report scope</h4>
+              <p className="section-hint">Choose only what you need. Search stays fast even with a large catalogue.</p>
             </div>
-            <div className="filter-options items-grid">
-              {availableItems.map((item) => (
-                <label key={item} className="filter-item">
-                  <input
-                    type="checkbox"
-                    checked={selectedItems.includes(item)}
-                    onChange={() => toggleItem(item)}
-                  />
-                  {item}
-                </label>
-              ))}
+            <span className="scope-badge">{selectedItems.length + selectedBranches.length} selected</span>
+          </div>
+          <div className="quick-report-row">
+            <span className="quick-report-label">Quick reports</span>
+            <button type="button" className="quick-report-btn" onClick={() => applyPreset('low-stock')}>Low stock</button>
+            <button type="button" className="quick-report-btn" onClick={() => applyPreset('branch-compare')}><GitCompare size={14} /> Compare branches</button>
+            <button type="button" className="quick-report-btn" onClick={() => applyPreset('monthly-usage')}>Monthly usage</button>
+          </div>
+          <div className="selector-grid">
+            <div className="smart-selector">
+              <div className="selector-label-row"><span>Items</span><span>{selectedItems.length}/{availableItems.length}</span></div>
+              <button type="button" className="selector-trigger" onClick={() => setOpenSelector(openSelector === 'items' ? null : 'items')}>
+                <Search size={16} /><span>{selectedItems.length ? `${selectedItems.length} item${selectedItems.length === 1 ? '' : 's'} selected` : 'All items'}</span><ChevronDown size={16} />
+              </button>
+              {openSelector === 'items' && (
+                <div className="selector-menu">
+                  <div className="selector-search"><Search size={15} /><input autoFocus value={itemSearch} onChange={e => setItemSearch(e.target.value)} placeholder="Search items..." /></div>
+                  <select className="category-select" value={itemCategory} onChange={e => setItemCategory(e.target.value)} aria-label="Filter items by category">
+                    {itemCategories.map(category => <option key={category}>{category}</option>)}
+                  </select>
+                  <button type="button" className="select-visible-btn" onClick={toggleVisibleItems}>{visibleItems.every(item => selectedItems.includes(item)) ? 'Clear visible items' : `Select visible (${visibleItems.length})`}</button>
+                  <div className="selector-options">
+                    {visibleItems.map(item => <button type="button" className={`selector-option ${selectedItems.includes(item) ? 'is-selected' : ''}`} key={item} onClick={() => toggleItem(item)}><span>{item}</span>{selectedItems.includes(item) && <Check size={15} />}</button>)}
+                    {!visibleItems.length && <span className="empty-selector">No matching items</span>}
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="smart-selector">
+              <div className="selector-label-row"><span>Branches</span><span>{selectedBranches.length}/{availableBranches.length}</span></div>
+              <button type="button" className="selector-trigger" onClick={() => setOpenSelector(openSelector === 'branches' ? null : 'branches')}>
+                <Search size={16} /><span>{selectedBranches.length ? `${selectedBranches.length} branch${selectedBranches.length === 1 ? '' : 'es'} selected` : 'All branches'}</span><ChevronDown size={16} />
+              </button>
+              {openSelector === 'branches' && (
+                <div className="selector-menu">
+                  <div className="selector-search"><Search size={15} /><input autoFocus value={branchSearch} onChange={e => setBranchSearch(e.target.value)} placeholder="Search branches..." /></div>
+                  <button type="button" className="select-visible-btn" onClick={toggleVisibleBranches}>{visibleBranches.every(branch => selectedBranches.includes(branch)) ? 'Clear visible branches' : `Select visible (${visibleBranches.length})`}</button>
+                  <div className="selector-options">
+                    {visibleBranches.map(branch => <button type="button" className={`selector-option ${selectedBranches.includes(branch) ? 'is-selected' : ''}`} key={branch} onClick={() => toggleBranch(branch)}><span>{branch}</span>{selectedBranches.includes(branch) && <Check size={15} />}</button>)}
+                    {!visibleBranches.length && <span className="empty-selector">No matching branches</span>}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
-        </div>
-
-        {/* Branches Filter */}
-        <div className="filter-section">
-          <h4>🏢 Select Branches</h4>
-          <div className="branches-filter">
-            <div className="filter-header">
-              <button 
-                className="select-all-btn"
-                onClick={() => setSelectedBranches(selectedBranches.length === availableBranches.length ? [] : availableBranches)}
-              >
-                {selectedBranches.length === availableBranches.length ? 'Deselect All' : 'Select All'}
-              </button>
-              <span className="selected-count">
-                {selectedBranches.length} of {availableBranches.length} selected
-              </span>
-            </div>
-            <div className="filter-options">
-              {availableBranches.map((branch) => (
-                <label key={branch} className="filter-item branch-item">
-                  <input
-                    type="checkbox"
-                    checked={selectedBranches.includes(branch)}
-                    onChange={() => toggleBranch(branch)}
-                  />
-                  {branch}
-                </label>
+          {(selectedItems.length > 0 || selectedBranches.length > 0) && (
+            <div className="selection-chips">
+              {[...selectedBranches.map(branch => ({ label: branch, type: 'branch' })), ...selectedItems.map(item => ({ label: item, type: 'item' }))].map(selection => (
+                <button type="button" className="selection-chip" key={`${selection.type}-${selection.label}`} onClick={() => selection.type === 'branch' ? toggleBranch(selection.label) : toggleItem(selection.label)}>
+                  <span>{selection.label}</span><X size={13} />
+                </button>
               ))}
+              <button type="button" className="clear-selection-btn" onClick={() => { setSelectedItems([]); setSelectedBranches([]); }}>Clear scope</button>
             </div>
-          </div>
+          )}
         </div>
       </div>
 
@@ -475,7 +650,47 @@ export default function Report() {
           </div>
         )}
 
-        {selectedSections.includes("Current Stock Balance") && (
+        {selectedSections.includes("Current Stock Balance") && selectedBranches.length >= 2 && (
+          <div className="report-card branch-comparison-card">
+            <div className="comparison-title-row">
+              <div>
+                <h3>Branch Stock Comparison</h3>
+                <p className="section-hint">Selected items compared across {selectedBranches.length} branches</p>
+              </div>
+              <span className="scope-badge">{comparisonData.length} items</span>
+            </div>
+            <div className="report-table-scroll">
+              <table className="report-table comparison-table">
+                <thead>
+                  <tr>
+                    <th>Item</th>
+                    {selectedBranches.map(branch => <th key={branch}>{branch}</th>)}
+                    <th>Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {comparisonData.map(item => (
+                    <tr key={item.itemName}>
+                      <td><strong>{item.itemName}</strong><small>{item.category}</small></td>
+                      {selectedBranches.map(branch => <td key={branch} className={item.quantities[branch] <= item.minimum ? 'comparison-low' : ''}>{item.quantities[branch]}</td>)}
+                      <td><strong>{item.total}</strong></td>
+                    </tr>
+                  ))}
+                  {!comparisonData.length && <tr><td colSpan={selectedBranches.length + 2} className="empty-table-cell">No items match the current scope.</td></tr>}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {selectedSections.includes("Current Stock Balance") && selectedBranches.length < 2 && (
+          <div className="report-card comparison-callout">
+            <GitCompare size={20} />
+            <div><strong>Select at least two branches to compare stock.</strong><span>Open the Branches selector above, then choose the branches you want to see side by side.</span></div>
+          </div>
+        )}
+
+        {selectedSections.includes("Current Stock Balance") && selectedBranches.length < 2 && (
           <div className="report-card">
             <h3>Current Stock Balance</h3>
             <table className="report-table">
