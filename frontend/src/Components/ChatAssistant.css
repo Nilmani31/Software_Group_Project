@@ -43,7 +43,7 @@
   position: fixed;
   bottom: 100px;
   right: 30px;
-  width: 380px;
+  width: 440px;
   height: 550px;
   background: white;
   border-radius: 20px;
@@ -291,6 +291,7 @@
   border-radius: 50%;
   width: 45px;
   height: 45px;
+  flex-shrink: 0;
   color: white;
   cursor: pointer;
   display: flex;

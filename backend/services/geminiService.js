@@ -15,7 +15,7 @@ class GeminiService {
         }
 
         this.genAI = new GoogleGenerativeAI(apiKey);
-        this.modelName = "gemini-3.5-flash-lite"; // lighter model to reduce quota limits
+        this.modelName = "gemini-robotics-er-2-preview"; // much more stable model that supports function calling
         
         // Rate limiting for quota management  
         this.lastRequestTime = 0;
