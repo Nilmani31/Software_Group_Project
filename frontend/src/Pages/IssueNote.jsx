@@ -255,28 +255,27 @@ const IssueNote = () => {
 
   const isBranchRequest = (note) => {
     const original = note._original || note;
-    const purpose = original.purpose || note.issueType || '';
-    return Boolean(original.toBranchId) || /branch|stock|transfer/i.test(purpose);
+    return original.creationMode === 'branchRequest';
   };
 
-  const isActiveBranchRequest = (note) => {
-    const requestStatus = String(note._original?.status || note.status || '').toLowerCase();
-    return isBranchRequest(note) && ['pending', 'approved', 'processing'].includes(requestStatus);
-  };
+  const getRequestStatus = (note) =>
+    String(note._original?.status || note.status || '').toLowerCase();
+
+  const branchRequestData = issueNotes
+    .filter(isBranchRequest)
+    .map(note => ({
+      ...note,
+      requestNumber: note.issueNumber,
+      requestFrom: note.issuedTo,
+      requestedFrom: note.issuedTo,
+      requestedBy: note.issuedBy,
+      requestDate: note.issueDate,
+      requestType: note.issueType
+    }));
 
   const currentData = activeTab === "branchRequests"
-    ? issueNotes
-        .filter(isActiveBranchRequest)
-        .map(note => ({
-          ...note,
-          requestNumber: note.issueNumber,
-          requestFrom: note.issuedTo,
-          requestedFrom: note.issuedTo,
-          requestedBy: note.issuedBy,
-          requestDate: note.issueDate,
-          requestType: note.issueType
-        }))
-    : issueNotes.filter(note => !isActiveBranchRequest(note));
+    ? branchRequestData
+    : issueNotes.filter(note => !isBranchRequest(note));
 
   const getStatusIcon = (status) => {
     switch (status) {
@@ -1171,6 +1170,7 @@ const IssueNote = () => {
       setItemQuantity(0);
 
       alert(createMode === "branchRequest" ? "Branch request created successfully!" : "Issue note created successfully!");
+      setActiveTab(createMode === "branchRequest" ? "branchRequests" : "issueNotes");
       closeCreateModal();
       await Promise.all([
         fetchIssueNotes(),
@@ -1312,8 +1312,8 @@ const IssueNote = () => {
                         <FaCheckCircle />
                       </div>
                       <div className="stat-info">
-                        <span className="stat-label">Approved</span>
-                        <span className="stat-value">{currentData.filter(i => i.status === "issued" || i.status === "Approved").length}</span>
+                        <span className="stat-label">Issued</span>
+                        <span className="stat-value">{branchRequestData.filter(i => getRequestStatus(i) === "issued").length}</span>
                       </div>
                     </div>
                     <div className="stat-card">
@@ -1321,8 +1321,8 @@ const IssueNote = () => {
                         <FaClock />
                       </div>
                       <div className="stat-info">
-                        <span className="stat-label">Processing</span>
-                        <span className="stat-value">1</span>
+                        <span className="stat-label">Pending</span>
+                        <span className="stat-value">{branchRequestData.filter(i => getRequestStatus(i) === "pending").length}</span>
                       </div>
                     </div>
                     <div className="stat-card">
@@ -1330,15 +1330,15 @@ const IssueNote = () => {
                         <FaTimesCircle />
                       </div>
                       <div className="stat-info">
-                        <span className="stat-label">Pending</span>
-                        <span className="stat-value">1</span>
+                        <span className="stat-label">Rejected</span>
+                        <span className="stat-value">{branchRequestData.filter(i => getRequestStatus(i) === "rejected").length}</span>
                       </div>
                     </div>
                     <div className="stat-card total">
                       <div className="stat-icon">📮</div>
                       <div className="stat-info">
-                        <span className="stat-label">Total Notes</span>
-                        <span className="stat-value">{issueNotes.length}</span>
+                        <span className="stat-label">Total Requests</span>
+                        <span className="stat-value">{branchRequestData.length}</span>
                       </div>
                     </div>
                   </>

@@ -255,8 +255,9 @@ exports.createIssueNote = async (req, res) => {
       toBranchId,
       issuedBy: user._id,
       purpose,
-      remarks,
-      status: creationMode === 'branchRequest' ? 'pending' : 'issued'
+       remarks,
+       status: creationMode === 'branchRequest' ? 'pending' : 'issued',
+       creationMode: creationMode === 'branchRequest' ? 'branchRequest' : 'issueNote'
     });
 
     await issueNote.save();
