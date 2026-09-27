@@ -5,11 +5,11 @@ import ChatAssistant from '../Components/ChatAssistant';
 
 const MainLayout = ({ children }) => {
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100vh" }}>
+    <div className="app-wrapper">
       <Navbar />
-      <div style={{ display: "flex", flex: 1 }}>
+      <div className="app-layout">
         <Sidebar />
-        <div style={{ flex: 1 }}>{children}</div>
+        <main className="main-content">{children}</main>
       </div>
       <ChatAssistant />
     </div>

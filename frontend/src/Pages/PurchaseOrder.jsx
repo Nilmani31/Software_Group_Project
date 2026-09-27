@@ -551,68 +551,97 @@ export default function PurchaseOrder() {
                   </div>
                 </header>
 
-                {/* PO List */}
+                {/* PO Table */}
                 <section className="po-main">
                   {filtered.length === 0 ? (
                     <div className="no-results">
                       <p>No purchase orders found matching "{query}"</p>
                     </div>
                   ) : (
-                    <div className="po-list">
-                      {filtered.map((po, idx) => (
-                        <div className={`po-card ${idx === 0 ? 'selected' : ''}`} key={po.poNumber || po.id}>
-                          <div className="po-row top">
-                            <div className="po-id">{po.poNumber || po.id}</div>
-                            <div className={`po-badge ${po.status === 'Pending' ? 'pending' : (po.status === 'Cancelled' ? 'cancelled' : 'received')}`}>
-                              {po.status}
-                            </div>
-                            <button className="btn-view-details" onClick={() => { setSelected(po); setOpenView(true); }}>View Details</button>
-                          </div>
+                    <div className="list-wrap po-table-wrap">
+                      <table className="inventory-table po-table" role="table" aria-label="Purchase orders list">
+                        <thead>
+                          <tr>
+                            <th scope="col" style={{ width: '12%' }}>PO Number</th>
+                            <th scope="col" style={{ width: '9%' }}>Order Type</th>
+                            <th scope="col" style={{ width: '16%' }}>Supplier / Branch</th>
+                            <th scope="col" style={{ width: '13%' }}>Created Branch</th>
+                            <th scope="col" style={{ width: '10%' }}>Order Date</th>
+                            <th scope="col" style={{ width: '10%' }}>Expected Date</th>
+                            <th scope="col" style={{ width: '9%' }}>Created By</th>
+                            <th scope="col" style={{ width: '6%', textAlign: 'center' }}>Items</th>
+                            <th scope="col" style={{ width: '7%', textAlign: 'center' }}>Status</th>
+                            <th scope="col" style={{ width: '8%', textAlign: 'center' }}>Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {filtered.map((po) => {
+                            const orderType = po.orderType || 'Supplier';
+                            const targetEntity = orderType === 'Supplier'
+                              ? (po.supplier || po.orderDetails?.supplierName || 'N/A')
+                              : (po.branch || po.orderDetails?.branch || 'N/A');
+                            const phone = po.orderDetails?.phone;
+                            const itemCount = Array.isArray(po.items)
+                              ? po.items.length
+                              : (po.items && typeof po.items === 'object' ? Object.keys(po.items).length : 0);
 
-                          <div className="po-row info">
-                            {po.orderType === 'Supplier' && (
-                              <>
-                                <div className="info-col">
-                                  <div className="info-label">Supplier</div>
-                                  <div className="info-val">{po.supplier || po.orderDetails?.supplierName}</div>
-                                </div>
-                                <div className="info-col">
-                                  <div className="info-label">Phone</div>
-                                  <div className="info-val">{po.orderDetails?.phone}</div>
-                                </div>
-                              </>
-                            )}
-                            <div className="info-col">
-                              <div className="info-label">Created Branch</div>
-                              <div className="info-val">{po.createdByBranch || po.branch}</div>
-                            </div>
-                            <div className="info-col">
-                              <div className="info-label">Order Date</div>
-                              <div className="info-val">{formatDate(po.orderDate)}</div>
-                            </div>
-                            <div className="info-col">
-                              <div className="info-label">Expected Date</div>
-                              <div className="info-val">{formatDate(po.expectedDate)}</div>
-                            </div>
-                            <div className="info-col">
-                              <div className="info-label">Created By</div>
-                              <div className="info-val">{po.createdBy}</div>
-                            </div>
-                          </div>
-
-                          <div className="po-items">
-                            {Array.isArray(po.items) ? (
-                              po.items.map((it, i) => (
-                                <span className="pill" key={i}>{it}</span>
-                              ))
-                            ) : po.items && typeof po.items === 'object' ? (
-                              Object.values(po.items).map((it, i) => (
-                                <span className="pill" key={i}>{it}</span>
-                              ))
-                            ) : null}
-                          </div>
-                        </div>
-                      ))}
+                            return (
+                              <tr key={po.poNumber || po.id} className="inventory-row">
+                                <td style={{ fontWeight: 700, color: 'var(--text-primary)' }}>
+                                  {po.poNumber || po.id}
+                                </td>
+                                <td>
+                                  <span className={`role-pill ${orderType === 'Supplier' ? 'role-manager' : 'role-branch-manager'}`} style={{ fontSize: '11px', padding: '3px 8px' }}>
+                                    {orderType}
+                                  </span>
+                                </td>
+                                <td>
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                    <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{targetEntity}</span>
+                                    {phone && <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>📞 {phone}</span>}
+                                  </div>
+                                </td>
+                                <td>{po.createdByBranch || po.branch || '-'}</td>
+                                <td>{formatDate(po.orderDate)}</td>
+                                <td>{formatDate(po.expectedDate)}</td>
+                                <td>{po.createdBy || '-'}</td>
+                                <td style={{ textAlign: 'center' }}>
+                                  <span style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    minWidth: '24px',
+                                    height: '22px',
+                                    padding: '0 6px',
+                                    borderRadius: '9999px',
+                                    background: 'var(--bg-subtle)',
+                                    border: '1px solid var(--border-default)',
+                                    fontSize: '12px',
+                                    fontWeight: 600,
+                                    color: 'var(--text-secondary)'
+                                  }}>
+                                    {itemCount}
+                                  </span>
+                                </td>
+                                <td style={{ textAlign: 'center' }}>
+                                  <span className={`po-detail-badge ${po.status === 'Pending' ? 'pending' : (po.status === 'Cancelled' ? 'cancelled' : 'received')}`} style={{ fontSize: '11px', padding: '3px 10px' }}>
+                                    {po.status}
+                                  </span>
+                                </td>
+                                <td style={{ textAlign: 'center' }}>
+                                  <button
+                                    className="btn-view-details"
+                                    onClick={() => { setSelected(po); setOpenView(true); }}
+                                    style={{ padding: '6px 14px', fontSize: '12px' }}
+                                  >
+                                    View Details
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
                     </div>
                   )}
                 </section>
@@ -635,7 +664,7 @@ export default function PurchaseOrder() {
             </div>
             <div className="modal-body-inventory">
               <form onSubmit={requestSubmitPO} className="modal-form-inventory">
-                <h4 style={{ margin: '0 0 12px 0', fontSize: '14px', fontWeight: 700, color: '#667eea' }}>Select Item</h4>
+                <h4 style={{ margin: '0 0 12px 0', fontSize: '13px', fontWeight: 600, color: '#334155', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Select Item</h4>
                 <div className="form-layout-inventory">
                   <div className="form-group-inventory">
                     <label className="form-label-inventory">Category</label>
@@ -685,12 +714,12 @@ export default function PurchaseOrder() {
                                   style={{
                                     cursor: 'pointer',
                                     transition: 'background-color 0.2s',
-                                    backgroundColor: selectedBranchRow === branchName ? '#667eea' : 'transparent',
+                                    backgroundColor: selectedBranchRow === branchName ? '#2563eb' : 'transparent',
                                     color: selectedBranchRow === branchName ? 'white' : 'inherit'
                                   }}
                                   onMouseEnter={(e) => {
                                     if (selectedBranchRow !== branchName) {
-                                      e.currentTarget.style.backgroundColor = '#f0f4ff'
+                                      e.currentTarget.style.backgroundColor = '#f1f5f9'
                                     }
                                   }}
                                   onMouseLeave={(e) => {
@@ -755,7 +784,7 @@ export default function PurchaseOrder() {
                   </div>
                 )}
 
-                <h4 style={{ margin: '24px 0 12px 0', fontSize: '14px', fontWeight: 700, color: '#667eea' }}>Order Details</h4>
+                <h4 style={{ margin: '24px 0 12px 0', fontSize: '13px', fontWeight: 600, color: '#334155', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Order Details</h4>
                 <div className="form-layout-inventory">
                   <div className="form-group-inventory">
                     <label className="form-label-inventory">PO Number</label>
@@ -990,7 +1019,7 @@ export default function PurchaseOrder() {
                 setOpenEdit(false)
                 setOpenView(true)
               }}>
-                <h4 style={{ margin: '0 0 12px 0', fontSize: '14px', fontWeight: 700, color: '#667eea' }}>Order Details</h4>
+                <h4 style={{ margin: '0 0 12px 0', fontSize: '13px', fontWeight: 600, color: '#334155', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Order Details</h4>
                 <div className="form-layout-inventory">
                   <div className="form-group-inventory">
                     <label className="form-label-inventory">Order By</label>
@@ -1061,7 +1090,7 @@ export default function PurchaseOrder() {
                   </div>
                 </div>
 
-                <h4 style={{ margin: '24px 0 12px 0', fontSize: '14px', fontWeight: 700, color: '#667eea' }}>Edit Items</h4>
+                <h4 style={{ margin: '24px 0 12px 0', fontSize: '13px', fontWeight: 600, color: '#334155', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Edit Items</h4>
                 <div className="form-layout-inventory">
                   <div className="form-group-inventory">
                     <label className="form-label-inventory">Category</label>
@@ -1111,12 +1140,12 @@ export default function PurchaseOrder() {
                                   style={{
                                     cursor: 'pointer',
                                     transition: 'background-color 0.2s',
-                                    backgroundColor: selectedBranchRow === branchName ? '#667eea' : 'transparent',
+                                    backgroundColor: selectedBranchRow === branchName ? '#2563eb' : 'transparent',
                                     color: selectedBranchRow === branchName ? 'white' : 'inherit'
                                   }}
                                   onMouseEnter={(e) => {
                                     if (selectedBranchRow !== branchName) {
-                                      e.currentTarget.style.backgroundColor = '#f0f4ff'
+                                      e.currentTarget.style.backgroundColor = '#f1f5f9'
                                     }
                                   }}
                                   onMouseLeave={(e) => {

@@ -485,7 +485,7 @@ export default function GoodReceived() {
                   </div>
                 )}
 
-                <h4 style={{ margin: '0 0 16px 0', fontSize: '14px', fontWeight: 700, color: '#667eea' }}>Goods Details</h4>
+                <h4 style={{ margin: '0 0 16px 0', fontSize: '13px', fontWeight: 600, color: '#334155', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Goods Details</h4>
                 <div className="form-layout-inventory">
                   <div className="form-group-inventory">
                     <label className="form-label-inventory">Purchase Order Number</label>
@@ -529,7 +529,7 @@ export default function GoodReceived() {
                   </div>
                 </div>
 
-                <h4 style={{ margin: '24px 0 16px 0', fontSize: '14px', fontWeight: 700, color: '#667eea' }}>Items Received</h4>
+                <h4 style={{ margin: '24px 0 16px 0', fontSize: '13px', fontWeight: 600, color: '#334155', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Items Received</h4>
                 <div style={{ marginBottom: '16px' }}>
                   <div style={{
                     display: 'grid',
@@ -538,9 +538,10 @@ export default function GoodReceived() {
                     marginBottom: '12px',
                     fontWeight: '600',
                     fontSize: '12px',
-                    color: '#667eea',
+                    color: '#475569',
                     padding: '8px 12px',
-                    backgroundColor: '#f0f4ff',
+                    backgroundColor: '#f8fafc',
+                    border: '1px solid #e2e8f0',
                     borderRadius: '6px',
                     alignItems: 'center',
                     width: '100%'
@@ -682,7 +683,7 @@ export default function GoodReceived() {
                 </div>
               </div>
 
-              <h4 style={{ margin: '0 0 16px 0', fontSize: '14px', fontWeight: 700, color: '#667eea' }}>Receipt Information</h4>
+              <h4 style={{ margin: '0 0 16px 0', fontSize: '13px', fontWeight: 600, color: '#334155', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Receipt Information</h4>
               <div className="form-layout-inventory">
                 <div className="form-group-inventory">
                   <label className="form-label-inventory">GRN Number</label>
@@ -735,7 +736,7 @@ export default function GoodReceived() {
                 </div>
               </div>
 
-              <h4 style={{ margin: '24px 0 16px 0', fontSize: '14px', fontWeight: 700, color: '#667eea' }}>Items Received</h4>
+              <h4 style={{ margin: '24px 0 16px 0', fontSize: '13px', fontWeight: 600, color: '#334155', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Items Received</h4>
               <div style={{ marginBottom: '16px' }}>
                 <div style={{
                   display: 'grid',
@@ -744,9 +745,10 @@ export default function GoodReceived() {
                   marginBottom: '12px',
                   fontWeight: '600',
                   fontSize: '12px',
-                  color: '#667eea',
+                  color: '#475569',
                   padding: '8px 12px',
-                  backgroundColor: '#f0f4ff',
+                  backgroundColor: '#f8fafc',
+                  border: '1px solid #e2e8f0',
                   borderRadius: '6px',
                   alignItems: 'center'
                 }}>

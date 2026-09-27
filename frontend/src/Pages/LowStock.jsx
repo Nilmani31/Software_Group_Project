@@ -3,6 +3,7 @@ import Sidebar from "../Components/Sidebar";
 import Navbar from "../Components/Navbar";
 import ChatAssistant from "../Components/ChatAssistant";
 import { getAuthHeaders } from "../utils/authHeaders";
+import { Package, AlertTriangle, AlertOctagon, ClipboardList, X } from "lucide-react";
 
 const LowStock = () => {
   const [lowStockItems, setLowStockItems] = useState([]);
@@ -148,7 +149,7 @@ const LowStock = () => {
 
               <div className="stats-cards">
                 <div className="stat-card">
-                  <div className="stat-icon">📦</div>
+                  <div className="stat-icon"><Package size={20} /></div>
                   <div className="stat-content">
                     <h3>Low Stock Items</h3>
                     <p className="stat-number">{lowStockItems.length}</p>
@@ -156,7 +157,7 @@ const LowStock = () => {
                   </div>
                 </div>
                 <div className="stat-card critical">
-                  <div className="stat-icon">⚠️</div>
+                  <div className="stat-icon"><AlertTriangle size={20} /></div>
                   <div className="stat-content">
                     <h3>Critical Items</h3>
                     <p className="stat-number">{lowStockItems.filter(item => item.status === 'Critical').length}</p>
@@ -164,7 +165,7 @@ const LowStock = () => {
                   </div>
                 </div>
                 <div className="stat-card">
-                  <div className="stat-icon">📋</div>
+                  <div className="stat-icon"><ClipboardList size={20} /></div>
                   <div className="stat-content">
                     <h3>Total Shortage</h3>
                     <p className="stat-number">{lowStockItems.reduce((sum, item) => sum + item.shortage, 0)}</p>
@@ -242,7 +243,7 @@ const LowStock = () => {
                 <h2>Order Stock</h2>
                 <p className="modal-subtitle">Stock Available Branches or Supplier Details</p>
               </div>
-              <button className="modal-close" onClick={handleCloseModal}>✕</button>
+              <button className="modal-close" onClick={handleCloseModal} aria-label="Close modal"><X size={18} /></button>
             </div>
 
             <div className="modal-body">

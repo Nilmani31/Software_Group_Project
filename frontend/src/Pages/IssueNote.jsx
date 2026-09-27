@@ -1347,60 +1347,91 @@ const IssueNote = () => {
 
 
 
-              {/* List View - Creative Expandable */}
-              {viewType === 'list' && (
-                <div className="issues-list-creative">
-                  {currentData.map((item) => (
-                    <div
-                      key={item.id}
-                      className="list-item-creative"
+              {/* Table View */}
+              {currentData.length === 0 && !loading ? (
+                <div className="empty-state-card">
+                  <div className="empty-state-icon">📋</div>
+                  <h3>No {activeTab === "branchRequests" ? "Branch Requests" : "Issue Notes"} Found</h3>
+                  <p>There are no {activeTab === "branchRequests" ? "branch requisition requests" : "issue notes"} recorded yet.</p>
+                  {canEdit && (
+                    <button
+                      type="button"
+                      className="btn-create-issue"
+                      onClick={() => openCreateModal(activeTab === "branchRequests" ? "branchRequest" : "issueNote")}
                     >
-                      {/* Main Row */}
-                      <div className="list-row-main">
-                        <div className="row-left">
-                          <div className="issue-number-badge">
+                      {activeTab === "branchRequests" ? "+ Create New Branch Request" : "+ Create New Issue Note"}
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div className="list-wrap issue-table-wrap">
+                  <table className="inventory-table issue-table" role="table" aria-label={activeTab === "issueNotes" ? "Issue notes list" : "Branch requests list"}>
+                    <thead>
+                      <tr>
+                        <th scope="col" style={{ width: '15%' }}>{activeTab === "issueNotes" ? "Issue Number" : "Request Number"}</th>
+                        <th scope="col" style={{ width: '18%' }}>{activeTab === "issueNotes" ? "Issued To (Branch)" : "Request From (Branch)"}</th>
+                        <th scope="col" style={{ width: '12%' }}>Type</th>
+                        <th scope="col" style={{ width: '12%' }}>Date</th>
+                        <th scope="col" style={{ width: '14%' }}>{activeTab === "issueNotes" ? "Issued By" : "Requested By"}</th>
+                        <th scope="col" style={{ width: '9%', textAlign: 'center' }}>Items</th>
+                        <th scope="col" style={{ width: '10%', textAlign: 'center' }}>Status</th>
+                        <th scope="col" style={{ width: '10%', textAlign: 'center' }}>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {currentData.map((item) => (
+                        <tr key={item.id} className="inventory-row">
+                          <td style={{ fontWeight: 700, color: 'var(--text-primary)' }}>
                             {activeTab === "issueNotes" ? item.issueNumber : item.requestNumber}
-                          </div>
-                          <div className="row-info">
-                            <h4 className="branch-name">
-                              {activeTab === "issueNotes" ? item.issuedTo : item.requestFrom}
-                            </h4>
-                            <div className="row-details">
-                              <span className="detail-item">
-                                <span className="detail-icon">📅</span>
-                                {item.issueDate || item.requestDate}
-                              </span>
-                              <span className="detail-item">
-                                <span className="detail-icon">👤</span>
-                                {item.issuedBy || item.requestedBy}
-                              </span>
-                              <span className="detail-item">
-                                <span className="detail-icon">📦</span>
-                                {item.itemCount} items
-                              </span>
+                          </td>
+                          <td style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
+                            {activeTab === "issueNotes" ? item.issuedTo : item.requestFrom}
+                          </td>
+                          <td>
+                            <span className={`type-badge ${getTypeColor(item.issueType || item.requestType)}`} style={{ fontSize: '11px', padding: '3px 8px' }}>
+                              {item.issueType || item.requestType}
+                            </span>
+                          </td>
+                          <td>{item.issueDate || item.requestDate}</td>
+                          <td>{item.issuedBy || item.requestedBy}</td>
+                          <td style={{ textAlign: 'center' }}>
+                            <span style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              minWidth: '24px',
+                              height: '22px',
+                              padding: '0 6px',
+                              borderRadius: '9999px',
+                              background: 'var(--bg-subtle)',
+                              border: '1px solid var(--border-default)',
+                              fontSize: '12px',
+                              fontWeight: 600,
+                              color: 'var(--text-secondary)'
+                            }}>
+                              {item.itemCount || 0}
+                            </span>
+                          </td>
+                          <td style={{ textAlign: 'center' }}>
+                            <div className={`status-badge ${getStatusColor(item.status)}`} style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '11px', padding: '3px 8px' }}>
+                              {getStatusIcon(item.status)}
+                              <span>{item.status}</span>
                             </div>
-                          </div>
-                        </div>
-
-                        <div className="row-right">
-                          <span className={`type-badge ${getTypeColor(item.issueType || item.requestType)}`}>
-                            {item.issueType || item.requestType}
-                          </span>
-                          <div className={`status-badge ${getStatusColor(item.status)}`}>
-                            {getStatusIcon(item.status)}
-                            <span>{item.status}</span>
-                          </div>
-                          <button
-                            className="view-details-btn"
-                            onClick={() => openModal(item)}
-                            title="View Details"
-                          >
-                            <FaEye />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+                          </td>
+                          <td style={{ textAlign: 'center' }}>
+                            <button
+                              className="btn-view-details"
+                              onClick={() => openModal(item)}
+                              title="View Details"
+                              style={{ padding: '6px 14px', fontSize: '12px' }}
+                            >
+                              View Details
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               )}
             </div>
