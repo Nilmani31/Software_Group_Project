@@ -107,12 +107,10 @@ const IssueNote = () => {
             name: item.itemId?.name || 'Unknown Item',
             itemUnitId: item.itemUnitId?._id || item.itemUnitId,
             qty: item.quantity,
-            unit: item.itemUnitId
-              ? `${item.itemUnitId.unitValue || 1}${item.itemUnitId.unit || item.itemId?.unit || 'unit'}`
-              : item.itemId?.unit || 'unit',
+            unit: item.itemUnitId?.unit || item.itemId?.unit || 'unit',
             unitPrice: item.unitPrice || item.itemUnitId?.unitPrice || 0,
             totalPrice: item.totalPrice || 0,
-            availableQty: 0
+            availableQty: item.availableQty || 0
           })),
           _original: note // Keep original data for API calls
         };
@@ -1174,7 +1172,10 @@ const IssueNote = () => {
 
       alert(createMode === "branchRequest" ? "Branch request created successfully!" : "Issue note created successfully!");
       closeCreateModal();
-      fetchIssueNotes(); // Refresh the list
+      await Promise.all([
+        fetchIssueNotes(),
+        fetchItems()
+      ]); // Refresh notes and live stock quantities
     } catch (error) {
       console.error('Error creating issue note:', error);
       alert('Error creating issue note: ' + error.message);

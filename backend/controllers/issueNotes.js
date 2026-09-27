@@ -32,7 +32,18 @@ exports.getAllIssueNotes = async (req, res) => {
         .populate('itemUnitId', 'name unit unitValue unitPrice')
         .select('-__v')
         .lean();
-      return { ...note, items };
+      const itemsWithAvailability = await Promise.all(items.map(async (item) => {
+        const stockQuery = {
+          itemId: item.itemId?._id || item.itemId,
+          branchId: note.fromBranchId?._id || note.fromBranchId,
+          ...(item.itemUnitId?._id || item.itemUnitId
+            ? { itemUnitId: item.itemUnitId?._id || item.itemUnitId }
+            : {})
+        };
+        const stock = await Stock.findOne(stockQuery).select('quantity').lean();
+        return { ...item, availableQty: stock?.quantity || 0 };
+      }));
+      return { ...note, items: itemsWithAvailability };
     }));
     
     console.log('📊 Fetching all issue notes, total:', issueNotesWithItems.length);
@@ -212,6 +223,11 @@ exports.createIssueNote = async (req, res) => {
       const stockRecord = await Stock.findOne(stockQuery);
 
       if (!stockRecord || stockRecord.quantity < item.quantity) {
+          if (creationMode !== 'branchRequest') {
+            return res.status(400).json({
+              error: `Insufficient stock for item: ${itemExists.name}. Available: ${stockRecord?.quantity || 0}, Required: ${item.quantity}`
+            });
+          }
         console.warn(`⚠️ Insufficient stock for item: ${itemExists.name}. Available: ${stockRecord?.quantity || 0}, Required: ${item.quantity}. Creation proceeds; stock will be validated during approval.`);
       }
     }
@@ -273,6 +289,47 @@ exports.createIssueNote = async (req, res) => {
     // Update total amount in issue note
     issueNote.totalAmount = totalAmount;
     await issueNote.save();
+
+    // Direct issue notes are already issued, so move stock immediately.
+    if (creationMode !== 'branchRequest') {
+      for (const item of issueNoteItems) {
+        const sourceStockQuery = {
+          itemId: item.itemId,
+          branchId: issueNote.fromBranchId,
+          ...(item.itemUnitId && { itemUnitId: item.itemUnitId })
+        };
+        const sourceStock = await Stock.findOne(sourceStockQuery);
+
+        if (!sourceStock || sourceStock.quantity < item.quantity) {
+          throw new Error(`Insufficient stock for item. Available: ${sourceStock?.quantity || 0}, Required: ${item.quantity}`);
+        }
+
+        sourceStock.quantity -= item.quantity;
+        await sourceStock.save();
+
+        if (issueNote.toBranchId) {
+          const destinationStockQuery = {
+            itemId: item.itemId,
+            branchId: issueNote.toBranchId,
+            ...(item.itemUnitId && { itemUnitId: item.itemUnitId })
+          };
+          let destinationStock = await Stock.findOne(destinationStockQuery);
+
+          if (destinationStock) {
+            destinationStock.quantity += item.quantity;
+            await destinationStock.save();
+          } else {
+            destinationStock = new Stock({
+              ...destinationStockQuery,
+              quantity: item.quantity,
+              minStockLevel: 0,
+              maxStockLevel: 1000
+            });
+            await destinationStock.save();
+          }
+        }
+      }
+    }
 
     // Populate the response with full details
     const populatedIssueNote = await IssueNote.findById(issueNote._id)
