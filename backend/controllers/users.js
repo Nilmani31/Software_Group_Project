@@ -1,17 +1,41 @@
-
 const User = require("../models/users");
 const bcrypt = require("bcrypt");
 const { generatePasswordByRole } = require("../utils/passwordGenerator");
 const { sendWelcomeMessage } = require("../services/messageService");
+const { resolveBranchName } = require("../utils/branchFilter");
+
+const DEFAULT_ROLE_PERMISSIONS = {
+  ROLE_ADMIN: ['ALL'],
+  ROLE_DIRECTOR: ['DASHBOARD', 'REPORTS', 'INVENTORY', 'PURCHASE_ORDERS', 'GOODS_RECEIVED', 'ISSUE_NOTES', 'USERS', 'BRANCHES', 'CATEGORIES'],
+  ROLE_MANAGER: ['DASHBOARD', 'INVENTORY', 'PURCHASE_ORDERS', 'GOODS_RECEIVED', 'ISSUE_NOTES', 'REPORTS'],
+  ROLE_BRANCH_MANAGER: ['DASHBOARD', 'INVENTORY', 'PURCHASE_ORDERS', 'GOODS_RECEIVED', 'ISSUE_NOTES'],
+  ROLE_STAFF: ['DASHBOARD', 'INVENTORY', 'GOODS_RECEIVED']
+};
 
 // GET ALL USERS
 exports.getAllUsers = async (req, res) => {
   try {
-    const users = await User.find().select('-password');
+    const users = await User.find().select('-password').lean();
+    
+    // Attach resolved branchName and effective permissions
+    const enrichedUsers = await Promise.all(
+      users.map(async (u) => {
+        const branchName = await resolveBranchName(u.branchId);
+        const permissions = (u.permissions && u.permissions.length > 0)
+          ? u.permissions
+          : (DEFAULT_ROLE_PERMISSIONS[u.roleId] || ['DASHBOARD', 'INVENTORY']);
+        return {
+          ...u,
+          branchName,
+          permissions
+        };
+      })
+    );
+
     res.json({
       success: true,
-      count: users.length,
-      data: users
+      count: enrichedUsers.length,
+      data: enrichedUsers
     });
   } catch (err) {
     res.status(500).json({ 
@@ -24,7 +48,7 @@ exports.getAllUsers = async (req, res) => {
 // CREATE USER
 exports.createUser = async (req, res) => {
   try {
-    const { username, roleId, branchId, phoneNumber, email, password, createdBy } = req.body;
+    const { username, roleId, branchId, phoneNumber, email, password, createdBy, permissions } = req.body;
 
     if (!username || !roleId || !branchId || !phoneNumber || !email) {
       return res.status(400).json({
@@ -60,6 +84,12 @@ exports.createUser = async (req, res) => {
     // Map roleId to role (remove ROLE_ prefix if present)
     const roleValue = roleId.startsWith('ROLE_') ? roleId.substring(5) : roleId;
     
+    // Resolve permissions: custom permissions or fallback to role defaults
+    let finalPermissions = permissions;
+    if (!finalPermissions || !Array.isArray(finalPermissions) || finalPermissions.length === 0) {
+      finalPermissions = DEFAULT_ROLE_PERMISSIONS[roleId] || ['DASHBOARD', 'INVENTORY'];
+    }
+
     const newUser = await User.create({
       username,
       password: hashedPassword,
@@ -67,6 +97,7 @@ exports.createUser = async (req, res) => {
       roleId,
       branchId,
       allowedBranches: req.body.allowedBranches || [],
+      permissions: finalPermissions,
       phoneNumber,
       email,
       createdBy
@@ -97,6 +128,7 @@ exports.createUser = async (req, res) => {
       username: newUser.username,
       role: newUser.role,
       roleId: newUser.roleId,
+      permissions: newUser.permissions,
       password: finalPassword,
       messageSent: messageStatus.sent,
       messageStatus: messageStatus.reason || 'Message sent successfully'
@@ -109,6 +141,7 @@ exports.createUser = async (req, res) => {
     });
   }
 };
+
 // UPDATE USER
 exports.updateUser = async (req, res) => {
   try {
@@ -196,14 +229,23 @@ exports.login = async (req, res) => {
     user.lastLoginAt = new Date();
     await user.save();
 
+    // Resolve branch name and permissions
+    const branchName = await resolveBranchName(user.branchId);
+    const permissions = (user.permissions && user.permissions.length > 0)
+      ? user.permissions
+      : (DEFAULT_ROLE_PERMISSIONS[user.roleId] || ['DASHBOARD', 'INVENTORY']);
+
     // Return user data (exclude password)
     const userResponse = {
       userId: user.userId,
       username: user.username,
       email: user.email,
       roleId: user.roleId,
+      role: user.role,
       branchId: user.branchId,
+      branchName: branchName,
       allowedBranches: user.allowedBranches || [],
+      permissions: permissions,
       phoneNumber: user.phoneNumber,
       status: user.status,
       lastLoginAt: user.lastLoginAt

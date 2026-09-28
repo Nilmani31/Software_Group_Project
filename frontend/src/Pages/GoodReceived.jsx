@@ -196,8 +196,12 @@ export default function GoodReceived() {
         return;
       }
 
+      const selectedPO = poList.find(p => p.poNumber === data.po);
+      const branchName = selectedPO?.createdByBranch || selectedPO?.branch || localStorage.getItem('branchName') || 'Colombo Main Branch';
+
       const grnData = {
-        purchaseOrderId: data.purchaseOrderId || null,
+        purchaseOrderId: data.purchaseOrderId || (selectedPO ? selectedPO._id : null),
+        branch: branchName,
         items: data.items.map(item => ({
           itemId: item.itemId || '',
           itemName: item.itemName,
@@ -207,7 +211,7 @@ export default function GoodReceived() {
           unit: item.unit || ''
         })),
         receivedDate: data.date || new Date().toISOString(),
-        receivedBy: data.receivedBy || null,
+        receivedBy: data.receivedBy || localStorage.getItem('username') || null,
         poNumber: data.po,
         supplierName: data.supplierName
       };
@@ -405,6 +409,7 @@ export default function GoodReceived() {
                             <tr>
                               <th scope="col">GRN Number</th>
                               <th scope="col">PO Number</th>
+                              <th scope="col">Branch</th>
                               <th scope="col">Total Items</th>
                               <th scope="col">Received Date</th>
                               <th scope="col">Status</th>
@@ -416,6 +421,11 @@ export default function GoodReceived() {
                               <tr key={g._id} className="inventory-row">
                                 <td>{g.grnNumber}</td>
                                 <td>{g.poNumber}</td>
+                                <td>
+                                  <span style={{ fontSize: '12px', fontWeight: 500, color: '#334155' }}>
+                                    {g.branch || 'Colombo Main Branch'}
+                                  </span>
+                                </td>
                                 <td>{g.items ? g.items.length : 0}</td>
                                 <td>{new Date(g.receivedDate).toLocaleDateString()}</td>
                                 <td>

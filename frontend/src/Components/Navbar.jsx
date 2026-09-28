@@ -8,6 +8,7 @@ const Navbar = () => {
   const [showUserPopup, setShowUserPopup] = useState(false);
   const [username, setUsername] = useState("");
   const [userRole, setUserRole] = useState("");
+  const [userBranch, setUserBranch] = useState("");
   const popupRef = useRef(null);
 
   // Function to get page title based on current route
@@ -49,8 +50,10 @@ const Navbar = () => {
     const storedUsername = localStorage.getItem('username') || 'admin';
     const roleId = localStorage.getItem('roleId') || '';
     const cleanRole = roleId ? roleId.replace('ROLE_', '') : 'STAFF';
+    const storedBranchName = localStorage.getItem('branchName') || (cleanRole === 'ADMIN' || cleanRole === 'DIRECTOR' ? 'All Branches' : 'Main Branch');
     setUsername(storedUsername);
     setUserRole(cleanRole);
+    setUserBranch(storedBranchName);
   }, []);
 
   useEffect(() => {
@@ -95,9 +98,10 @@ const Navbar = () => {
       </div>
 
       <div className="user-section">
-        <div className="user-status-pill">
+        <div className="user-status-pill" title={`Active Branch: ${userBranch}`}>
           <span className="status-indicator-dot"></span>
-          <span className="status-indicator-text">System Active</span>
+          <Building size={13} style={{ marginRight: 5, opacity: 0.7 }} />
+          <span className="status-indicator-text">{userBranch}</span>
         </div>
 
         <div className="user-popup-container" ref={popupRef}>
@@ -154,6 +158,13 @@ const Navbar = () => {
                     <div className="info-text-group">
                       <label>Permission Level</label>
                       <span>{userRole}</span>
+                    </div>
+                  </div>
+                  <div className="info-item">
+                    <span className="info-icon-wrap"><Building size={14} /></span>
+                    <div className="info-text-group">
+                      <label>Assigned Branch</label>
+                      <span>{userBranch}</span>
                     </div>
                   </div>
                 </div>

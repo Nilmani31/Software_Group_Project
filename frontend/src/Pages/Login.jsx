@@ -36,8 +36,10 @@ const LoginPage = () => {
         localStorage.setItem('userId', data.user.userId);
         localStorage.setItem('roleId', data.user.roleId);
         localStorage.setItem('branchId', data.user.branchId);
+        localStorage.setItem('branchName', data.user.branchName || 'Colombo Main Branch');
         localStorage.setItem('email', data.user.email);
         localStorage.setItem('allowedBranches', JSON.stringify(data.user.allowedBranches || []));
+        localStorage.setItem('permissions', JSON.stringify(data.user.permissions || []));
 
         // Navigate to dashboard
         navigate('/dashboard');

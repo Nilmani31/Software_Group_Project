@@ -27,20 +27,42 @@ const Sidebar = () => {
     });
   };
 
-  const roleId = localStorage.getItem('roleId');
+  const roleId = localStorage.getItem('roleId') || '';
   const userRole = roleId ? roleId.replace('ROLE_', '') : '';
 
-  const pagePermissions = {
-    '/users': ['ADMIN', 'DIRECTOR', 'MANAGER', 'BRANCH_MANAGER'],
-    '/categories': ['ADMIN', 'DIRECTOR', 'MANAGER', 'BRANCH_MANAGER'],
-    '/branches': ['ADMIN', 'DIRECTOR', 'MANAGER'],
-    '/dashboard': ['ADMIN', 'DIRECTOR', 'MANAGER', 'BRANCH_MANAGER', 'STAFF'],
-    '/inventory': ['ADMIN', 'DIRECTOR', 'MANAGER', 'BRANCH_MANAGER', 'STAFF'],
-    '/good-received': ['ADMIN', 'DIRECTOR', 'MANAGER', 'BRANCH_MANAGER', 'STAFF'],
-    '/purchase-order': ['ADMIN', 'DIRECTOR', 'MANAGER', 'BRANCH_MANAGER', 'STAFF'],
-    '/issue-note': ['ADMIN', 'DIRECTOR', 'MANAGER', 'BRANCH_MANAGER'],
-    '/lowstock': ['ADMIN', 'DIRECTOR', 'MANAGER', 'BRANCH_MANAGER', 'STAFF'],
-    '/reports': ['ADMIN', 'DIRECTOR', 'MANAGER', 'BRANCH_MANAGER']
+  let userPermissions = [];
+  try {
+    const raw = localStorage.getItem('permissions');
+    if (raw) userPermissions = JSON.parse(raw);
+  } catch (e) {}
+
+  const hasFullAccess = userRole === 'ADMIN' || userPermissions.includes('ALL');
+
+  const checkPageAccess = (path) => {
+    if (hasFullAccess) return true;
+    switch (path) {
+      case '/dashboard':
+        return true;
+      case '/users':
+        return userRole === 'ADMIN' || userRole === 'DIRECTOR' || userPermissions.includes('USERS');
+      case '/inventory':
+      case '/lowstock':
+        return userPermissions.includes('INVENTORY') || ['ADMIN', 'DIRECTOR', 'MANAGER', 'BRANCH_MANAGER', 'STAFF'].includes(userRole);
+      case '/purchase-order':
+        return userPermissions.includes('PURCHASE_ORDERS') || ['ADMIN', 'DIRECTOR', 'MANAGER', 'BRANCH_MANAGER'].includes(userRole);
+      case '/good-received':
+        return userPermissions.includes('GOODS_RECEIVED') || ['ADMIN', 'DIRECTOR', 'MANAGER', 'BRANCH_MANAGER', 'STAFF'].includes(userRole);
+      case '/issue-note':
+        return userPermissions.includes('ISSUE_NOTES') || ['ADMIN', 'DIRECTOR', 'MANAGER', 'BRANCH_MANAGER'].includes(userRole);
+      case '/branches':
+        return userPermissions.includes('BRANCHES') || ['ADMIN', 'DIRECTOR'].includes(userRole);
+      case '/categories':
+        return userPermissions.includes('CATEGORIES') || ['ADMIN', 'DIRECTOR', 'MANAGER', 'BRANCH_MANAGER'].includes(userRole);
+      case '/reports':
+        return userPermissions.includes('REPORTS') || ['ADMIN', 'DIRECTOR', 'MANAGER', 'BRANCH_MANAGER'].includes(userRole);
+      default:
+        return true;
+    }
   };
 
   const navItems = [
@@ -57,10 +79,7 @@ const Sidebar = () => {
   ];
 
   // Filter items based on permissions
-  const filteredNavItems = navItems.filter(item => {
-    const allowedRoles = pagePermissions[item.to];
-    return !allowedRoles || allowedRoles.includes(userRole);
-  });
+  const filteredNavItems = navItems.filter(item => checkPageAccess(item.to));
 
   const effectiveCollapsed = isCollapsed && !hovered;
 

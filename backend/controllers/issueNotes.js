@@ -12,7 +12,7 @@ const crypto = require('crypto');
 // Get all issue notes with populated fields
 exports.getAllIssueNotes = async (req, res) => {
   try {
-    const branchFilter = getIssueNoteBranchFilter(req);
+    const branchFilter = await getIssueNoteBranchFilter(req);
     const issueNotes = await IssueNote.find(branchFilter)
       .populate('fromBranchId', 'branchName branchCode branch_name branch_code')
       .populate('toBranchId', 'branchName branchCode branch_name branch_code')
@@ -92,7 +92,7 @@ exports.getIssueNoteById = async (req, res) => {
 exports.getIssueNotesByBranch = async (req, res) => {
   try {
     const { branchId } = req.params;
-    const branchFilter = getIssueNoteBranchFilter(req);
+    const branchFilter = await getIssueNoteBranchFilter(req);
     
     const issueNotes = await IssueNote.find({
       $and: [

@@ -66,12 +66,14 @@ exports.getAllItems = async (req, res) => {
       }
     });
     
+    // Resolve branch filter once for all items
+    const branchFilter = await getBranchFilter(req);
+
     // For each item, fetch total stock quantity and calculate status
     const itemsWithStatus = await Promise.all(items.map(async (item) => {
       const itemObj = item.toObject();
       
       // Get stock records with branch information
-      const branchFilter = getBranchFilter(req);
       const stockRecords = await Stock.find({ itemId: item._id, ...branchFilter })
         .populate('branchId', 'branchId name branchName branchCode _id');
       const totalQuantity = stockRecords.reduce((sum, stock) => sum + (stock.quantity || 0), 0);
@@ -189,7 +191,7 @@ exports.getLowStockItems = async (req, res) => {
     const items = await Item.find()
       .populate('category', 'name')
       .select('-__v');
-    const branchFilter = getBranchFilter(req);
+    const branchFilter = await getBranchFilter(req);
     
     // For each item, calculate stock status from Stock records, not cached item fields.
     const itemsWithStatus = await Promise.all(items.map(async (item) => {

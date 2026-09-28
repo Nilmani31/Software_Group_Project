@@ -4,12 +4,13 @@ const Stock = require('../models/stock');
 const PurchaseOrder = require('../models/purchaseOrder');
 const IssueNote = require('../models/issueNotes');
 const IssueNoteItem = require('../models/issueNoteItems');
-const { getBranchFilter, getIssueNoteBranchFilter } = require('../utils/branchFilter');
+const { getBranchFilter, getIssueNoteBranchFilter, getPOBranchFilter } = require('../utils/branchFilter');
 
 exports.getDashboardStats = async (req, res) => {
   try {
-    const branchFilter = getBranchFilter(req);
-    const issueNoteFilter = getIssueNoteBranchFilter(req);
+    const branchFilter = await getBranchFilter(req);
+    const issueNoteFilter = await getIssueNoteBranchFilter(req);
+    const poFilter = await getPOBranchFilter(req);
 
     // 1. Total Items (unique items in catalog)
     const totalItems = await Item.countDocuments();
@@ -33,7 +34,7 @@ exports.getDashboardStats = async (req, res) => {
     });
 
     // 4. Pending Purchase Orders
-    const pendingPOs = await PurchaseOrder.countDocuments({ status: 'Pending', ...branchFilter });
+    const pendingPOs = await PurchaseOrder.countDocuments({ status: 'Pending', ...poFilter });
 
     // 5. Pending Request Orders (Issue Notes)
     const pendingRequests = await IssueNote.countDocuments({ status: 'pending', ...issueNoteFilter });

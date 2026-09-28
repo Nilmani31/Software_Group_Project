@@ -43,7 +43,7 @@ const PORT = process.env.PORT || 5005;
 // Middleware
 app.use(cors({
   origin: '*',
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-user-role', 'x-user-branch', 'x-allowed-branches']
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-user-role', 'x-user-branch', 'x-allowed-branches', 'x-user-branch-name', 'x-user-id', 'x-user-permissions']
 }));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));

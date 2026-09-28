@@ -354,7 +354,7 @@ export default function PurchaseOrder() {
 
     // Get logged-in user info
     const username = localStorage.getItem('username') || 'Admin User'
-    const branchName = userBranchName || localStorage.getItem('branchName') || 'Main Branch'
+    const branchName = localStorage.getItem('branchName') || 'Colombo Main Branch'
 
     // Validate required fields
     if (!username) {

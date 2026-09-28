@@ -224,6 +224,12 @@ const IssueNote = () => {
       const found = branches.find(b => String(b._id || b.id) === String(formData.fromBranch));
       if (found) return found;
     }
+    // If current user is assigned to a specific branch, use their branch
+    const userBranchId = localStorage.getItem('branchId');
+    if (userBranchId && userBranchId !== 'MAIN_BRANCH') {
+      const userBranch = branches.find(b => String(b._id || b.id) === String(userBranchId) || b.branchId === userBranchId);
+      if (userBranch) return userBranch;
+    }
     return branches.find(branch =>
       /main|colombo/i.test(branch.branchName || branch.branch_name || branch.name || '')
     ) || branches[0];
