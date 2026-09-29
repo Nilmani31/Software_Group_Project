@@ -96,3 +96,54 @@ async def zero_shot_search(
 		import traceback
 		traceback.print_exc()
 		raise HTTPException(status_code=500, detail=str(exc)) from exc
+	
+
+@router.post("/add-reference")
+async def add_reference(
+	image: UploadFile = File(...),
+	productId: str = Form(...),
+	name: str = Form(...),
+	category: str = Form(""),
+	sku: str = Form(""),
+):
+	"""Embed a real photo of an inventory item and store it in Qdrant so
+	future image searches can match against it directly (image-to-image).
+	Called by the backend whenever an item is saved with a photo. Saving
+	again for the same productId replaces the previous reference photo."""
+	try:
+		from PIL import UnidentifiedImageError
+
+		from app.services.clip import image_to_embedding
+		from app.services.qdrant import upsert_reference
+
+		image_bytes = await image.read()
+		if not image_bytes:
+			raise HTTPException(status_code=400, detail="Empty image upload.")
+
+		try:
+			embedding = image_to_embedding(image_bytes)
+		except UnidentifiedImageError:
+			raise HTTPException(status_code=400, detail="Uploaded file is not a valid image.")
+
+		upsert_reference(productId, embedding, name, category=category, sku=sku)
+		return {"success": True, "productId": productId}
+	except HTTPException:
+		raise
+	except Exception as exc:
+		print(f"ERROR in add-reference: {exc}")
+		import traceback
+		traceback.print_exc()
+		raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@router.delete("/reference/{product_id}")
+def delete_reference_photo(product_id: str):
+	"""Remove an item's reference photo from Qdrant (called when the item is deleted)."""
+	try:
+		from app.services.qdrant import delete_reference
+
+		delete_reference(product_id)
+		return {"success": True, "productId": product_id}
+	except Exception as exc:
+		print(f"ERROR in delete-reference: {exc}")
+		raise HTTPException(status_code=500, detail=str(exc)) from exc
