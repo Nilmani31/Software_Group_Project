@@ -33,7 +33,7 @@ const IssueNote = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [editedItems, setEditedItems] = useState([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [createMode, setCreateMode] = useState("branchRequest");
+  const [createMode, setCreateMode] = useState("issueNote");
   const [formData, setFormData] = useState({
     issueNumber: "ISS-2025-XXX",
     issueDate: new Date().toISOString().split('T')[0],
@@ -927,8 +927,8 @@ const IssueNote = () => {
     }
   };
 
-  const openCreateModal = (mode = "issueNote") => {
-    setCreateMode(mode);
+  const openCreateModal = () => {
+    setCreateMode("issueNote");
     setShowCreateModal(true);
     setFormData({
       issueNumber: "ISS-2025-XXX",
@@ -1211,7 +1211,7 @@ const IssueNote = () => {
       setSelectedItemForAdd(null);
       setItemQuantity(0);
 
-      alert(createMode === "branchRequest" ? "Branch request created successfully!" : "Issue note created successfully!");
+      alert("Issue note created successfully!");
       closeCreateModal();
       await Promise.all([
         fetchIssueNotes(),
@@ -1329,9 +1329,9 @@ const IssueNote = () => {
                   </button>
                 </div>
 
-                {canEdit && (
+                {canEdit && activeTab === "issueNotes" && (
                   <button
-                    onClick={() => openCreateModal(activeTab === "branchRequests" ? "branchRequest" : "issueNote")}
+                    onClick={() => openCreateModal()}
                     style={{
                       display: 'inline-flex',
                       alignItems: 'center',
@@ -1357,7 +1357,7 @@ const IssueNote = () => {
                     }}
                   >
                     <Plus size={18} />
-                    <span>{activeTab === "branchRequests" ? "Create Branch Request" : "Create Issue Note"}</span>
+                    <span>Create Issue Note</span>
                   </button>
                 )}
               </div>
@@ -1703,15 +1703,17 @@ const IssueNote = () => {
                   <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-primary, #0f172a)', margin: 0 }}>
                     No {activeTab === "branchRequests" ? "Branch Requests" : "Issue Notes"} Found
                   </h3>
-                  <p style={{ fontSize: '13px', color: 'var(--text-secondary, #64748b)', maxWidth: '400px', margin: 0 }}>
+                  <p style={{ fontSize: '13px', color: 'var(--text-secondary, #64748b)', maxWidth: '420px', margin: 0 }}>
                     {searchTerm || selectedBranchFilter !== "all" || selectedStatusFilter !== "all"
                       ? "No records matched your search filters. Try clearing or relaxing the filters."
-                      : `There are currently no ${activeTab === "branchRequests" ? "branch requisition requests" : "stock issue notes"} recorded in the system.`}
+                      : activeTab === "branchRequests"
+                        ? "There are currently no branch requests. Branch requests are generated automatically through Purchase Orders ordered from branches."
+                        : "There are currently no stock issue notes recorded in the system."}
                   </p>
-                  {canEdit && (
+                  {canEdit && activeTab === "issueNotes" && (
                     <button
                       type="button"
-                      onClick={() => openCreateModal(activeTab === "branchRequests" ? "branchRequest" : "issueNote")}
+                      onClick={() => openCreateModal()}
                       style={{
                         marginTop: '8px',
                         display: 'inline-flex',
@@ -1728,7 +1730,7 @@ const IssueNote = () => {
                       }}
                     >
                       <Plus size={16} />
-                      <span>{activeTab === "branchRequests" ? "Create Branch Request" : "Create Issue Note"}</span>
+                      <span>Create Issue Note</span>
                     </button>
                   )}
                 </div>
@@ -1920,16 +1922,10 @@ const IssueNote = () => {
           <div className="modal-content-inventory" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '780px', width: 'min(94vw, 780px)' }}>
             <div className="modal-header-inventory">
               <div className="modal-title-section-inventory">
-                <h2 className="modal-title-inventory">
-                  {createMode === "branchRequest" ? "Create Branch Request" : "Create Issue Note"}
-                </h2>
-                <p className="modal-subtitle-inventory">
-                  {createMode === "branchRequest"
-                    ? "Requisition items from another branch or central warehouse"
-                    : "Issue stock items to branches or training sessions"}
-                </p>
+                <h2 className="modal-title-inventory">Create Issue Note</h2>
+                <p className="modal-subtitle-inventory">Issue stock items to branches or training sessions</p>
               </div>
-              <button className="modal-close-btn-inventory" onClick={closeCreateModal} aria-label="Close">×</button>
+              <button className="modal-close-btn-inventory" onClick={closeCreateModal} title="Close"><X size={18} /></button>
             </div>
 
             <div className="modal-body-inventory">
@@ -1981,9 +1977,7 @@ const IssueNote = () => {
                 </div>
 
                 <div className="form-group-inventory">
-                  <label className="form-label-inventory">
-                    {createMode === "branchRequest" ? "Request Type" : "Issue Type"}
-                  </label>
+                  <label className="form-label-inventory">Issue Type</label>
                   <select
                     value={formData.issueType}
                     onChange={(e) => handleFormChange('issueType', e.target.value)}
@@ -1992,7 +1986,7 @@ const IssueNote = () => {
                     <option value="">Select Type...</option>
                     <option value="Branch Transfer">Branch Transfer</option>
                     <option value="Training Sessions">Training Sessions</option>
-                    {createMode !== "branchRequest" && <option value="Stock Transfer">Stock Transfer</option>}
+                    <option value="Stock Transfer">Stock Transfer</option>
                   </select>
                 </div>
 
@@ -2000,9 +1994,7 @@ const IssueNote = () => {
                   <label className="form-label-inventory">
                     {formData.issueType === "Training Sessions"
                       ? "Training Session / Destination Name"
-                      : createMode === "branchRequest"
-                        ? "Requested From Branch (Target)"
-                        : "Destination Branch (Issued To)"}
+                      : "Destination Branch (Issued To)"}
                   </label>
                   {formData.issueType === "Training Sessions" ? (
                     <input
@@ -2186,7 +2178,7 @@ const IssueNote = () => {
             <div className="modal-footer-inventory">
               <button type="button" className="btn-cancel" onClick={closeCreateModal}>Cancel</button>
               <button type="button" className="btn-add" onClick={requestCreateIssueNote}>
-                {createMode === "branchRequest" ? "Submit Branch Request" : "Add Issue Note"}
+                Add Issue Note
               </button>
             </div>
           </div>
@@ -2424,8 +2416,8 @@ const IssueNote = () => {
       {/* Confirmation Dialog */}
       <ConfirmDialog
         open={pendingCreate}
-        title={createMode === "branchRequest" ? "Create branch request?" : "Add issue note?"}
-        message={createMode === "branchRequest" ? "Are you sure you want to create this branch request?" : "Are you sure you want to create this issue note?"}
+        title="Add issue note?"
+        message="Are you sure you want to create this issue note?"
         confirmLabel="Confirm"
         tone="success"
         onCancel={() => setPendingCreate(false)}

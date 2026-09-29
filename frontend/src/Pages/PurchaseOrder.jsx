@@ -5,10 +5,19 @@ import ChatAssistant from '../Components/ChatAssistant'
 import ConfirmDialog from '../Components/ConfirmDialog'
 import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
+import {
+  FaTimes,
+  FaPlus,
+  FaEdit,
+  FaTrash,
+  FaBoxOpen,
+  FaShoppingCart,
+  FaBuilding,
+  FaFileInvoice,
+  FaTruck
+} from 'react-icons/fa'
 // Modal component replaced for Create PO to match Inventory design
 import { getAuthHeaders } from '../utils/authHeaders'
-
-const samplePOs = []
 
 // Format date to readable format (YYYY/MM/DD only, no time)
 const formatDate = (dateString) => {
@@ -44,7 +53,7 @@ export default function PurchaseOrder() {
   const userRole = roleId.replace('ROLE_', '');
   const canEdit = ['ADMIN', 'DIRECTOR', 'MANAGER', 'BRANCH_MANAGER'].includes(userRole);
 
-  const [pos, setPos] = useState(samplePOs)
+  const [pos, setPos] = useState([])
   const [query, setQuery] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
   const [filterOrderBy, setFilterOrderBy] = useState('')
@@ -76,6 +85,7 @@ export default function PurchaseOrder() {
   })
 
   const [cart, setCart] = useState([])
+  // eslint-disable-next-line no-unused-vars
   const [cartVisible, setCartVisible] = useState(false)
   const [line, setLine] = useState({ category: '', item: '', qty: '', branch: '' })
   // Edit modal state
@@ -650,82 +660,284 @@ export default function PurchaseOrder() {
       {/* Create Purchase Order Modal (Inventory style) */}
       {openCreate && (
         <div className="modal-overlay-inventory" onClick={() => setOpenCreate(false)}>
-          <div className="modal-content-inventory" onClick={e => e.stopPropagation()}>
+          <div className="modal-content-inventory add-item-modal create-po-modal" onClick={e => e.stopPropagation()}>
             <div className="modal-header-inventory">
               <div className="modal-title-section-inventory">
                 <h2 className="modal-title-inventory">Create Purchase Order</h2>
-                <p className="modal-subtitle-inventory">Add a new purchase order</p>
+                <p className="modal-subtitle-inventory">Configure procurement details, order source, and items</p>
               </div>
-              <button className="modal-close-btn-inventory" onClick={() => setOpenCreate(false)} aria-label="Close">×</button>
+              <button
+                type="button"
+                className="modal-close-btn-inventory"
+                onClick={() => {
+                  setSelectedBranchRow(null)
+                  setOpenCreate(false)
+                }}
+                title="Close"
+              >
+                <FaTimes />
+              </button>
             </div>
+
             <div className="modal-body-inventory">
-              <form onSubmit={requestSubmitPO} className="modal-form-inventory">
-                <h4 style={{ margin: '0 0 12px 0', fontSize: '13px', fontWeight: 600, color: '#334155', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Select Item</h4>
-                <div className="form-layout-inventory">
-                  <div className="form-group-inventory">
-                    <label className="form-label-inventory">Category</label>
-                    <select value={line.category} onChange={e => updateLine('category', e.target.value)} className="form-input-inventory">
-                      <option value="">-- Select Category --</option>
-                      {categories.map((cat, idx) => (
-                        <option key={idx} value={cat.name || cat._id}>
-                          {cat.name}
-                        </option>
-                      ))}
-                    </select>
+              <form id="create-po-form" onSubmit={requestSubmitPO} className="modal-form-inventory">
+                {/* PO Number Reference Card */}
+                <div className="sku-info-card">
+                  <div className="sku-info-header">
+                    <span className="sku-info-label">
+                      <FaFileInvoice /> PO Reference Number
+                    </span>
+                    <span className="sku-info-tag">Auto-Generated</span>
                   </div>
-                  <div className="form-group-inventory">
-                    <label className="form-label-inventory">Item</label>
-                    <select value={line.item} onChange={e => updateLine('item', e.target.value)} className="form-input-inventory">
-                      <option value="">-- Select Item --</option>
-                      {line.category && itemsWithStock
-                        .filter(item => {
-                          const itemCategory = item.category?.name || item.categoryName || item.category;
-                          return itemCategory === line.category;
-                        })
-                        .map((item, idx) => (
-                          <option key={idx} value={`${item.name} - ${item.unit}`}>
-                            {item.name} - {item.unit}
-                          </option>
-                        ))}
-                    </select>
+                  <div className="sku-info-value" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+                    <span>{poForm.poNumber || 'Will be generated upon creation'}</span>
+                    {userBranchName && (
+                      <span style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-muted)' }}>
+                        Origin Branch: <strong style={{ color: 'var(--text-primary)' }}>{userBranchName}</strong>
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Section 1: Order Information & Routing */}
+                <div className="form-section-group">
+                  <div className="form-section-title">
+                    <FaTruck /> Order Information & Source
                   </div>
 
-                  {selectedItemForCreate && (
-                    <div style={{ gridColumn: '1 / -1', marginTop: '12px' }}>
-                      <label className="form-label-inventory">Availability by Branch (Click to Select)</label>
-                      <div style={{ maxHeight: '200px', overflowY: 'auto', border: '1px solid #e5e7eb', borderRadius: '6px' }}>
-                        <table className="po-detail-table" style={{ marginBottom: 0 }}>
+                  <div className="form-grid-2">
+                    <div className="form-group-inventory">
+                      <label className="form-label-inventory">Order Source / Type *</label>
+                      <select
+                        value={poForm.orderBy}
+                        onChange={e => updateForm('orderBy', e.target.value)}
+                        className="form-input-inventory filter-select"
+                        required
+                      >
+                        <option value="Supplier">External Supplier</option>
+                        <option value="Branch">Internal Branch Transfer</option>
+                      </select>
+                    </div>
+
+                    <div className="form-group-inventory">
+                      <label className="form-label-inventory">PO Number Override (Optional)</label>
+                      <input
+                        type="text"
+                        value={poForm.poNumber}
+                        onChange={e => updateForm('poNumber', e.target.value)}
+                        placeholder="PO-2025-XXX"
+                        className="form-input-inventory"
+                      />
+                    </div>
+                  </div>
+
+                  {poForm.orderBy === 'Supplier' ? (
+                    <div className="form-grid-2">
+                      <div className="form-group-inventory">
+                        <label className="form-label-inventory">Supplier Name *</label>
+                        <input
+                          type="text"
+                          value={poForm.supplierName}
+                          onChange={e => updateForm('supplierName', e.target.value)}
+                          placeholder="Enter supplier name"
+                          className="form-input-inventory"
+                          required={poForm.orderBy === 'Supplier'}
+                        />
+                      </div>
+                      <div className="form-group-inventory">
+                        <label className="form-label-inventory">Contact Phone</label>
+                        <input
+                          type="tel"
+                          value={poForm.phone}
+                          onChange={e => updateForm('phone', e.target.value)}
+                          placeholder="e.g. 077 123 4567"
+                          className="form-input-inventory"
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="form-group-inventory">
+                      <label className="form-label-inventory">Target Fulfilling Branch *</label>
+                      <select
+                        value={poForm.branch}
+                        onChange={e => updateForm('branch', e.target.value)}
+                        className="form-input-inventory filter-select"
+                        required={poForm.orderBy === 'Branch'}
+                      >
+                        <option value="">-- Select Source Branch --</option>
+                        {branches.map(b => (
+                          <option key={b._id || b.name} value={b.name || b.branchName}>
+                            {b.name || b.branchName}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  <div className="form-grid-2">
+                    <div className="form-group-inventory">
+                      <label className="form-label-inventory">Order Date *</label>
+                      <DatePicker
+                        selected={poForm.orderDate ? new Date(poForm.orderDate) : null}
+                        onChange={(date) => {
+                          const dateString = date ? date.toISOString().split('T')[0] : ''
+                          updateForm('orderDate', dateString)
+                        }}
+                        minDate={new Date()}
+                        dateFormat="yyyy/MM/dd"
+                        className="form-input-inventory"
+                        placeholderText="Select Order Date"
+                        wrapperClassName="datepicker-wrapper"
+                        required
+                      />
+                    </div>
+                    <div className="form-group-inventory">
+                      <label className="form-label-inventory">Expected Delivery Date</label>
+                      <DatePicker
+                        selected={poForm.expectedDate ? new Date(poForm.expectedDate) : null}
+                        onChange={(date) => {
+                          const dateString = date ? date.toISOString().split('T')[0] : ''
+                          updateForm('expectedDate', dateString)
+                        }}
+                        minDate={poForm.orderDate ? new Date(poForm.orderDate) : new Date()}
+                        dateFormat="yyyy/MM/dd"
+                        className="form-input-inventory"
+                        placeholderText="Select Expected Delivery Date"
+                        wrapperClassName="datepicker-wrapper"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Section 2: Add Items to Order */}
+                <div className="form-section-group">
+                  <div className="form-section-title">
+                    <FaBoxOpen /> Add Items to Order
+                  </div>
+
+                  <div className="form-grid-3">
+                    <div className="form-group-inventory">
+                      <label className="form-label-inventory">Category</label>
+                      <select
+                        value={line.category}
+                        onChange={e => updateLine('category', e.target.value)}
+                        className="form-input-inventory filter-select"
+                      >
+                        <option value="">-- Select Category --</option>
+                        {categories.map((cat, idx) => (
+                          <option key={idx} value={cat.name || cat._id}>
+                            {cat.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="form-group-inventory">
+                      <label className="form-label-inventory">Item</label>
+                      <select
+                        value={line.item}
+                        onChange={e => updateLine('item', e.target.value)}
+                        className="form-input-inventory filter-select"
+                        disabled={!line.category}
+                      >
+                        <option value="">{line.category ? '-- Select Item --' : 'Select category first'}</option>
+                        {line.category && itemsWithStock
+                          .filter(item => {
+                            const itemCategory = item.category?.name || item.categoryName || item.category;
+                            return itemCategory === line.category;
+                          })
+                          .map((item, idx) => (
+                            <option key={idx} value={`${item.name} - ${item.unit}`}>
+                              {item.name} - {item.unit}
+                            </option>
+                          ))}
+                      </select>
+                    </div>
+
+                    <div className="form-group-inventory">
+                      <label className="form-label-inventory">Quantity</label>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <input
+                          value={line.qty}
+                          onChange={e => updateLine('qty', e.target.value)}
+                          placeholder="Qty"
+                          type="number"
+                          min="1"
+                          step="1"
+                          className="form-input-inventory"
+                          style={{ flex: 1 }}
+                        />
+                        <button
+                          type="button"
+                          className="modal-btn-inventory save"
+                          onClick={addToCart}
+                          disabled={!line.item || !line.qty}
+                          style={{ whiteSpace: 'nowrap', padding: '0 14px' }}
+                        >
+                          <FaPlus /> Add
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Branch availability sub-table if ordering by Branch and an item is selected */}
+                  {poForm.orderBy === 'Branch' && selectedItemForCreate && (
+                    <div style={{
+                      marginTop: '8px',
+                      padding: '12px 14px',
+                      background: 'var(--bg-subtle, #f8fafc)',
+                      border: '1px solid var(--border-default, #e2e8f0)',
+                      borderRadius: '8px'
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                        <span style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--text-secondary, #475569)' }}>
+                          Available Stock by Branch for: <strong style={{ color: '#2563eb' }}>{line.item}</strong>
+                        </span>
+                        <span style={{ fontSize: '11px', color: '#64748b' }}>Click branch to route order</span>
+                      </div>
+                      <div style={{ maxHeight: '150px', overflowY: 'auto', border: '1px solid #e2e8f0', borderRadius: '6px', background: '#fff' }}>
+                        <table className="po-detail-table" style={{ margin: 0 }}>
                           <thead>
                             <tr>
                               <th>Branch Name</th>
+                              <th style={{ width: '100px', textAlign: 'right' }}>Status</th>
                             </tr>
                           </thead>
                           <tbody>
                             {branches && branches.map((branch, idx) => {
                               const branchName = branch.name || branch.branchName;
+                              const isSelected = selectedBranchRow === branchName || poForm.branch === branchName;
                               return (
                                 <tr
                                   key={idx}
                                   onClick={() => handleBranchSelect(branchName, branch)}
                                   style={{
                                     cursor: 'pointer',
-                                    transition: 'background-color 0.2s',
-                                    backgroundColor: selectedBranchRow === branchName ? '#2563eb' : 'transparent',
-                                    color: selectedBranchRow === branchName ? 'white' : 'inherit'
+                                    transition: 'all 0.15s ease',
+                                    backgroundColor: isSelected ? '#eff6ff' : 'transparent',
+                                    color: isSelected ? '#1d4ed8' : 'inherit',
+                                    fontWeight: isSelected ? 600 : 400
                                   }}
                                   onMouseEnter={(e) => {
-                                    if (selectedBranchRow !== branchName) {
-                                      e.currentTarget.style.backgroundColor = '#f1f5f9'
-                                    }
+                                    if (!isSelected) e.currentTarget.style.backgroundColor = '#f8fafc'
                                   }}
                                   onMouseLeave={(e) => {
-                                    if (selectedBranchRow !== branchName) {
-                                      e.currentTarget.style.backgroundColor = 'transparent'
-                                    }
+                                    if (!isSelected) e.currentTarget.style.backgroundColor = 'transparent'
                                   }}
-                                  title={`Click to order from ${branchName}`}
                                 >
-                                  <td>{branchName}</td>
+                                  <td>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                      <FaBuilding style={{ fontSize: '12px', color: isSelected ? '#2563eb' : '#94a3b8' }} />
+                                      <span>{branchName}</span>
+                                    </div>
+                                  </td>
+                                  <td style={{ textAlign: 'right' }}>
+                                    {isSelected ? (
+                                      <span className="badge-normal" style={{ background: '#dbeafe', color: '#1e40af' }}>Selected</span>
+                                    ) : (
+                                      <span style={{ fontSize: '11px', color: '#64748b' }}>Choose</span>
+                                    )}
+                                  </td>
                                 </tr>
                               );
                             })}
@@ -734,126 +946,112 @@ export default function PurchaseOrder() {
                       </div>
                     </div>
                   )}
-
-                  <div className="form-group-inventory">
-                    <label className="form-label-inventory">Quantity</label>
-                    <input value={line.qty} onChange={e => updateLine('qty', e.target.value)} placeholder="Qty" type="number" min="1" step="1" className="form-input-inventory" />
-                  </div>
-                  <div className="form-group-inventory" style={{ alignSelf: 'end' }}>
-                    <button type="button" className="modal-btn-inventory cancel" onClick={addToCart}>Add to cart</button>
-                  </div>
                 </div>
-                {cartVisible && (
-                  <div className="po-detail-table-wrap">
-                    <table className="po-detail-table">
-                      <thead>
-                        {poForm.orderBy === 'Supplier' ? (
-                          <tr><th>Item Name</th><th>Quantity</th><th style={{ width: '120px' }}>Actions</th></tr>
-                        ) : (
-                          <tr><th>Branch Name</th><th>Item Name</th><th>Quantity</th><th style={{ width: '120px' }}>Actions</th></tr>
-                        )}
-                      </thead>
-                      <tbody>
-                        {cart.length === 0 ? (
-                          poForm.orderBy === 'Supplier' ? (
-                            <tr><td colSpan={3} style={{ color: '#6b7280' }}>No items added yet</td></tr>
-                          ) : (
-                            <tr><td colSpan={4} style={{ color: '#6b7280' }}>No items added yet</td></tr>
-                          )
-                        ) : (
-                          cart.map((ci, i) => (
-                            poForm.orderBy === 'Supplier' ? (
-                              <tr key={i}><td>{ci.item}</td><td>{ci.qty}</td><td style={{ display: 'flex', gap: 6 }}>
-                                <button type="button" className="modal-btn-inventory cancel" style={{ padding: '6px 10px' }} onClick={() => editExistingCreateItem(i)}>Edit</button>
-                                <button type="button" className="modal-btn-inventory cancel" style={{ padding: '6px 10px' }} onClick={() => removeCreateItem(i)}>Remove</button>
-                              </td></tr>
-                            ) : (
-                              <tr key={i}><td>{ci.branch}</td><td>{ci.item}</td><td>{ci.qty}</td><td style={{ display: 'flex', gap: 6 }}>
-                                <button type="button" className="modal-btn-inventory cancel" style={{ padding: '6px 10px' }} onClick={() => editExistingCreateItem(i)}>Edit</button>
-                                <button type="button" className="modal-btn-inventory cancel" style={{ padding: '6px 10px' }} onClick={() => removeCreateItem(i)}>Remove</button>
-                              </td></tr>
-                            )
-                          ))
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
 
-                <h4 style={{ margin: '24px 0 12px 0', fontSize: '13px', fontWeight: 600, color: '#334155', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Order Details</h4>
-                <div className="form-layout-inventory">
-                  <div className="form-group-inventory">
-                    <label className="form-label-inventory">PO Number</label>
-                    <input type="text" value={poForm.poNumber} onChange={e => updateForm('poNumber', e.target.value)} placeholder="PO-2025-XXX" className="form-input-inventory" />
+                {/* Section 3: Order Items Summary / Cart */}
+                <div className="form-section-group">
+                  <div className="form-section-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <FaShoppingCart /> Order Items Summary
+                    </span>
+                    {cart.length > 0 && (
+                      <span className="sku-info-tag">{cart.length} {cart.length === 1 ? 'item' : 'items'} added</span>
+                    )}
                   </div>
-                  <div className="form-group-inventory">
-                    <label className="form-label-inventory">Order By</label>
-                    <select value={poForm.orderBy} onChange={e => updateForm('orderBy', e.target.value)} className="form-input-inventory">
-                      <option>Supplier</option>
-                      <option>Branch</option>
-                    </select>
-                  </div>
-                  {poForm.orderBy === 'Supplier' ? (
-                    <>
-                      <div className="form-group-inventory">
-                        <label className="form-label-inventory">Supplier Name</label>
-                        <input type="text" value={poForm.supplierName} onChange={e => updateForm('supplierName', e.target.value)} placeholder="Enter Supplier" className="form-input-inventory" />
-                      </div>
-                      <div className="form-group-inventory">
-                        <label className="form-label-inventory">Phone Number</label>
-                        <input type="tel" value={poForm.phone} onChange={e => updateForm('phone', e.target.value)} placeholder="07x xxx xxxx" className="form-input-inventory" />
-                      </div>
-                    </>
+
+                  {cart.length === 0 ? (
+                    <div style={{
+                      padding: '24px 16px',
+                      textAlign: 'center',
+                      background: 'var(--bg-subtle, #f8fafc)',
+                      borderRadius: '8px',
+                      border: '1.5px dashed var(--border-default, #cbd5e1)',
+                      color: '#64748b'
+                    }}>
+                      <FaShoppingCart style={{ fontSize: '24px', marginBottom: '8px', color: '#94a3b8' }} />
+                      <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary, #1e293b)' }}>No items in purchase order yet</div>
+                      <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '2px' }}>Select category, item and quantity above, then click "+ Add"</div>
+                    </div>
                   ) : (
-                    <div className="form-group-inventory">
-                      <label className="form-label-inventory">Branch</label>
-                      <select value={poForm.branch} onChange={e => updateForm('branch', e.target.value)} className="form-input-inventory">
-                        <option value="">Select Branch</option>
-                        {branches.map(b => (
-                          <option key={b._id} value={b.name || b.branchName}>{b.name || b.branchName}</option>
-                        ))}
-                      </select>
+                    <div className="po-detail-table-wrap" style={{ maxHeight: '200px', overflowY: 'auto' }}>
+                      <table className="po-detail-table" style={{ margin: 0 }}>
+                        <thead>
+                          <tr>
+                            {poForm.orderBy === 'Branch' && <th>Source Branch</th>}
+                            <th>Item Name</th>
+                            <th style={{ width: '100px', textAlign: 'center' }}>Quantity</th>
+                            <th style={{ width: '150px', textAlign: 'right' }}>Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {cart.map((ci, i) => (
+                            <tr key={i}>
+                              {poForm.orderBy === 'Branch' && (
+                                <td>
+                                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                                    <FaBuilding style={{ fontSize: '11px', color: '#64748b' }} />
+                                    {ci.branch || poForm.branch || '-'}
+                                  </span>
+                                </td>
+                              )}
+                              <td style={{ fontWeight: 500, color: 'var(--text-primary, #0f172a)' }}>{ci.item}</td>
+                              <td style={{ textAlign: 'center' }}>
+                                <span className="badge-normal" style={{ fontSize: '12px', padding: '3px 10px' }}>
+                                  {ci.qty}
+                                </span>
+                              </td>
+                              <td style={{ textAlign: 'right' }}>
+                                <div style={{ display: 'inline-flex', gap: '6px', justifyContent: 'flex-end' }}>
+                                  <button
+                                    type="button"
+                                    className="modal-btn-inventory edit"
+                                    style={{ height: '30px', padding: '0 10px', fontSize: '12px' }}
+                                    onClick={() => editExistingCreateItem(i)}
+                                    title="Edit quantity"
+                                  >
+                                    <FaEdit /> Edit
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="modal-btn-inventory delete"
+                                    style={{ height: '30px', padding: '0 10px', fontSize: '12px' }}
+                                    onClick={() => removeCreateItem(i)}
+                                    title="Remove item"
+                                  >
+                                    <FaTrash /> Remove
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
                   )}
-                  <div className="form-group-inventory">
-                    <label className="form-label-inventory">Order Date</label>
-                    <DatePicker
-                      selected={poForm.orderDate ? new Date(poForm.orderDate) : null}
-                      onChange={(date) => {
-                        const dateString = date ? date.toISOString().split('T')[0] : ''
-                        updateForm('orderDate', dateString)
-                      }}
-                      minDate={new Date()}
-                      dateFormat="yyyy/MM/dd"
-                      className="form-input-inventory"
-                      placeholderText="Select Order Date"
-                      wrapperClassName="datepicker-wrapper"
-                    />
-                  </div>
-                  <div className="form-group-inventory">
-                    <label className="form-label-inventory">Expected Delivery Date</label>
-                    <DatePicker
-                      selected={poForm.expectedDate ? new Date(poForm.expectedDate) : null}
-                      onChange={(date) => {
-                        const dateString = date ? date.toISOString().split('T')[0] : ''
-                        updateForm('expectedDate', dateString)
-                      }}
-                      minDate={poForm.orderDate ? new Date(poForm.orderDate) : new Date()}
-                      dateFormat="yyyy/MM/dd"
-                      className="form-input-inventory"
-                      placeholderText="Select Expected Delivery Date"
-                      wrapperClassName="datepicker-wrapper"
-                    />
-                  </div>
-                </div>
-                <div className="modal-footer-inventory" style={{ justifyContent: 'flex-end' }}>
-                  <button type="button" className="modal-btn-inventory cancel" onClick={() => {
-                    setSelectedBranchRow(null)
-                    setOpenCreate(false)
-                  }}>Cancel</button>
-                  <button type="submit" className="modal-btn-inventory submit">Purchase Order</button>
                 </div>
               </form>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="modal-footer-inventory">
+              <button
+                type="button"
+                className="modal-btn-inventory cancel"
+                onClick={() => {
+                  setSelectedBranchRow(null)
+                  setOpenCreate(false)
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                form="create-po-form"
+                className="modal-btn-inventory save"
+                disabled={cart.length === 0}
+              >
+                <FaPlus /> Create Purchase Order
+              </button>
             </div>
           </div>
         </div>
@@ -868,7 +1066,7 @@ export default function PurchaseOrder() {
                 <h2 className="modal-title-inventory">Purchase Order Details</h2>
                 <p className="modal-subtitle-inventory">View complete purchase order information and items</p>
               </div>
-              <button className="modal-close-btn-inventory" onClick={() => setOpenView(false)} aria-label="Close">×</button>
+              <button className="modal-close-btn-inventory" onClick={() => setOpenView(false)} title="Close"><FaTimes /></button>
             </div>
             <div className="modal-body-inventory">
               <div className="po-detail-number-row">
@@ -986,7 +1184,7 @@ export default function PurchaseOrder() {
                 <h2 className="modal-title-inventory">Edit Order Details</h2>
                 <p className="modal-subtitle-inventory">Edit and save purchase order information</p>
               </div>
-              <button className="modal-close-btn-inventory" onClick={() => setOpenEdit(false)} aria-label="Close">×</button>
+              <button className="modal-close-btn-inventory" onClick={() => setOpenEdit(false)} title="Close"><FaTimes /></button>
             </div>
             <div className="modal-body-inventory">
               <div className="po-detail-number-row">
@@ -1235,7 +1433,7 @@ export default function PurchaseOrder() {
                 <h2 className="modal-title-inventory">Delete Order</h2>
                 <p className="modal-subtitle-inventory">Confirm purchase order deletion</p>
               </div>
-              <button className="modal-close-btn-inventory" onClick={() => setOpenCancel(false)} aria-label="Close">×</button>
+              <button className="modal-close-btn-inventory" onClick={() => setOpenCancel(false)} title="Close"><FaTimes /></button>
             </div>
             <div className="modal-body-inventory">
               <div className="modal-id-section-inventory">

@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Navbar from '../Components/Navbar';
 import Sidebar from '../Components/Sidebar';
-import { categories } from '../data/sample';
 import { Edit2, Trash2 } from 'lucide-react';
 import Modal from '../Components/Modal';
 import ConfirmDialog from '../Components/ConfirmDialog';
@@ -10,7 +9,7 @@ import ChatAssistant from '../Components/ChatAssistant';
 
 export default function Categories() {
   const [tab, setTab] = useState('inventory');
-  const [list, setList] = useState(categories);
+  const [list, setList] = useState([]);
   const [roleList, setRoleList] = useState([]);
   const [, setLoading] = useState(true);
   const [openAdd, setOpenAdd] = useState(false);

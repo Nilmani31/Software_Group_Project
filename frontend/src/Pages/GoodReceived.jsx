@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import Navbar from '../Components/Navbar';
 import Sidebar from '../Components/Sidebar';
 import ChatAssistant from '../Components/ChatAssistant';
@@ -6,7 +6,15 @@ import ConfirmDialog from '../Components/ConfirmDialog';
 import { useForm, useFieldArray } from 'react-hook-form';
 import * as grnService from '../services/grnService';
 import * as poService from '../services/poService';
-
+import {
+  FaTimes,
+  FaPlus,
+  FaTrash,
+  FaBoxOpen,
+  FaTruck,
+  FaFileInvoice,
+  FaExclamationTriangle
+} from 'react-icons/fa';
 
 export default function GoodReceived() {
   const [list, setList] = useState([]);
@@ -21,6 +29,9 @@ export default function GoodReceived() {
   const [editableItems, setEditableItems] = useState([]);
   const [editableGrn, setEditableGrn] = useState(null);
   const [query, setQuery] = useState('');
+  const [filterStatus, setFilterStatus] = useState('');
+  const [filterBranch, setFilterBranch] = useState('');
+  const [branches, setBranches] = useState([]);
   const [imagePreview, setImagePreview] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -73,6 +84,21 @@ export default function GoodReceived() {
       }
     };
     fetchInventoryItems();
+  }, []);
+
+  // Fetch Branches
+  useEffect(() => {
+    const fetchBranches = async () => {
+      try {
+        const response = await fetch('http://localhost:5005/api/branches');
+        const data = await response.json();
+        const branchList = Array.isArray(data) ? data : (data.data || []);
+        setBranches(branchList);
+      } catch (err) {
+        console.error('Error fetching branches:', err);
+      }
+    };
+    fetchBranches();
   }, []);
 
   // Fetch POs from API when create modal opens
@@ -322,15 +348,47 @@ export default function GoodReceived() {
     }
   };
 
-  // Search functionality
-  const filteredGrns = list.filter(g => {
-    if (!query) return true;
-    const q = query.toLowerCase();
-    return (
-      (g.grnNumber && g.grnNumber.toLowerCase().includes(q)) ||
-      (g.poNumber && g.poNumber.toLowerCase().includes(q))
-    );
-  });
+  // Unique branch names from branches API and existing GRN records
+  const branchOptions = useMemo(() => {
+    const set = new Set();
+    branches.forEach(b => {
+      const name = b.name || b.branchName;
+      if (name) set.add(name);
+    });
+    list.forEach(g => {
+      if (g.branch) set.add(g.branch);
+    });
+    return Array.from(set);
+  }, [branches, list]);
+
+  // Unique status list
+  const uniqueStatuses = useMemo(() => {
+    const defaultStatuses = ['Complete', 'Incomplete', 'Not Received'];
+    const set = new Set(defaultStatuses);
+    list.forEach(g => {
+      if (g.status) set.add(g.status);
+    });
+    return Array.from(set);
+  }, [list]);
+
+  // Search & Filter functionality
+  const filteredGrns = useMemo(() => {
+    return list.filter(g => {
+      const q = query.trim().toLowerCase();
+      const matchesQuery = !q || (
+        (g.grnNumber && g.grnNumber.toLowerCase().includes(q)) ||
+        (g.poNumber && g.poNumber.toLowerCase().includes(q)) ||
+        (g.branch && g.branch.toLowerCase().includes(q)) ||
+        (g.supplierName && g.supplierName.toLowerCase().includes(q)) ||
+        (g.status && g.status.toLowerCase().includes(q))
+      );
+
+      const matchesStatus = !filterStatus || g.status === filterStatus;
+      const matchesBranch = !filterBranch || g.branch === filterBranch;
+
+      return matchesQuery && matchesStatus && matchesBranch;
+    });
+  }, [list, query, filterStatus, filterBranch]);
 
   const getItemStatusClass = (status) => {
     if (status === 'Incomplete') return 'badge-blue-light';
@@ -362,19 +420,67 @@ export default function GoodReceived() {
                         </svg>
                         <input
                           type="search"
-                          placeholder="Search by GRN or PO number..."
+                          placeholder="Search by GRN, PO number, or supplier..."
                           value={query}
                           onChange={(e) => setQuery(e.target.value)}
                         />
                       </div>
                     </div>
-                    <div className="inventory-actions">
+
+                    {/* Filter & Action Section (Right Aligned, matching PO page) */}
+                    <div className="po-filters" style={{ marginLeft: 'auto' }}>
+                      <div className="filter-group">
+                        <label className="filter-label">Order Status:</label>
+                        <select
+                          value={filterStatus}
+                          onChange={(e) => setFilterStatus(e.target.value)}
+                          className="filter-select"
+                        >
+                          <option value="">All Status</option>
+                          {uniqueStatuses.map(s => (
+                            <option key={s} value={s}>{s}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="filter-group">
+                        <label className="filter-label">Branch:</label>
+                        <select
+                          value={filterBranch}
+                          onChange={(e) => setFilterBranch(e.target.value)}
+                          className="filter-select"
+                        >
+                          <option value="">All Branches</option>
+                          {branchOptions.map(b => (
+                            <option key={b} value={b}>{b}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <button
+                        type="button"
+                        className="btn-clear-filters"
+                        onClick={() => {
+                          setFilterStatus('');
+                          setFilterBranch('');
+                          setQuery('');
+                        }}
+                        disabled={!query && !filterStatus && !filterBranch}
+                      >
+                        Clear Filters
+                      </button>
+
                       {canEdit && (
-                        <button className="btn btn-add" onClick={() => {
-                          reset({ items: [{ itemId: '', itemName: '', unit: '', unitPrice: '', quantityOrdered: '', quantityReceived: '' }] });
-                          setImagePreview(null);
-                          setOpenCreate(true);
-                        }} disabled={loading}>
+                        <button
+                          type="button"
+                          className="btn-add"
+                          onClick={() => {
+                            reset({ items: [{ itemId: '', itemName: '', unit: '', unitPrice: '', quantityOrdered: '', quantityReceived: '' }] });
+                            setImagePreview(null);
+                            setOpenCreate(true);
+                          }}
+                          disabled={loading}
+                        >
                           + New GRN
                         </button>
                       )}
@@ -465,11 +571,17 @@ export default function GoodReceived() {
                                 <td>{new Date(g.receivedDate).toLocaleDateString()}</td>
                                 <td>
                                   <span style={{
-                                    padding: '4px 8px',
-                                    backgroundColor: '#e0f2fe',
-                                    color: '#0369a1',
-                                    borderRadius: '4px',
-                                    fontSize: '12px'
+                                    padding: '4px 10px',
+                                    borderRadius: '9999px',
+                                    fontSize: '11px',
+                                    fontWeight: '700',
+                                    textTransform: 'uppercase',
+                                    letterSpacing: '0.03em',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    backgroundColor: (g.status === 'Complete' || g.status === 'Received' || g.status === 'Verified') ? '#ecfdf5' : (g.status === 'Incomplete' || g.status === 'Pending') ? '#fffbeb' : '#fef2f2',
+                                    color: (g.status === 'Complete' || g.status === 'Received' || g.status === 'Verified') ? '#065f46' : (g.status === 'Incomplete' || g.status === 'Pending') ? '#92400e' : '#991b1b',
+                                    border: `1px solid ${(g.status === 'Complete' || g.status === 'Received' || g.status === 'Verified') ? '#a7f3d0' : (g.status === 'Incomplete' || g.status === 'Pending') ? '#fde68a' : '#fecaca'}`
                                   }}>
                                     {g.status}
                                   </span>
@@ -491,178 +603,292 @@ export default function GoodReceived() {
       {/* Create GRN Modal - Professional Design */}
       {openCreate && (
         <div className="modal-overlay-inventory" onClick={() => { setOpenCreate(false); setCurrentPOType('Supplier'); }}>
-          <div className="modal-content-inventory" onClick={e => e.stopPropagation()}>
+          <div className="modal-content-inventory add-item-modal create-grn-modal" onClick={e => e.stopPropagation()}>
             <div className="modal-header-inventory">
               <div className="modal-title-section-inventory">
                 <h2 className="modal-title-inventory">Create Goods Received Note</h2>
-                <p className="modal-subtitle-inventory">Add a new goods received note (GRN) from supplier</p>
+                <p className="modal-subtitle-inventory">Record verified physical inventory intake against Purchase Orders</p>
               </div>
-              <button className="modal-close-btn-inventory" onClick={() => { setOpenCreate(false); setCurrentPOType('Supplier'); }} aria-label="Close">×</button>
+              <button
+                type="button"
+                className="modal-close-btn-inventory"
+                onClick={() => { setOpenCreate(false); setCurrentPOType('Supplier'); }}
+                title="Close"
+              >
+                <FaTimes />
+              </button>
             </div>
+
             <div className="modal-body-inventory">
-              <form onSubmit={handleSubmit(requestCreate)} className="modal-form-inventory">
+              <form id="create-grn-form" onSubmit={handleSubmit(requestCreate)} className="modal-form-inventory">
                 {error && (
                   <div style={{
                     padding: '12px 16px',
-                    backgroundColor: '#fee',
-                    color: '#c00',
-                    borderRadius: '6px',
+                    backgroundColor: '#fee2e2',
+                    color: '#b91c1c',
+                    borderRadius: '8px',
                     fontSize: '13px',
-                    marginBottom: '16px',
-                    border: '1px solid #fcc'
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    border: '1px solid #fecaca'
                   }}>
-                    ⚠️ {error}
+                    <FaExclamationTriangle />
+                    <span>{error}</span>
                   </div>
                 )}
 
-                <h4 style={{ margin: '0 0 16px 0', fontSize: '13px', fontWeight: 600, color: '#334155', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Goods Details</h4>
-                <div className="form-layout-inventory">
-                  <div className="form-group-inventory">
-                    <label className="form-label-inventory">Purchase Order Number</label>
-                    <select
-                      {...register('po')}
-                      onChange={(e) => handlePOSelect(e.target.value)}
-                      className="form-input-inventory"
-                    >
-                      <option value="">-- Select Purchase Order --</option>
-                      {poList && poList.length > 0 ? (
-                        poList
-                          .filter(po => po.status === 'Pending')
-                          .map((po, idx) => {
-                            const orderType = po.orderType || po.orderBy || 'Supplier';
-                            const displayName = orderType === 'Branch'
-                              ? (po.branch || po.branchName || 'N/A')
-                              : (po.supplier || po.supplierName || 'N/A');
-                            const status = po.status || 'Pending';
-                            return (
-                              <option key={idx} value={po.poNumber || po.id}>
-                                {po.poNumber || po.id} - {displayName} ({orderType}) - {status}
-                              </option>
-                            );
-                          })
-                      ) : (
-                        <option disabled>No pending purchase orders available</option>
-                      )}
-                    </select>
+                {/* Top Reference Card (matching SKU card from Add Item modal) */}
+                <div className="sku-info-card">
+                  <div className="sku-info-header">
+                    <span className="sku-info-label">
+                      <FaFileInvoice /> Document Type & Intake Source
+                    </span>
+                    <span className="sku-info-tag">
+                      {currentPOType === 'Branch' ? 'Internal Branch Transfer' : 'Supplier Procurement'}
+                    </span>
                   </div>
-                  <div className="form-group-inventory">
-                    <label className="form-label-inventory">{currentPOType === 'Branch' ? 'Branch Name' : 'Supplier Name'}</label>
-                    <input {...register('supplierName')} placeholder={currentPOType === 'Branch' ? 'Auto-filled from PO Branch' : 'Auto-filled from PO Supplier'} className="form-input-inventory" />
-                  </div>
-                  <div className="form-group-inventory">
-                    <label className="form-label-inventory">Received Date</label>
-                    <input {...register('date')} type="date" defaultValue={new Date().toISOString().substring(0, 10)} className="form-input-inventory" />
-                  </div>
-                  <div className="form-group-inventory">
-                    <label className="form-label-inventory">Received By</label>
-                    <input {...register('receivedBy')} placeholder="Employee ID" className="form-input-inventory" />
+                  <div className="sku-info-value" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+                    <span>{watch('po') ? `Linked to ${watch('po')}` : 'Manual / Direct GRN Intake'}</span>
+                    <span style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-muted)' }}>
+                      Source: <strong style={{ color: 'var(--text-primary)' }}>{currentPOType === 'Branch' ? 'Internal Branch Delivery' : 'External Supplier Delivery'}</strong>
+                    </span>
                   </div>
                 </div>
 
-                <h4 style={{ margin: '24px 0 16px 0', fontSize: '13px', fontWeight: 600, color: '#334155', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Items Received</h4>
-                <div style={{ marginBottom: '16px' }}>
-                  <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr 0.8fr',
-                    gap: '8px',
-                    marginBottom: '12px',
-                    fontWeight: '600',
-                    fontSize: '12px',
-                    color: '#475569',
-                    padding: '8px 12px',
-                    backgroundColor: '#f8fafc',
-                    border: '1px solid #e2e8f0',
-                    borderRadius: '6px',
-                    alignItems: 'center',
-                    width: '100%'
-                  }}>
-                    <div style={{ minWidth: 0 }}>Item Name</div>
-                    <div style={{ minWidth: 0 }}>Unit</div>
-                    <div style={{ minWidth: 0 }}>Unit Price</div>
-                    <div style={{ minWidth: 0 }}>Qty Ordered</div>
-                    <div style={{ minWidth: 0 }}>Qty Received</div>
-                    <div style={{ textAlign: 'center', minWidth: 0 }}>Action</div>
+                {/* Section 1: Order & Goods Intake Details */}
+                <div className="form-section-group">
+                  <div className="form-section-title">
+                    <FaTruck /> Order & Goods Intake Details
                   </div>
 
-                  {fields.map((field, index) => (
-                    <div key={field.id} style={{
-                      display: 'grid',
-                      gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr 0.8fr',
-                      gap: '8px',
-                      alignItems: 'center',
-                      marginBottom: '8px',
-                      padding: '8px 12px',
-                      backgroundColor: '#ffffff',
-                      border: '1px solid #e5e7eb',
-                      borderRadius: '6px',
-                      transition: 'all 0.2s',
-                      width: '100%'
-                    }}>
+                  <div className="form-grid-2">
+                    <div className="form-group-inventory">
+                      <label className="form-label-inventory">Purchase Order *</label>
                       <select
-                        {...register(`items.${index}.itemName`)}
-                        className="form-input-inventory"
-                        style={{ fontSize: '13px', width: '100%', minWidth: 0, padding: '4px', backgroundColor: watch('po') ? '#f3f4f6' : 'white', pointerEvents: watch('po') ? 'none' : 'auto' }}
-                        readOnly={!!watch('po')}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          setValue(`items.${index}.itemName`, val);
-                          const selectedItem = inventoryItems.find(i => i.name === val);
-                          if (selectedItem) {
-                            setValue(`items.${index}.itemId`, selectedItem.originalId || selectedItem._id);
-                            setValue(`items.${index}.unit`, selectedItem.unit || 'kg');
-                            setValue(`items.${index}.unitPrice`, selectedItem.unitPrice || 0);
-                          }
-                        }}
+                        {...register('po')}
+                        onChange={(e) => handlePOSelect(e.target.value)}
+                        className="form-input-inventory filter-select"
                       >
-                        <option value="">Select Item</option>
-                        {inventoryItems.map((invItem) => (
-                          <option key={invItem.uniqueId || invItem._id} value={invItem.name}>
-                            {invItem.name} ({invItem.unit})
-                          </option>
-                        ))}
+                        <option value="">-- Select Purchase Order --</option>
+                        {poList && poList.length > 0 ? (
+                          poList
+                            .filter(po => po.status === 'Pending')
+                            .map((po, idx) => {
+                              const orderType = po.orderType || po.orderBy || 'Supplier';
+                              const displayName = orderType === 'Branch'
+                                ? (po.branch || po.branchName || 'N/A')
+                                : (po.supplier || po.supplierName || 'N/A');
+                              const status = po.status || 'Pending';
+                              return (
+                                <option key={idx} value={po.poNumber || po.id}>
+                                  {po.poNumber || po.id} - {displayName} ({orderType}) - {status}
+                                </option>
+                              );
+                            })
+                        ) : (
+                          <option disabled>No pending purchase orders available</option>
+                        )}
                       </select>
-                      <input {...register(`items.${index}.unit`)} placeholder="kg/units" className="form-input-inventory" style={{ fontSize: '13px', width: '100%', minWidth: 0, backgroundColor: watch('po') ? '#f3f4f6' : 'white', pointerEvents: watch('po') ? 'none' : 'auto' }} readOnly={!!watch('po')} />
-                      <input {...register(`items.${index}.unitPrice`)} placeholder="Price" type="number" step="0.01" className="form-input-inventory" style={{ fontSize: '13px', width: '100%', minWidth: 0 }} />
-                      <input {...register(`items.${index}.quantityOrdered`)} placeholder="0" type="number" className="form-input-inventory" style={{ fontSize: '13px', width: '100%', minWidth: 0, backgroundColor: watch('po') ? '#f3f4f6' : 'white', pointerEvents: watch('po') ? 'none' : 'auto' }} readOnly={!!watch('po')} />
-                      <input {...register(`items.${index}.quantityReceived`)} placeholder="0" type="number" className="form-input-inventory" style={{ fontSize: '13px', width: '100%', minWidth: 0 }} />
-                      {!watch('po') && (
-                        <button
-                          type="button"
-                          onClick={() => remove(index)}
-                          className="modal-btn-inventory cancel"
-                          style={{ padding: '6px 8px', fontSize: '11px', width: '100%', minWidth: 0 }}
-                        >
-                          Remove
-                        </button>
-                      )}
-                      {!!watch('po') && (
-                        <div style={{ textAlign: 'center', fontSize: '12px', color: '#64748b' }}>Locked</div>
-                      )}
                     </div>
-                  ))}
+
+                    <div className="form-group-inventory">
+                      <label className="form-label-inventory">
+                        {currentPOType === 'Branch' ? 'Fulfilling Branch' : 'Supplier Name'}
+                      </label>
+                      <input
+                        {...register('supplierName')}
+                        placeholder={currentPOType === 'Branch' ? 'Auto-filled from PO Branch' : 'Auto-filled from PO Supplier'}
+                        className="form-input-inventory"
+                        style={{ backgroundColor: watch('po') ? '#f8fafc' : 'white' }}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="form-grid-2">
+                    <div className="form-group-inventory">
+                      <label className="form-label-inventory">Received Date *</label>
+                      <input
+                        {...register('date')}
+                        type="date"
+                        defaultValue={new Date().toISOString().substring(0, 10)}
+                        className="form-input-inventory"
+                        required
+                      />
+                    </div>
+                    <div className="form-group-inventory">
+                      <label className="form-label-inventory">Received By (Employee ID / Name)</label>
+                      <input
+                        {...register('receivedBy')}
+                        placeholder="e.g. EMP-104 or Username"
+                        className="form-input-inventory"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Section 2: Items Received */}
+                <div className="form-section-group">
+                  <div className="form-section-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <FaBoxOpen /> Verified Items Received
+                    </span>
+                    <span className="sku-info-tag">
+                      {fields.length} {fields.length === 1 ? 'item' : 'items'}
+                    </span>
+                  </div>
+
+                  {/* Clean Items Table Wrap */}
+                  <div className="po-detail-table-wrap" style={{ maxHeight: '280px', overflowY: 'auto' }}>
+                    <table className="po-detail-table" style={{ margin: 0, minWidth: '650px' }}>
+                      <thead>
+                        <tr>
+                          <th>Item Name</th>
+                          <th style={{ width: '90px' }}>Unit</th>
+                          <th style={{ width: '110px' }}>Unit Price (Rs)</th>
+                          <th style={{ width: '100px', textAlign: 'center' }}>Qty Ordered</th>
+                          <th style={{ width: '110px', textAlign: 'center' }}>Qty Received</th>
+                          <th style={{ width: '80px', textAlign: 'center' }}>Action</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {fields.map((field, index) => (
+                          <tr key={field.id}>
+                            <td>
+                              <select
+                                {...register(`items.${index}.itemName`)}
+                                className="form-input-inventory"
+                                style={{
+                                  fontSize: '13px',
+                                  height: '34px',
+                                  backgroundColor: watch('po') ? '#f8fafc' : 'white',
+                                  pointerEvents: watch('po') ? 'none' : 'auto'
+                                }}
+                                readOnly={!!watch('po')}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setValue(`items.${index}.itemName`, val);
+                                  const selectedItem = inventoryItems.find(i => i.name === val);
+                                  if (selectedItem) {
+                                    setValue(`items.${index}.itemId`, selectedItem.originalId || selectedItem._id);
+                                    setValue(`items.${index}.unit`, selectedItem.unit || 'kg');
+                                    setValue(`items.${index}.unitPrice`, selectedItem.unitPrice || 0);
+                                  }
+                                }}
+                              >
+                                <option value="">Select Item</option>
+                                {inventoryItems.map((invItem) => (
+                                  <option key={invItem.uniqueId || invItem._id} value={invItem.name}>
+                                    {invItem.name} ({invItem.unit})
+                                  </option>
+                                ))}
+                              </select>
+                            </td>
+                            <td>
+                              <input
+                                {...register(`items.${index}.unit`)}
+                                placeholder="Unit"
+                                className="form-input-inventory"
+                                style={{
+                                  fontSize: '13px',
+                                  height: '34px',
+                                  backgroundColor: watch('po') ? '#f8fafc' : 'white',
+                                  pointerEvents: watch('po') ? 'none' : 'auto'
+                                }}
+                                readOnly={!!watch('po')}
+                              />
+                            </td>
+                            <td>
+                              <input
+                                {...register(`items.${index}.unitPrice`)}
+                                placeholder="0.00"
+                                type="number"
+                                step="0.01"
+                                className="form-input-inventory"
+                                style={{ fontSize: '13px', height: '34px' }}
+                              />
+                            </td>
+                            <td style={{ textAlign: 'center' }}>
+                              <input
+                                {...register(`items.${index}.quantityOrdered`)}
+                                placeholder="0"
+                                type="number"
+                                className="form-input-inventory"
+                                style={{
+                                  fontSize: '13px',
+                                  height: '34px',
+                                  textAlign: 'center',
+                                  backgroundColor: watch('po') ? '#f8fafc' : 'white',
+                                  pointerEvents: watch('po') ? 'none' : 'auto'
+                                }}
+                                readOnly={!!watch('po')}
+                              />
+                            </td>
+                            <td style={{ textAlign: 'center' }}>
+                              <input
+                                {...register(`items.${index}.quantityReceived`)}
+                                placeholder="0"
+                                type="number"
+                                className="form-input-inventory"
+                                style={{ fontSize: '13px', height: '34px', textAlign: 'center', borderColor: '#2563eb', fontWeight: 600 }}
+                                required
+                              />
+                            </td>
+                            <td style={{ textAlign: 'center' }}>
+                              {!watch('po') ? (
+                                <button
+                                  type="button"
+                                  onClick={() => remove(index)}
+                                  className="modal-btn-inventory delete"
+                                  style={{ height: '28px', padding: '0 8px', fontSize: '11px' }}
+                                  title="Remove item"
+                                >
+                                  <FaTrash />
+                                </button>
+                              ) : (
+                                <span className="sku-info-tag" style={{ fontSize: '10px' }}>PO Linked</span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
 
                   {!watch('po') && (
                     <button
                       type="button"
                       onClick={() => append({ itemId: '', itemName: '', unit: '', unitPrice: '', quantityOrdered: '', quantityReceived: '' })}
-                      className="modal-btn-inventory cancel"
-                      style={{ marginTop: '8px', padding: '10px 16px' }}
+                      className="modal-btn-inventory save"
+                      style={{ marginTop: '10px', alignSelf: 'flex-start' }}
                     >
-                      + Add Item
+                      <FaPlus /> Add Line Item
                     </button>
                   )}
                 </div>
-
-                <div className="modal-footer-inventory" style={{ justifyContent: 'flex-end' }}>
-                  <button
-                    type="submit"
-                    className="modal-btn-inventory submit"
-                    disabled={loading}
-                  >
-                    {loading ? 'Creating...' : 'Create GRN'}
-                  </button>
-                </div>
               </form>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="modal-footer-inventory">
+              <button
+                type="button"
+                className="modal-btn-inventory cancel"
+                onClick={() => {
+                  setOpenCreate(false);
+                  setCurrentPOType('Supplier');
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                form="create-grn-form"
+                className="modal-btn-inventory save"
+                disabled={loading}
+              >
+                <FaPlus /> {loading ? 'Creating...' : 'Create Goods Received Note'}
+              </button>
             </div>
           </div>
         </div>
@@ -681,7 +907,7 @@ export default function GoodReceived() {
                   {isEditMode ? 'Update receipt information, quantities, or received items' : 'Official record of verified received items and stock intake'}
                 </p>
               </div>
-              <button className="modal-close-btn-inventory" onClick={() => { setOpenView(false); setIsEditMode(false); }} aria-label="Close">×</button>
+              <button type="button" className="modal-close-btn-inventory" onClick={() => { setOpenView(false); setIsEditMode(false); }} title="Close"><FaTimes /></button>
             </div>
 
             <div className="modal-body-inventory">
