@@ -5,6 +5,7 @@ import ChatAssistant from '../Components/ChatAssistant';
 import FindItemByImageModal from '../Components/FindItemByImageModal';
 import ConfirmDialog from '../Components/ConfirmDialog';
 import './EditItemModal.css';
+import './AddItemModal.css';
 
 import { FaTimes, FaEdit, FaTrash, FaImage } from 'react-icons/fa';
 import { getAuthHeaders } from '../utils/authHeaders';

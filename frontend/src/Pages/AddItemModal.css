@@ -1,0 +1,14 @@
+.form-input-read-only-inventory{width:100%;box-sizing:border-box;height:38px;padding:0 12px;display:flex;align-items:center;border:1px solid var(--border-default,#e2e8f0);border-radius:8px;background:#f1f5f9;color:#64748b;font-size:13px}
+.image-upload-box-inventory{position:relative;display:flex;align-items:center;justify-content:center;height:120px;border:1.5px dashed #cbd5e1;border-radius:8px;background:#f1f5f9;overflow:hidden}
+.image-preview-content-inventory{width:100%;height:100%}
+.image-preview-content-inventory img{width:100%;height:100%;object-fit:cover}
+.upload-placeholder-inventory{display:flex;flex-direction:column;align-items:center;gap:4px;color:#64748b}
+.upload-icon-inventory{font-size:20px;font-weight:600;line-height:1}
+.upload-text-inventory{font-size:13px;font-weight:500}
+.upload-label-inventory{position:absolute;inset:0;cursor:pointer}
+.input-with-spinner-inventory{display:flex;align-items:stretch}
+.input-with-spinner-inventory .form-input-inventory{border-top-right-radius:0;border-bottom-right-radius:0;border-right:none}
+.spinner-controls-inventory{display:flex;flex-direction:column;border:1px solid var(--border-default,#e2e8f0);border-left:none;border-top-right-radius:8px;border-bottom-right-radius:8px;overflow:hidden}
+.spinner-btn-inventory{flex:1;width:26px;display:flex;align-items:center;justify-content:center;border:none;background:#f1f5f9;color:#64748b;font-size:9px;cursor:pointer;line-height:1;padding:0}
+.spinner-btn-inventory:hover{background:#f8fafc;color:#0f172a}
+.spinner-btn-inventory.up{border-bottom:1px solid var(--border-default,#e2e8f0)}
