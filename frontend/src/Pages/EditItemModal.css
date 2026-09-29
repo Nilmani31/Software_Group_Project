@@ -1,0 +1,33 @@
+.edit-item-overlay{position:fixed;inset:0;z-index:2000;display:flex;align-items:center;justify-content:center;padding:24px;background:#0f172a99;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
+.edit-item-modal{background:var(--bg-surface,#fff);border:1px solid var(--border-default,#e2e8f0);border-radius:var(--radius-xl,16px);width:min(760px,96vw);box-shadow:var(--shadow-xl,0 20px 25px -5px #0000001a)}
+.edit-item-header{display:flex;justify-content:space-between;align-items:flex-start;padding:20px 24px}
+.edit-item-header-content{display:flex;flex-direction:column;gap:3px}
+.edit-item-title{margin:0;font-size:17px;font-weight:700;color:var(--text-primary,#0f172a)}
+.edit-item-subtitle{margin:0;font-size:13px;color:var(--text-muted,#64748b)}
+.edit-item-close{display:flex;align-items:center;justify-content:center;width:32px;height:32px;border:1px solid var(--border-default,#e2e8f0);border-radius:6px;background:#fff;color:var(--text-muted,#64748b);cursor:pointer;transition:all .15s}
+.edit-item-close:hover{background:#f8fafc;color:#0f172a;border-color:#cbd5e1}
+.edit-item-body{padding:0 24px 24px}
+.edit-item-footer{display:flex;justify-content:flex-end;align-items:center;gap:10px;padding:16px 24px;background:#f1f5f9;border-radius:0 0 16px 16px}
+.edit-form-layout{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+@media (max-width:640px){.edit-form-layout{grid-template-columns:1fr}}
+.edit-form-left,.edit-form-right{display:flex;flex-direction:column;gap:16px}
+.edit-form-group{display:flex;flex-direction:column;gap:6px}
+.edit-form-label{font-size:12px;font-weight:600;color:var(--text-secondary,#475569)}
+.edit-form-input,.edit-form-input-readonly,.edit-form-input-spinner{width:100%;box-sizing:border-box;height:38px;padding:0 12px;border:1px solid var(--border-default,#e2e8f0);border-radius:8px;background:#fff;color:#0f172a;font-family:inherit;font-size:13px;transition:all .15s}
+.edit-form-input:focus,.edit-form-input-spinner:focus{border-color:#2563eb;outline:none;box-shadow:0 0 0 3px #2563eb1f}
+.edit-form-input-readonly{background:#f1f5f9;color:#64748b;cursor:not-allowed}
+.edit-image-upload-box{position:relative;display:flex;align-items:center;justify-content:center;height:120px;border:1.5px dashed #cbd5e1;border-radius:8px;background:#f1f5f9;overflow:hidden}
+.edit-image-preview{width:100%;height:100%;object-fit:cover}
+.edit-upload-placeholder{color:#64748b;font-size:13px;font-weight:500}
+.edit-upload-label{position:absolute;inset:0;cursor:pointer}
+.edit-input-with-spinner{display:flex;align-items:stretch}
+.edit-form-input-spinner{border-top-right-radius:0;border-bottom-right-radius:0;border-right:none}
+.edit-spinner-controls{display:flex;flex-direction:column;border:1px solid #e2e8f0;border-left:none;border-top-right-radius:8px;border-bottom-right-radius:8px;overflow:hidden}
+.edit-spinner-btn{flex:1;width:26px;display:flex;align-items:center;justify-content:center;border:none;background:#f1f5f9;color:#64748b;font-size:9px;cursor:pointer;line-height:1;padding:0}
+.edit-spinner-btn:hover{background:#f8fafc;color:#0f172a}
+.edit-spinner-btn.up{border-bottom:1px solid #e2e8f0}
+.edit-btn-cancel,.edit-btn-submit{height:38px;padding:0 18px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;transition:all .15s}
+.edit-btn-cancel{background:#fff;color:#475569;border:1px solid #e2e8f0}
+.edit-btn-cancel:hover{background:#f8fafc;color:#0f172a;border-color:#cbd5e1}
+.edit-btn-submit{background:#2563eb;color:#fff;border:1px solid #1d4ed8}
+.edit-btn-submit:hover{background:#1d4ed8}
