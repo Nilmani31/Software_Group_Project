@@ -1,6 +1,22 @@
+const mongoose = require('mongoose');
 const Branch = require('../models/branches');
 
 const DEFAULT_BRANCH_EMAIL = 'branch@company.com';
+
+const generateNextBranchId = async () => {
+  const branches = await Branch.find({}, { branchId: 1 }).lean();
+  let maxNum = 0;
+  branches.forEach(b => {
+    if (b.branchId) {
+      const match = String(b.branchId).match(/^B-(\d+)$/i);
+      if (match) {
+        const num = parseInt(match[1], 10);
+        if (num > maxNum) maxNum = num;
+      }
+    }
+  });
+  return `B-${String(maxNum + 1).padStart(2, '0')}`;
+};
 
 const toApiBranch = (branch) => {
   const data = typeof branch?.toObject === 'function' ? branch.toObject() : branch;
@@ -11,7 +27,7 @@ const toApiBranch = (branch) => {
 
   return {
     _id: data._id,
-    id: data._id,
+    id: data.branchId || data._id,
     branchId: data.branchId,
     branchCode: data.branchCode,
     branchName: data.branchName,
@@ -43,14 +59,17 @@ const sanitizePhoneNumber = (phone) => {
   return String(phone).replace(/\D+/g, '');
 };
 
-const buildBranchCode = (branchName) => {
+const buildBranchCode = (branchName, branchId) => {
+  if (branchId) {
+    return branchId.replace('-', '');
+  }
   const namePart = branchName.replace(/[^a-z0-9]/gi, '').toUpperCase().slice(0, 3) || 'BRN';
   return `${namePart}${Date.now().toString(36).toUpperCase()}`;
 };
 
 exports.getBranches = async (req, res) => {
   try {
-    const branches = await Branch.find().sort({ branchName: 1 }).lean();
+    const branches = await Branch.find().sort({ branchId: 1, branchName: 1 }).lean();
     res.json({ success: true, data: branches.map(toApiBranch) });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -60,7 +79,12 @@ exports.getBranches = async (req, res) => {
 exports.getBranchById = async (req, res) => {
   try {
     const branchId = req.params.branchId;
-    const branch = await Branch.findOne({ branchId }).lean();
+    const branch = await Branch.findOne({
+      $or: [
+        { branchId },
+        { _id: mongoose.Types.ObjectId.isValid(branchId) ? branchId : null }
+      ]
+    }).lean();
 
     if (!branch) {
       return res.status(404).json({ success: false, message: 'Branch not found' });
@@ -95,9 +119,12 @@ exports.createBranch = async (req, res) => {
     const trimmedName = branch_name.trim();
     const finalManager = managerName || 'To Be Assigned';
 
+    const branchId = await generateNextBranchId();
+
     const newBranch = await Branch.create({
+      branchId,
       branchName: trimmedName,
-      branchCode: buildBranchCode(trimmedName),
+      branchCode: buildBranchCode(trimmedName, branchId),
       location: trimmedLocation,
       city: trimmedLocation,
       state: trimmedLocation,
@@ -110,7 +137,7 @@ exports.createBranch = async (req, res) => {
       updatedBy: req.user?.username || 'SYSTEM',
     });
 
-    console.log('✅ Branch created successfully:', newBranch._id);
+    console.log('✅ Branch created successfully:', newBranch.branchId);
     res.status(201).json({ success: true, data: toApiBranch(newBranch) });
   } catch (error) {
     console.error('❌ Error creating branch:', error);
@@ -166,7 +193,12 @@ exports.updateBranch = async (req, res) => {
     update.updatedBy = req.user?.username || 'SYSTEM';
 
     const updated = await Branch.findOneAndUpdate(
-      { branchId },
+      {
+        $or: [
+          { branchId },
+          { _id: mongoose.Types.ObjectId.isValid(branchId) ? branchId : null }
+        ]
+      },
       update,
       { new: true, runValidators: true, context: 'query' }
     );
@@ -188,7 +220,12 @@ exports.updateBranch = async (req, res) => {
 exports.deleteBranch = async (req, res) => {
   try {
     const branchId = req.params.branchId;
-    const removed = await Branch.findOneAndDelete({ branchId });
+    const removed = await Branch.findOneAndDelete({
+      $or: [
+        { branchId },
+        { _id: mongoose.Types.ObjectId.isValid(branchId) ? branchId : null }
+      ]
+    });
 
     if (!removed) {
       return res.status(404).json({ success: false, message: 'Branch not found' });

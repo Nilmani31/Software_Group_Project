@@ -67,16 +67,6 @@ const Dashboard = () => {
   return (
     <div className="dashboard-wrapper">
       <div className="dashboard-container">
-        <div className="dashboard-header-strip">
-          <div>
-            <h2 className="dashboard-welcome-heading">Inventory Overview</h2>
-            <p className="dashboard-welcome-sub">Real-time status across stock items, pending orders, and demand.</p>
-          </div>
-          <div className="dashboard-live-pill">
-            <span className="live-dot-pulse"></span>
-            <span>Live Sync Active</span>
-          </div>
-        </div>
 
         <div className="dashboard-cards">
           <div className="card dashboard-kpi-card card-total-items">

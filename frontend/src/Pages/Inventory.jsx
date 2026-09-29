@@ -5,7 +5,7 @@ import ChatAssistant from '../Components/ChatAssistant';
 import FindItemByImageModal from '../Components/FindItemByImageModal';
 import ConfirmDialog from '../Components/ConfirmDialog';
 
-import { FaTimes, FaEdit, FaTrash, FaImage } from 'react-icons/fa';
+import { FaTimes, FaEdit, FaTrash, FaImage, FaPlus, FaUpload, FaCloudUploadAlt, FaBarcode, FaBoxOpen, FaLayerGroup } from 'react-icons/fa';
 import { getAuthHeaders } from '../utils/authHeaders';
 
 // Helper function to generate SKU with first 3 letters of category name
@@ -903,175 +903,223 @@ const Inventory = () => {
       {/* Add Item Modal */}
       {showModal && (
         <div className="modal-overlay-inventory" onClick={handleCloseModal}>
-          <div className="modal-content-inventory" onClick={(e) => e.stopPropagation()}>
+          <div className="modal-content-inventory add-item-modal" onClick={(e) => e.stopPropagation()}>
             {/* Modal Header */}
             <div className="modal-header-inventory">
               <div className="modal-title-section-inventory">
                 <h2 className="modal-title-inventory">Add New Item</h2>
-                <p className="modal-subtitle-inventory">Add a new item to your inventory</p>
+                <p className="modal-subtitle-inventory">Register a new product with barcode, pricing, and stock limits</p>
               </div>
-              <button className="modal-close-btn-inventory" onClick={handleCloseModal}>
+              <button className="modal-close-btn-inventory" onClick={handleCloseModal} title="Close">
                 <FaTimes />
               </button>
             </div>
 
             {/* Modal Body */}
             <div className="modal-body-inventory">
-              <form className="modal-form-inventory" onSubmit={requestAddItem}>
-                {/* Form Layout */}
-                <div className="form-layout-inventory">
-                  {/* Left Column */}
-                  <div className="form-left-inventory">
-                    {/* Item Name */}
-                    <div className="form-group-inventory">
-                      <label className="form-label-inventory">Item Name</label>
+              <form id="add-item-form" className="modal-form-inventory" onSubmit={requestAddItem}>
+                <div className="add-item-layout-grid">
+                  {/* Left Column: Product Photo & Barcode/SKU Card */}
+                  <div className="add-item-media-col">
+                    <div className="form-group-inventory" style={{ margin: 0 }}>
+                      <label className="form-label-inventory">Item Photo</label>
+                      {imagePreview ? (
+                        <div>
+                          <div className="image-preview-wrapper">
+                            <img src={imagePreview} alt="Item preview" />
+                          </div>
+                          <div className="image-preview-actions">
+                            <label htmlFor="add-item-image-input" className="image-action-btn">
+                              <FaUpload /> Change
+                            </label>
+                            <button
+                              type="button"
+                              className="image-action-btn danger"
+                              onClick={() => {
+                                setImagePreview(null);
+                                setFormData(prev => ({ ...prev, image: null }));
+                              }}
+                            >
+                              <FaTrash /> Remove
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <label
+                          htmlFor="add-item-image-input"
+                          className="image-dropzone-box"
+                        >
+                          <div className="image-dropzone-icon">
+                            <FaCloudUploadAlt />
+                          </div>
+                          <div className="image-dropzone-title">Upload Product Image</div>
+                          <div className="image-dropzone-sub">Click to browse or drop file here</div>
+                          <div style={{ marginTop: '8px', fontSize: '10.5px', color: '#94a3b8' }}>PNG, JPG or WebP</div>
+                        </label>
+                      )}
                       <input
-                        type="text"
-                        name="name"
-                        placeholder="Enter item name"
-                        value={formData.name}
-                        onChange={handleInputChange}
-                        className="form-input-inventory"
-                        required
+                        type="file"
+                        accept="image/*"
+                        onChange={handleImageUpload}
+                        style={{ display: 'none' }}
+                        id="add-item-image-input"
                       />
                     </div>
 
-                    {/* Category */}
-                    <div className="form-group-inventory">
-                      <label className="form-label-inventory">Category</label>
-                      <select
-                        name="category"
-                        value={formData.category}
-                        onChange={handleInputChange}
-                        className="form-input-inventory"
-                        required
-                      >
-                        <option value="">Select category</option>
-                        {categories.map(c => (
-                          <option key={c._id} value={c.name}>{c.name}</option>
-                        ))}
-                      </select>
-                    </div>
-
-                    {/* Unit */}
-                    <div className="form-group-inventory">
-                      <label className="form-label-inventory">Unit</label>
-                      <select
-                        name="unit"
-                        value={formData.unit}
-                        onChange={handleInputChange}
-                        className="form-input-inventory"
-                        required
-                      >
-                        <option value="">Select unit</option>
-                        <option value="kg">kg</option>
-                        <option value="ltr">ltr</option>
-                        <option value="pcs">pcs</option>
-                      </select>
-                    </div>
-
-                    {/* Unit Amount / Size */}
-                    <div className="form-group-inventory">
-                      <label className="form-label-inventory">Unit Size / Amount</label>
-                      <input
-                        type="number"
-                        name="unitValue"
-                        placeholder="e.g. 1, 2, 5"
-                        value={formData.unitValue || '1'}
-                        onChange={handleInputChange}
-                        className="form-input-inventory"
-                        min="1"
-                        required
-                      />
-                    </div>
-
-                    {/* Unit Price */}
-                    <div className="form-group-inventory">
-                      <label className="form-label-inventory">Unit Price (Rs)</label>
-                      <input
-                        type="number"
-                        name="unitPrice"
-                        placeholder="e.g. 2500"
-                        value={formData.unitPrice || ''}
-                        onChange={handleInputChange}
-                        className="form-input-inventory"
-                        min="0"
-                        step="0.01"
-                      />
-                    </div>
-
-                    {/* SKU - Read Only */}
-                    <div className="form-group-inventory">
-                      <label className="form-label-inventory">SKU</label>
-                      <div className="form-input-read-only-inventory">
-                        {formData.sku}
+                    {/* Barcode & SKU Card */}
+                    <div className="sku-info-card">
+                      <div className="sku-info-header">
+                        <span className="sku-info-label">
+                          <FaBarcode /> SKU / Barcode
+                        </span>
+                        <span className="sku-info-tag">Auto-Generated</span>
+                      </div>
+                      <div className={`sku-info-value ${!formData.sku ? 'empty' : ''}`}>
+                        {formData.sku || 'Select a category to generate SKU'}
                       </div>
                     </div>
                   </div>
 
-                  {/* Right Column */}
-                  <div className="form-right-inventory">
-                    {/* Image Upload */}
-                    <div className="form-group-inventory">
-                      <label className="form-label-inventory">Add image</label>
-                      <div className="image-upload-box-inventory">
-                        {imagePreview ? (
-                          <div className="image-preview-content-inventory">
-                            <img src={imagePreview} alt="Item preview" />
-                          </div>
-                        ) : (
-                          <div className="upload-placeholder-inventory">
-                            <span className="upload-icon-inventory">+</span>
-                            <span className="upload-text-inventory">Upload image</span>
-                          </div>
-                        )}
+                  {/* Right Column: Organized Form Fields */}
+                  <div className="add-item-fields-col">
+                    {/* Section 1: General Info */}
+                    <div className="form-section-group">
+                      <div className="form-section-title">
+                        <FaBoxOpen /> General Information
+                      </div>
+
+                      {/* Item Name */}
+                      <div className="form-group-inventory" style={{ margin: 0 }}>
+                        <label className="form-label-inventory">Item Name *</label>
                         <input
-                          type="file"
-                          accept="image/*"
-                          onChange={handleImageUpload}
-                          style={{ display: 'none' }}
-                          id="image-input"
+                          type="text"
+                          name="name"
+                          placeholder="e.g. Premium White Rice"
+                          value={formData.name}
+                          onChange={handleInputChange}
+                          className="form-input-inventory"
+                          required
                         />
-                        <label htmlFor="image-input" className="upload-label-inventory"></label>
+                      </div>
+
+                      {/* Category */}
+                      <div className="form-group-inventory" style={{ margin: 0 }}>
+                        <label className="form-label-inventory">Category *</label>
+                        <select
+                          name="category"
+                          value={formData.category}
+                          onChange={handleInputChange}
+                          className="form-input-inventory filter-select"
+                          required
+                        >
+                          <option value="">Select product category</option>
+                          {categories.map(c => (
+                            <option key={c._id} value={c.name}>{c.name}</option>
+                          ))}
+                        </select>
                       </div>
                     </div>
 
-                    {/* Minimum Stock */}
-                    <div className="form-group-inventory">
-                      <label className="form-label-inventory">Minimum Stock</label>
-                      <div className="input-with-spinner-inventory">
-                        <input
-                          type="number"
-                          name="minStock"
-                          placeholder="0"
-                          value={formData.minStock}
-                          onChange={handleInputChange}
-                          className="form-input-inventory"
-                          min="0"
-                        />
-                        <div className="spinner-controls-inventory">
-                          <button type="button" className="spinner-btn-inventory up" onClick={() => handleSpinner('minStock', 'up')}>▲</button>
-                          <button type="button" className="spinner-btn-inventory down" onClick={() => handleSpinner('minStock', 'down')}>▼</button>
+                    {/* Section 2: Unit & Pricing */}
+                    <div className="form-section-group">
+                      <div className="form-section-title">
+                        <FaLayerGroup /> Units & Pricing
+                      </div>
+
+                      <div className="form-grid-3">
+                        {/* Unit */}
+                        <div className="form-group-inventory" style={{ margin: 0 }}>
+                          <label className="form-label-inventory">Unit *</label>
+                          <select
+                            name="unit"
+                            value={formData.unit}
+                            onChange={handleInputChange}
+                            className="form-input-inventory filter-select"
+                            required
+                          >
+                            <option value="kg">kg (Kilogram)</option>
+                            <option value="ltr">ltr (Liter)</option>
+                            <option value="pcs">pcs (Pieces)</option>
+                          </select>
+                        </div>
+
+                        {/* Unit Size */}
+                        <div className="form-group-inventory" style={{ margin: 0 }}>
+                          <label className="form-label-inventory">Unit Size / Amount *</label>
+                          <input
+                            type="number"
+                            name="unitValue"
+                            placeholder="e.g. 1"
+                            value={formData.unitValue || '1'}
+                            onChange={handleInputChange}
+                            className="form-input-inventory"
+                            min="1"
+                            required
+                          />
+                        </div>
+
+                        {/* Unit Price */}
+                        <div className="form-group-inventory" style={{ margin: 0 }}>
+                          <label className="form-label-inventory">Price (Rs)</label>
+                          <input
+                            type="number"
+                            name="unitPrice"
+                            placeholder="0.00"
+                            value={formData.unitPrice || ''}
+                            onChange={handleInputChange}
+                            className="form-input-inventory"
+                            min="0"
+                            step="0.01"
+                          />
                         </div>
                       </div>
                     </div>
 
-                    {/* Maximum Stock */}
-                    <div className="form-group-inventory">
-                      <label className="form-label-inventory">Maximum stock</label>
-                      <div className="input-with-spinner-inventory">
-                        <input
-                          type="number"
-                          name="maxStock"
-                          placeholder="0"
-                          value={formData.maxStock}
-                          onChange={handleInputChange}
-                          className="form-input-inventory"
-                          min="0"
-                        />
-                        <div className="spinner-controls-inventory">
-                          <button type="button" className="spinner-btn-inventory up" onClick={() => handleSpinner('maxStock', 'up')}>▲</button>
-                          <button type="button" className="spinner-btn-inventory down" onClick={() => handleSpinner('maxStock', 'down')}>▼</button>
+                    {/* Section 3: Stock Thresholds */}
+                    <div className="form-section-group">
+                      <div className="form-section-title">
+                        Stock Thresholds
+                      </div>
+
+                      <div className="form-grid-2">
+                        {/* Minimum Stock */}
+                        <div className="form-group-inventory" style={{ margin: 0 }}>
+                          <label className="form-label-inventory">Minimum Stock Alert</label>
+                          <div className="stepper-input-wrapper">
+                            <input
+                              type="number"
+                              name="minStock"
+                              placeholder="0"
+                              value={formData.minStock}
+                              onChange={handleInputChange}
+                              className="form-input-inventory"
+                              min="0"
+                            />
+                            <div className="stepper-btns">
+                              <button type="button" className="stepper-btn" onClick={() => handleSpinner('minStock', 'up')}>▲</button>
+                              <button type="button" className="stepper-btn" onClick={() => handleSpinner('minStock', 'down')}>▼</button>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Maximum Stock */}
+                        <div className="form-group-inventory" style={{ margin: 0 }}>
+                          <label className="form-label-inventory">Maximum Stock Capacity</label>
+                          <div className="stepper-input-wrapper">
+                            <input
+                              type="number"
+                              name="maxStock"
+                              placeholder="1000"
+                              value={formData.maxStock}
+                              onChange={handleInputChange}
+                              className="form-input-inventory"
+                              min="0"
+                            />
+                            <div className="stepper-btns">
+                              <button type="button" className="stepper-btn" onClick={() => handleSpinner('maxStock', 'up')}>▲</button>
+                              <button type="button" className="stepper-btn" onClick={() => handleSpinner('maxStock', 'down')}>▼</button>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -1085,8 +1133,13 @@ const Inventory = () => {
               <button type="button" className="modal-btn-inventory cancel" onClick={handleCloseModal}>
                 Cancel
               </button>
-              <button type="button" className="modal-btn-inventory submit" onClick={requestAddItem} disabled={submitLoading}>
-                {submitLoading ? 'Adding...' : 'Add Item'}
+              <button
+                type="submit"
+                form="add-item-form"
+                className="modal-btn-inventory save"
+                disabled={submitLoading}
+              >
+                {submitLoading ? 'Adding...' : '+ Add Item'}
               </button>
             </div>
           </div>
@@ -1188,14 +1241,14 @@ const Inventory = () => {
                       <button
                         type="button"
                         onClick={handleEditItem}
-                        style={{ padding: '7px 16px', fontSize: '13px', fontWeight: '600', background: '#4f46e5', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
+                        className="modal-btn-inventory edit"
                       >
                         <FaEdit /> Edit Item
                       </button>
                       <button
                         type="button"
                         onClick={requestDeleteItem}
-                        style={{ padding: '7px 16px', fontSize: '13px', fontWeight: '600', background: '#fee2e2', color: '#dc2626', border: 'none', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
+                        className="modal-btn-inventory delete"
                       >
                         <FaTrash /> Delete Item
                       </button>
@@ -1703,6 +1756,19 @@ const Inventory = () => {
         isOpen={showFindByImageModal}
         onClose={handleCloseFindByImageModal}
         onAddAsNew={handleAddAsNewItemFromImage}
+        onUseExistingItem={(matchedItem) => {
+          const existing = items.find(i => 
+            (matchedItem.productId && (i._id === matchedItem.productId || i.id === matchedItem.productId)) ||
+            (matchedItem.sku && (i.sku === matchedItem.sku || i.itemId === matchedItem.sku)) ||
+            (matchedItem.name && i.name.toLowerCase() === matchedItem.name.toLowerCase())
+          );
+          if (existing) {
+            handleRowClick(existing);
+          } else {
+            setSelectedItem(matchedItem);
+            setShowItemDetailModal(true);
+          }
+        }}
       />
 
       <ConfirmDialog

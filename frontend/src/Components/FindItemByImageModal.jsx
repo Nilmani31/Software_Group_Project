@@ -1,6 +1,15 @@
 import React, { useState, useRef } from 'react';
-import { FaTimes, FaImage, FaSpinner } from 'react-icons/fa';
-
+import {
+  FaTimes,
+  FaImage,
+  FaSpinner,
+  FaCloudUploadAlt,
+  FaSearch,
+  FaCheckCircle,
+  FaTrash,
+  FaPlus,
+  FaExternalLinkAlt
+} from 'react-icons/fa';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5005/api';
 
@@ -11,12 +20,12 @@ const FindItemByImageModal = ({ isOpen, onClose, onAddAsNew, onUseExistingItem }
   const [searchResults, setSearchResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [isDragOver, setIsDragOver] = useState(false);
   const abortControllerRef = useRef(null);
-  
+  const fileInputRef = useRef(null);
 
-  const handleImageUpload = (e) => {
-    const file = e.target.files[0];
-    if (file) {
+  const processFile = (file) => {
+    if (file && file.type.startsWith('image/')) {
       const reader = new FileReader();
       reader.onload = () => {
         setImagePreview(reader.result);
@@ -26,6 +35,43 @@ const FindItemByImageModal = ({ isOpen, onClose, onAddAsNew, onUseExistingItem }
         setSearchResults([]);
       };
       reader.readAsDataURL(file);
+    }
+  };
+
+  const handleImageUpload = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      processFile(file);
+    }
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    const file = e.dataTransfer.files[0];
+    if (file) {
+      processFile(file);
+    }
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    setIsDragOver(true);
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    setIsDragOver(false);
+  };
+
+  const handleRemoveImage = () => {
+    setSelectedImage(null);
+    setImagePreview(null);
+    setSearchCompleted(false);
+    setSearchResults([]);
+    setError(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
     }
   };
 
@@ -43,20 +89,10 @@ const FindItemByImageModal = ({ isOpen, onClose, onAddAsNew, onUseExistingItem }
       formData.append('image', selectedImage);
 
       const endpoint = `${API_BASE_URL}/image-search/zero-shot`;
-      console.log('🔍 Starting image search...');
-      console.log('📁 File:', selectedImage.name, selectedImage.size, 'bytes');
-      console.log('🔑 FormData keys:', Array.from(formData.keys()));
-
       const response = await fetch(endpoint, {
         method: 'POST',
         body: formData,
         signal: controller.signal,
-      });
-
-      console.log('📍 Response status:', response.status);
-      console.log('📋 Response headers:', {
-        contentType: response.headers.get('content-type'),
-        contentLength: response.headers.get('content-length')
       });
 
       if (!response.ok) {
@@ -67,31 +103,24 @@ const FindItemByImageModal = ({ isOpen, onClose, onAddAsNew, onUseExistingItem }
           try {
             const errorData = await response.json();
             errorMessage = errorData.message || errorData.detail || errorMessage;
-            console.log('📋 Error data:', errorData);
           } catch (e) {
             console.error('Failed to parse error JSON:', e);
           }
         } else {
-          const text = await response.text();
-          console.error('❌ Backend returned non-JSON response:', text.substring(0, 200));
-          errorMessage = `Backend error: ${response.status} ${response.statusText}. Check console for details.`;
+          errorMessage = `Backend error (${response.status} ${response.statusText})`;
         }
 
         throw new Error(errorMessage);
       }
 
       const data = await response.json();
-      console.log('✅ Search completed:', data);
-      console.log('📊 Received results:', data.results?.length || 0);
-
       setSearchResults(data.results || []);
       setSearchCompleted(true);
     } catch (err) {
       if (err.name === 'AbortError') {
-        console.log('🛑 Search cancelled by user');
         return;
       }
-      console.error('❌ Search error:', err);
+      console.error('Search error:', err);
       setError(err.message || 'Failed to search for similar items. Please try again.');
       setSearchCompleted(false);
     } finally {
@@ -100,20 +129,18 @@ const FindItemByImageModal = ({ isOpen, onClose, onAddAsNew, onUseExistingItem }
     }
   };
 
- const handleUseThisItem = (item) => {
-  console.log('Using item:', item);
-  if (onUseExistingItem) {
-    onUseExistingItem(item);
-  }
-  handleClose();
-};
+  const handleUseThisItem = (item) => {
+    if (onUseExistingItem) {
+      onUseExistingItem(item);
+    }
+    handleClose();
+  };
 
   const handleAddAsNewItem = () => {
     if (onAddAsNew) {
       onAddAsNew(imagePreview);
     }
   };
-  
 
   const handleClose = () => {
     if (abortControllerRef.current) {
@@ -124,6 +151,8 @@ const FindItemByImageModal = ({ isOpen, onClose, onAddAsNew, onUseExistingItem }
     setSelectedImage(null);
     setImagePreview(null);
     setSearchCompleted(false);
+    setSearchResults([]);
+    setError(null);
     onClose();
   };
 
@@ -131,244 +160,204 @@ const FindItemByImageModal = ({ isOpen, onClose, onAddAsNew, onUseExistingItem }
 
   return (
     <div className="modal-overlay-inventory" onClick={handleClose}>
-      <div className="modal-content-inventory" onClick={(e) => e.stopPropagation()}>
+      <div className="modal-content-inventory find-image-modal" onClick={(e) => e.stopPropagation()}>
         {/* Modal Header */}
         <div className="modal-header-inventory">
           <div className="modal-title-section-inventory">
             <h2 className="modal-title-inventory">Find Item by Image</h2>
-            <p className="modal-subtitle-inventory">Upload a product image to find similar items in the inventory</p>
+            <p className="modal-subtitle-inventory">
+              Upload a reference product photo to visually match items in the inventory catalog
+            </p>
           </div>
-          <button className="modal-close-btn-inventory" onClick={handleClose}>
+          <button className="modal-close-btn-inventory" onClick={handleClose} title="Close">
             <FaTimes />
           </button>
         </div>
 
         {/* Modal Body */}
         <div className="modal-body-inventory">
-          {/* Upload Section */}
-          <div className="form-group-inventory">
-            <label className="form-label-inventory">Upload Image</label>
-            <div className="image-upload-box-inventory" style={{ position: 'relative' }}>
-              {imagePreview ? (
-                <div className="image-preview-content-inventory">
-                  <img src={imagePreview} alt="Selected product" />
-                </div>
-              ) : (
-                <div className="upload-placeholder-inventory">
-                  <FaImage className="upload-icon-inventory" style={{ fontSize: '48px' }} />
-                  <span className="upload-text-inventory">Upload image</span>
-                </div>
-              )}
-              <input
-                type="file"
-                accept="image/*"
-                onChange={handleImageUpload}
-                style={{ display: 'none' }}
-                id="find-image-input"
-              />
-              <label
-                htmlFor="find-image-input"
-                className="upload-label-inventory"
-                style={{
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  cursor: 'pointer',
-                  zIndex: 10
-                }}
-              ></label>
-            </div>
-          </div>
-
-          {/* Search Button */}
-          <div style={{ marginTop: '16px' }}>
-            <button
-              className="modal-btn-inventory submit"
-              onClick={handleSearchSimilarItems}
-              disabled={!selectedImage || loading}
-              style={{
-                width: '100%',
-                opacity: !selectedImage || loading ? 0.5 : 1,
-                cursor: !selectedImage || loading ? 'not-allowed' : 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '8px'
-              }}
+          {/* Upload / Selected Photo Bar */}
+          {!imagePreview ? (
+            <div
+              className={`image-dropzone-box ${isDragOver ? 'is-dragover' : ''}`}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              onClick={() => fileInputRef.current?.click()}
             >
-              {loading ? (
-                <>
-                  <FaSpinner style={{
-                    display: 'inline-block',
-                    animation: 'spin 1s linear infinite'
-                  }} />
-                  Searching...
-                </>
-              ) : (
-                'Search Similar Items'
-              )}
-            </button>
-          </div>
+              <div className="image-dropzone-icon">
+                <FaCloudUploadAlt />
+              </div>
+              <div className="image-dropzone-title">Upload Product Photo to Search</div>
+              <div className="image-dropzone-sub">Drag & drop your image file here, or click to browse</div>
+              <div style={{ marginTop: '8px', fontSize: '11px', color: '#94a3b8' }}>
+                Supports PNG, JPG, JPEG or WebP (max 10MB)
+              </div>
+            </div>
+          ) : (
+            <div>
+              <div className="find-image-selected-bar">
+                <img src={imagePreview} alt="Selected" className="find-image-thumb" />
+                <div className="find-image-meta">
+                  <div className="find-image-name">{selectedImage?.name || 'Selected product image'}</div>
+                  <div className="find-image-sub">
+                    {selectedImage?.size ? `${(selectedImage.size / 1024).toFixed(1)} KB` : 'Ready for search'} • Image loaded
+                  </div>
+                </div>
+                <div className="find-image-actions">
+                  <button
+                    type="button"
+                    className="image-action-btn"
+                    onClick={() => fileInputRef.current?.click()}
+                    title="Change Photo"
+                  >
+                    Change
+                  </button>
+                  <button
+                    type="button"
+                    className="image-action-btn danger"
+                    onClick={handleRemoveImage}
+                    title="Remove Photo"
+                  >
+                    <FaTrash /> Remove
+                  </button>
+                </div>
+              </div>
+
+              {/* Prominent Search Action Button */}
+              <div style={{ marginBottom: '18px' }}>
+                <button
+                  type="button"
+                  className="modal-btn-inventory save"
+                  onClick={handleSearchSimilarItems}
+                  disabled={loading}
+                  style={{
+                    width: '100%',
+                    height: '42px',
+                    fontSize: '13.5px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px'
+                  }}
+                >
+                  {loading ? (
+                    <>
+                      <FaSpinner style={{ animation: 'spin 1s linear infinite' }} />
+                      Comparing against inventory catalog...
+                    </>
+                  ) : (
+                    <>
+                      <FaSearch /> Search Visual Matches
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          )}
+
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handleImageUpload}
+            style={{ display: 'none' }}
+          />
 
           {/* Error Message */}
           {error && (
-            <div style={{
-              marginTop: '16px',
-              padding: '12px',
-              backgroundColor: '#fee2e2',
-              border: '1px solid #fca5a5',
-              borderRadius: '6px',
-              color: '#991b1b',
-              fontSize: '13px'
-            }}>
-              ⚠️ {error}
+            <div
+              style={{
+                marginTop: '12px',
+                padding: '12px 16px',
+                backgroundColor: '#fee2e2',
+                border: '1px solid #fecaca',
+                borderRadius: '8px',
+                color: '#991b1b',
+                fontSize: '13px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}
+            >
+              <span>⚠️</span>
+              <span>{error}</span>
             </div>
           )}
 
           {/* Results Section */}
           {searchCompleted && searchResults.length > 0 && (
-            <div style={{ marginTop: '24px' }}>
-              <h3 style={{
-                fontSize: '14px',
-                fontWeight: '700',
-                color: '#1a3a52',
-                marginBottom: '16px',
-                textTransform: 'uppercase',
-                letterSpacing: '0.5px'
-              }}>
-                Similar Items ({searchResults.length})
-              </h3>
+            <div style={{ marginTop: '16px' }}>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  marginBottom: '12px'
+                }}
+              >
+                <div style={{ fontSize: '13px', fontWeight: '700', color: '#1e293b' }}>
+                  Visual Matches Found ({searchResults.length})
+                </div>
+                <div style={{ fontSize: '11.5px', color: '#64748b' }}>
+                  Ranked by visual resemblance
+                </div>
+              </div>
 
-              <div style={{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '12px'
-              }}>
+              <div className="visual-matches-container">
                 {searchResults.map((item, index) => {
                   const matchPercentage = Math.round((item.score || 0) * 100);
+                  const scoreClass = matchPercentage >= 80 ? 'high' : matchPercentage >= 60 ? 'medium' : 'low';
+
                   return (
-                    <div
-                      key={item.productId || index}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '12px',
-                        padding: '12px',
-                        border: '1px solid #e5e7eb',
-                        borderRadius: '8px',
-                        backgroundColor: '#f9fafb',
-                        transition: 'all 0.3s ease'
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.backgroundColor = '#f0f4ff';
-                        e.currentTarget.style.boxShadow = '0 2px 8px rgba(102, 126, 234, 0.1)';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.backgroundColor = '#f9fafb';
-                        e.currentTarget.style.boxShadow = 'none';
-                      }}
-                    >
-                      {/* Item Image */}
-                      {item.imageUrl && (
-                        <img
-                          src={item.imageUrl}
-                          alt={item.name}
+                    <div key={item.productId || item._id || index} className="visual-match-card">
+                      {/* Image Thumbnail */}
+                      {item.imageUrl ? (
+                        <img src={item.imageUrl} alt={item.name} className="visual-match-img" />
+                      ) : (
+                        <div
+                          className="visual-match-img"
                           style={{
-                            width: '60px',
-                            height: '60px',
-                            borderRadius: '6px',
-                            objectFit: 'cover',
-                            border: '1px solid #d8bfd8'
-                          }}
-                        />
-                      )}
-
-                      {/* Item Details */}
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{
-                          fontWeight: '700',
-                          fontSize: '13px',
-                          color: '#1a3a52',
-                          marginBottom: '4px',
-                          whiteSpace: 'nowrap',
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis'
-                        }}>
-                          {item.name}
-                        </div>
-                        <div style={{
-                          fontSize: '12px',
-                          color: '#6f7990',
-                          display: 'flex',
-                          gap: '12px'
-                        }}>
-                          <span>{item.sku}</span>
-                          <span>•</span>
-                          <span>{item.category}</span>
-                        </div>
-                      </div>
-
-                      {/* Match Percentage */}
-                      <div style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '8px',
-                        marginRight: '12px'
-                      }}>
-                        <div style={{
-                          width: '40px',
-                          height: '40px',
-                          borderRadius: '50%',
-                          background: `conic-gradient(#667eea 0deg ${matchPercentage * 3.6}deg, #e5e7eb ${matchPercentage * 3.6}deg)`,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center'
-                        }}>
-                          <div style={{
-                            width: '36px',
-                            height: '36px',
-                            borderRadius: '50%',
-                            background: 'white',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            fontSize: '11px',
-                            fontWeight: '700',
-                            color: '#667eea'
-                          }}>
-                            {matchPercentage}%
-                          </div>
+                            color: '#94a3b8'
+                          }}
+                        >
+                          <FaImage />
+                        </div>
+                      )}
+
+                      {/* Info */}
+                      <div className="visual-match-info">
+                        <div className="visual-match-title" title={item.name}>
+                          {item.name}
+                        </div>
+                        <div className="visual-match-meta">
+                          <span className="visual-match-sku">{item.sku || 'No SKU'}</span>
+                          {item.category && (
+                            <>
+                              <span>•</span>
+                              <span>{item.category}</span>
+                            </>
+                          )}
                         </div>
                       </div>
 
-                      {/* Use This Item Button */}
+                      {/* Match Score */}
+                      <div className={`visual-score-badge ${scoreClass}`}>
+                        <FaCheckCircle style={{ fontSize: '11px' }} />
+                        <span>{matchPercentage}% Match</span>
+                      </div>
+
+                      {/* Action */}
                       <button
+                        type="button"
+                        className="modal-btn-inventory edit"
                         onClick={() => handleUseThisItem(item)}
-                        style={{
-                          padding: '8px 14px',
-                          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                          color: 'white',
-                          border: 'none',
-                          borderRadius: '6px',
-                          fontSize: '12px',
-                          fontWeight: '700',
-                          cursor: 'pointer',
-                          whiteSpace: 'nowrap',
-                          transition: 'all 0.3s ease',
-                          boxShadow: '0 2px 8px rgba(102, 126, 234, 0.2)'
-                        }}
-                        onMouseEnter={(e) => {
-                          e.target.style.transform = 'translateY(-2px)';
-                          e.target.style.boxShadow = '0 4px 12px rgba(102, 126, 234, 0.3)';
-                        }}
-                        onMouseLeave={(e) => {
-                          e.target.style.transform = 'translateY(0)';
-                          e.target.style.boxShadow = '0 2px 8px rgba(102, 126, 234, 0.2)';
-                        }}
+                        style={{ height: '34px', padding: '0 14px', fontSize: '12.5px', flexShrink: 0 }}
                       >
-                        Use This Item
+                        <FaExternalLinkAlt style={{ fontSize: '11px' }} /> View Item
                       </button>
                     </div>
                   );
@@ -379,17 +368,46 @@ const FindItemByImageModal = ({ isOpen, onClose, onAddAsNew, onUseExistingItem }
 
           {/* No Results Message */}
           {searchCompleted && searchResults.length === 0 && !error && (
-            <div style={{
-              marginTop: '24px',
-              padding: '16px',
-              backgroundColor: '#f0fdf4',
-              border: '1px solid #86efac',
-              borderRadius: '6px',
-              color: '#166534',
-              fontSize: '13px',
-              textAlign: 'center'
-            }}>
-              ℹ️ No similar items found in inventory. Would you like to add this as a new item?
+            <div
+              style={{
+                marginTop: '16px',
+                padding: '24px',
+                backgroundColor: '#f8fafc',
+                border: '1px solid #e2e8f0',
+                borderRadius: '12px',
+                textAlign: 'center'
+              }}
+            >
+              <div
+                style={{
+                  width: '44px',
+                  height: '44px',
+                  borderRadius: '50%',
+                  background: '#f1f5f9',
+                  color: '#64748b',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  margin: '0 auto 10px',
+                  fontSize: '18px'
+                }}
+              >
+                <FaImage />
+              </div>
+              <div style={{ fontSize: '14px', fontWeight: '700', color: '#1e293b', marginBottom: '4px' }}>
+                No Visual Matches Found
+              </div>
+              <p style={{ fontSize: '12.5px', color: '#64748b', maxWidth: '380px', margin: '0 auto 14px' }}>
+                This item does not match any existing products in your inventory catalog. You can register it as a new product directly.
+              </p>
+              <button
+                type="button"
+                className="modal-btn-inventory save"
+                onClick={handleAddAsNewItem}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+              >
+                <FaPlus /> Add As New Item
+              </button>
             </div>
           )}
         </div>
@@ -399,9 +417,15 @@ const FindItemByImageModal = ({ isOpen, onClose, onAddAsNew, onUseExistingItem }
           <button type="button" className="modal-btn-inventory cancel" onClick={handleClose}>
             Cancel
           </button>
-          <button type="button" className="modal-btn-inventory submit" onClick={handleAddAsNewItem}>
-            Add As New Item
-          </button>
+          {imagePreview && (
+            <button
+              type="button"
+              className="modal-btn-inventory save"
+              onClick={handleAddAsNewItem}
+            >
+              <FaPlus /> Add As New Item
+            </button>
+          )}
         </div>
       </div>
     </div>

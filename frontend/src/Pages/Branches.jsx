@@ -12,6 +12,8 @@ export default function Branches() {
     const [branches, setBranches] = useState([]);
     const [query, setQuery] = useState("");
     const [showAdd, setShowAdd] = useState(false);
+    const [selectedBranch, setSelectedBranch] = useState(null);
+    const [isEditMode, setIsEditMode] = useState(false);
     const [editing, setEditing] = useState(null);
     const [form, setForm] = useState({ name: "", location: "", contact_person: "", phone: "" });
     const [errors, setErrors] = useState({});
@@ -50,14 +52,25 @@ export default function Branches() {
     function openAdd() {
         setForm({ name: "", location: "", contact_person: "", phone: "" });
         setEditing(null);
+        setSelectedBranch(null);
+        setIsEditMode(false);
         setShowAdd(true);
+        setErrors({});
+    }
+
+    function handleRowClick(b) {
+        setSelectedBranch(b);
+        setEditing(b);
+        setIsEditMode(false);
+        setForm({ name: b.name, location: b.location, contact_person: b.contact_person, phone: b.phone });
         setErrors({});
     }
 
     function openEdit(b) {
         setForm({ name: b.name, location: b.location, contact_person: b.contact_person, phone: b.phone });
         setEditing(b);
-        setShowAdd(true);
+        setSelectedBranch(b);
+        setIsEditMode(true);
         setErrors({});
     }
 
@@ -116,12 +129,12 @@ export default function Branches() {
 
             const saved = body.data || {};
             const normalized = {
-                id: saved.branch_id,
-                name: saved.branch_name,
+                id: saved.branch_id || saved.id || saved._id || (editing ? editing.id : undefined),
+                name: saved.branch_name || saved.branchName || saved.name || payload.branch_name,
                 location: saved.location || payload.location,
                 contact_person: saved.contact_person || payload.contact_person,
                 phone: saved.phone || payload.phone,
-                createdAt: saved.created_at,
+                createdAt: saved.created_at || (editing ? editing.createdAt : new Date().toISOString()),
             };
 
             setBranches(bs => {
@@ -131,6 +144,10 @@ export default function Branches() {
                 return [...bs, normalized];
             });
 
+            if (selectedBranch && editing) {
+                setSelectedBranch(normalized);
+                setIsEditMode(false);
+            }
             setShowAdd(false);
         } catch (error) {
             console.error("Branch save error", error);
@@ -158,6 +175,10 @@ export default function Branches() {
             }
 
             setBranches(bs => bs.filter(b => b.id !== id));
+            if (selectedBranch && selectedBranch.id === id) {
+                setSelectedBranch(null);
+                setIsEditMode(false);
+            }
         } catch (error) {
             console.error("Branch delete error", error);
             alert(error.message || "Unable to delete branch");
@@ -210,74 +231,32 @@ export default function Branches() {
                                                 <thead>
                                                     <tr>
                                                         <th style={{ width: "16%" }}>Branch ID</th>
-                                                        <th style={{ width: "20%" }}>Branch Name</th>
-                                                        <th style={{ width: "22%" }}>Location</th>
+                                                        <th style={{ width: "26%" }}>Branch Name</th>
+                                                        <th style={{ width: "24%" }}>Location</th>
                                                         <th style={{ width: "20%" }}>Contact Person</th>
-                                                        <th style={{ width: "12%", textAlign: "center" }}>Phone</th>
-                                                        <th style={{ width: "10%", textAlign: "center" }}>Actions</th>
+                                                        <th style={{ width: "14%", textAlign: "center" }}>Phone</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody>
                                                     {filtered.map(b => (
-                                                        <tr key={b.id} className="inventory-row">
-                                                            <td title={b.id}>{b.id}</td>
-                                                            <td>{b.name}</td>
+                                                        <tr
+                                                            key={b.id}
+                                                            className="inventory-row"
+                                                            onClick={() => handleRowClick(b)}
+                                                            title="Click to view branch details"
+                                                            style={{ cursor: "pointer" }}
+                                                        >
+                                                            <td style={{ fontWeight: 700, color: "var(--text-primary)" }}>{b.id}</td>
+                                                            <td style={{ fontWeight: 600 }}>{b.name}</td>
                                                             <td>{b.location || "-"}</td>
                                                             <td>{b.contact_person || "-"}</td>
                                                             <td style={{ textAlign: "center" }}>{b.phone || "-"}</td>
-                                                            <td style={{ textAlign: "center" }}>
-                                                                <button className="icon-btn" onClick={() => openEdit(b)} title="Edit branch" type="button">
-                                                                    <FaEdit />
-                                                                </button>
-                                                                <button className="icon-btn danger" onClick={() => setPendingAction({ type: "delete", id: b.id, name: b.name })} title="Delete branch" type="button">
-                                                                    <FaTrash />
-                                                                </button>
-                                                            </td>
                                                         </tr>
                                                     ))}
                                                 </tbody>
                                             </table>
                                         </div>
-                                        <div className="branches-grid" aria-hidden="true">
-                                            {filtered.map(b => (
-                                                <article className="branch-card" key={b.id}>
-                                                    <div className="branch-card-header">
-                                                        <h3 className="branch-name">{b.name}</h3>
-                                                        <div className="branch-card-actions">
-                                                            <button
-                                                                className="branch-icon-btn edit"
-                                                                onClick={() => openEdit(b)}
-                                                                title="Edit branch"
-                                                            >
-                                                                <FaEdit />
-                                                            </button>
-                                                            <button
-                                                                className="branch-icon-btn delete"
-                                                                onClick={() => setPendingAction({ type: "delete", id: b.id, name: b.name })}
-                                                                title="Delete branch"
-                                                            >
-                                                                <FaTrash />
-                                                            </button>
-                                                        </div>
-                                                    </div>
 
-                                                    <div className="branch-card-content">
-                                                        <div className="branch-card-row">
-                                                            <span className="branch-label">📍 Location</span>
-                                                            <span className="branch-value">{b.location}</span>
-                                                        </div>
-                                                        <div className="branch-card-row">
-                                                            <span className="branch-label">👤 Contact Person</span>
-                                                            <span className="branch-value">{b.contact_person}</span>
-                                                        </div>
-                                                        <div className="branch-card-row">
-                                                            <span className="branch-label">📞 Phone</span>
-                                                            <span className="branch-value">{b.phone}</span>
-                                                        </div>
-                                                    </div>
-                                                </article>
-                                            ))}
-                                        </div>
                                         </>
                                     )}
                                 </section>
@@ -287,100 +266,321 @@ export default function Branches() {
                 </main>
             </div>
 
-            {/* Add/Edit Branch Modal */}
-            {showAdd && (
-                <div className="branch-modal-overlay" onClick={() => setShowAdd(false)}>
-                    <div className="branch-modal" onClick={e => e.stopPropagation()}>
-                        {/* Modal Header */}
-                        <div className="branch-modal-header">
-                            <h3 className="branch-modal-title">
-                                {editing ? "Edit Branch" : "Add New Branch"}
-                            </h3>
+            {/* View / Edit Branch Details Modal */}
+            {selectedBranch && (
+                <div className="modal-overlay-inventory" onClick={() => { setSelectedBranch(null); setIsEditMode(false); }}>
+                    <div className="modal-content-inventory" style={{ maxWidth: '640px' }} onClick={e => e.stopPropagation()}>
+                        <div className="modal-header-inventory">
+                            <div className="modal-title-section-inventory">
+                                <h2 className="modal-title-inventory">
+                                    {isEditMode ? "Edit Branch" : "Branch Details"}
+                                </h2>
+                                <p className="modal-subtitle-inventory">
+                                    {isEditMode ? "Update branch location and contact details" : "View and manage branch location and operational contact"}
+                                </p>
+                            </div>
                             <button
-                                className="branch-modal-close"
-                                onClick={() => setShowAdd(false)}
+                                className="modal-close-btn-inventory"
+                                onClick={() => { setSelectedBranch(null); setIsEditMode(false); }}
+                                aria-label="Close"
                             >
-                                <FaTimes />
+                                ×
                             </button>
                         </div>
 
-                        {/* Modal Body */}
-                        <div className="branch-modal-body">
+                        <div className="modal-body-inventory">
                             {errors.submit && (
                                 <div style={{
-                                    color: '#dc2626',
-                                    padding: '12px',
+                                    color: '#b91c1c',
+                                    padding: '12px 16px',
                                     backgroundColor: '#fee2e2',
-                                    borderRadius: '6px',
+                                    borderRadius: '8px',
                                     marginBottom: '16px',
-                                    fontSize: '14px'
+                                    fontSize: '13px',
+                                    border: '1px solid #fecaca'
                                 }}>
-                                    {errors.submit}
+                                    ⚠️ {errors.submit}
                                 </div>
                             )}
 
-                            <div className="branch-form-group">
-                                <label className="branch-form-label">Branch Name</label>
-                                <input
-                                    type="text"
-                                    value={form.name}
-                                    onChange={e => setForm({ ...form, name: e.target.value })}
-                                    className={`branch-form-input ${errors.name ? 'error' : ''}`}
-                                    placeholder="Enter branch name"
-                                />
-                                {errors.name && <span style={{ color: '#dc2626', fontSize: '12px' }}>{errors.name}</span>}
+                            {/* ID and Status Badge Header Row */}
+                            <div className="po-detail-number-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', paddingBottom: '16px', borderBottom: '1px solid #e2e8f0' }}>
+                                <div>
+                                    <span style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#64748b', fontWeight: 600, display: 'block' }}>Branch ID</span>
+                                    <span className="po-detail-number" style={{ fontSize: '20px', fontWeight: 800, color: '#0f172a' }}>{selectedBranch.id}</span>
+                                </div>
+                                <div>
+                                    {isEditMode ? (
+                                        <span style={{ fontSize: '12px', fontWeight: 700, padding: '4px 12px', borderRadius: '20px', background: '#fef3c7', color: '#d97706', border: '1px solid #fde68a' }}>
+                                            ✏️ EDITING MODE
+                                        </span>
+                                    ) : (
+                                        <span className="po-detail-badge received" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                                            <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#10b981', display: 'inline-block' }}></span>
+                                            Operational
+                                        </span>
+                                    )}
+                                </div>
                             </div>
 
-                            <div className="branch-form-group">
-                                <label className="branch-form-label">Location</label>
-                                <input
-                                    type="text"
-                                    value={form.location}
-                                    onChange={e => setForm({ ...form, location: e.target.value })}
-                                    className={`branch-form-input ${errors.location ? 'error' : ''}`}
-                                    placeholder="Enter location"
-                                />
-                                {errors.location && <span style={{ color: '#dc2626', fontSize: '12px' }}>{errors.location}</span>}
-                            </div>
-
-                            <div className="branch-form-group">
-                                <label className="branch-form-label">Manager/Contact Person</label>
-                                <input
-                                    type="text"
-                                    value={form.contact_person}
-                                    onChange={e => setForm({ ...form, contact_person: e.target.value })}
-                                    className={`branch-form-input ${errors.contact_person ? 'error' : ''}`}
-                                    placeholder="Enter manager or contact person name"
-                                />
-                                {errors.contact_person && <span style={{ color: '#dc2626', fontSize: '12px' }}>{errors.contact_person}</span>}
-                            </div>
-
-                            <div className="branch-form-group">
-                                <label className="branch-form-label">Phone Number</label>
-                                <input
-                                    type="tel"
-                                    value={form.phone}
-                                    onChange={e => setForm({ ...form, phone: e.target.value })}
-                                    className={`branch-form-input ${errors.phone ? 'error' : ''}`}
-                                    placeholder="Enter phone number (10-15 digits)"
-                                />
-                                {errors.phone && <span style={{ color: '#dc2626', fontSize: '12px' }}>{errors.phone}</span>}
-                            </div>
+                            {!isEditMode ? (
+                                /* ================= VIEW MODE ================= */
+                                <div>
+                                    <h4 style={{ margin: '0 0 12px 0', fontSize: '12px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                                        Branch Overview
+                                    </h4>
+                                    <div className="po-detail-info-grid" style={{ marginBottom: '16px' }}>
+                                        <div>
+                                            <span className="po-detail-label">BRANCH NAME</span>
+                                            <div style={{ fontWeight: 700, color: '#1e293b', fontSize: '15px' }}>{selectedBranch.name}</div>
+                                        </div>
+                                        <div>
+                                            <span className="po-detail-label">LOCATION</span>
+                                            <div style={{ fontWeight: 600, color: '#1e293b' }}>{selectedBranch.location || '-'}</div>
+                                        </div>
+                                        <div>
+                                            <span className="po-detail-label">CONTACT PERSON</span>
+                                            <div style={{ fontWeight: 600, color: '#1e293b' }}>{selectedBranch.contact_person || '-'}</div>
+                                        </div>
+                                        <div>
+                                            <span className="po-detail-label">PHONE NUMBER</span>
+                                            <div style={{ fontWeight: 600, color: '#1e293b' }}>{selectedBranch.phone || '-'}</div>
+                                        </div>
+                                        <div>
+                                            <span className="po-detail-label">CREATED DATE</span>
+                                            <div style={{ fontWeight: 600, color: '#1e293b' }}>
+                                                {selectedBranch.createdAt ? new Date(selectedBranch.createdAt).toLocaleDateString() : '-'}
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <span className="po-detail-label">SYSTEM STATUS</span>
+                                            <div style={{ fontWeight: 600, color: '#059669', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                Active Branch
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            ) : (
+                                /* ================= EDIT MODE ================= */
+                                <div>
+                                    <h4 style={{ margin: '0 0 12px 0', fontSize: '12px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                                        Edit Branch Details
+                                    </h4>
+                                    <div className="form-layout-inventory" style={{ marginBottom: '16px' }}>
+                                        <div className="form-group-inventory">
+                                            <label className="form-label-inventory">Branch Name</label>
+                                            <input
+                                                type="text"
+                                                value={form.name}
+                                                onChange={e => setForm({ ...form, name: e.target.value })}
+                                                className={`form-input-inventory ${errors.name ? 'error' : ''}`}
+                                                placeholder="Enter branch name"
+                                            />
+                                            {errors.name && <span style={{ color: '#dc2626', fontSize: '12px' }}>{errors.name}</span>}
+                                        </div>
+                                        <div className="form-group-inventory">
+                                            <label className="form-label-inventory">Location</label>
+                                            <input
+                                                type="text"
+                                                value={form.location}
+                                                onChange={e => setForm({ ...form, location: e.target.value })}
+                                                className={`form-input-inventory ${errors.location ? 'error' : ''}`}
+                                                placeholder="Enter location"
+                                            />
+                                            {errors.location && <span style={{ color: '#dc2626', fontSize: '12px' }}>{errors.location}</span>}
+                                        </div>
+                                        <div className="form-group-inventory">
+                                            <label className="form-label-inventory">Manager/Contact Person</label>
+                                            <input
+                                                type="text"
+                                                value={form.contact_person}
+                                                onChange={e => setForm({ ...form, contact_person: e.target.value })}
+                                                className={`form-input-inventory ${errors.contact_person ? 'error' : ''}`}
+                                                placeholder="Enter manager or contact person name"
+                                            />
+                                            {errors.contact_person && <span style={{ color: '#dc2626', fontSize: '12px' }}>{errors.contact_person}</span>}
+                                        </div>
+                                        <div className="form-group-inventory">
+                                            <label className="form-label-inventory">Phone Number</label>
+                                            <input
+                                                type="tel"
+                                                value={form.phone}
+                                                onChange={e => setForm({ ...form, phone: e.target.value })}
+                                                className={`form-input-inventory ${errors.phone ? 'error' : ''}`}
+                                                placeholder="Enter phone number (10-15 digits)"
+                                            />
+                                            {errors.phone && <span style={{ color: '#dc2626', fontSize: '12px' }}>{errors.phone}</span>}
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
                         </div>
 
                         {/* Modal Footer */}
-                        <div className="branch-modal-footer">
+                        <div className="modal-footer-inventory" style={{ justifyContent: 'space-between' }}>
+                            <div>
+                                {!isEditMode ? (
+                                    <button
+                                        type="button"
+                                        className="modal-btn-inventory delete"
+                                        onClick={() => {
+                                            setPendingAction({ type: "delete", id: selectedBranch.id, name: selectedBranch.name });
+                                            setSelectedBranch(null);
+                                        }}
+                                    >
+                                        Delete Branch
+                                    </button>
+                                ) : (
+                                    <button
+                                        type="button"
+                                        className="modal-btn-inventory cancel"
+                                        onClick={() => setIsEditMode(false)}
+                                    >
+                                        Cancel Edit
+                                    </button>
+                                )}
+                            </div>
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                                {!isEditMode ? (
+                                    <>
+                                        <button
+                                            type="button"
+                                            className="modal-btn-inventory edit"
+                                            onClick={() => {
+                                                setForm({
+                                                    name: selectedBranch.name,
+                                                    location: selectedBranch.location,
+                                                    contact_person: selectedBranch.contact_person,
+                                                    phone: selectedBranch.phone
+                                                });
+                                                setEditing(selectedBranch);
+                                                setIsEditMode(true);
+                                                setErrors({});
+                                            }}
+                                        >
+                                            Edit Branch
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className="modal-btn-inventory cancel"
+                                            onClick={() => { setSelectedBranch(null); setIsEditMode(false); }}
+                                        >
+                                            Close
+                                        </button>
+                                    </>
+                                ) : (
+                                    <button
+                                        type="button"
+                                        className="modal-btn-inventory save"
+                                        onClick={save}
+                                    >
+                                        Save Changes
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Add New Branch Modal */}
+            {showAdd && (
+                <div className="modal-overlay-inventory" onClick={() => setShowAdd(false)}>
+                    <div className="modal-content-inventory" style={{ maxWidth: '640px' }} onClick={e => e.stopPropagation()}>
+                        <div className="modal-header-inventory">
+                            <div className="modal-title-section-inventory">
+                                <h2 className="modal-title-inventory">Add New Branch</h2>
+                                <p className="modal-subtitle-inventory">Register a new branch location into the system</p>
+                            </div>
                             <button
-                                className="branch-btn-cancel"
+                                className="modal-close-btn-inventory"
+                                onClick={() => setShowAdd(false)}
+                                aria-label="Close"
+                            >
+                                ×
+                            </button>
+                        </div>
+
+                        <div className="modal-body-inventory">
+                            {errors.submit && (
+                                <div style={{
+                                    color: '#b91c1c',
+                                    padding: '12px 16px',
+                                    backgroundColor: '#fee2e2',
+                                    borderRadius: '8px',
+                                    marginBottom: '16px',
+                                    fontSize: '13px',
+                                    border: '1px solid #fecaca'
+                                }}>
+                                    ⚠️ {errors.submit}
+                                </div>
+                            )}
+
+                            <div className="form-layout-inventory">
+                                <div className="form-group-inventory">
+                                    <label className="form-label-inventory">Branch Name</label>
+                                    <input
+                                        type="text"
+                                        value={form.name}
+                                        onChange={e => setForm({ ...form, name: e.target.value })}
+                                        className={`form-input-inventory ${errors.name ? 'error' : ''}`}
+                                        placeholder="Enter branch name"
+                                    />
+                                    {errors.name && <span style={{ color: '#dc2626', fontSize: '12px' }}>{errors.name}</span>}
+                                </div>
+
+                                <div className="form-group-inventory">
+                                    <label className="form-label-inventory">Location</label>
+                                    <input
+                                        type="text"
+                                        value={form.location}
+                                        onChange={e => setForm({ ...form, location: e.target.value })}
+                                        className={`form-input-inventory ${errors.location ? 'error' : ''}`}
+                                        placeholder="Enter location"
+                                    />
+                                    {errors.location && <span style={{ color: '#dc2626', fontSize: '12px' }}>{errors.location}</span>}
+                                </div>
+
+                                <div className="form-group-inventory">
+                                    <label className="form-label-inventory">Manager/Contact Person</label>
+                                    <input
+                                        type="text"
+                                        value={form.contact_person}
+                                        onChange={e => setForm({ ...form, contact_person: e.target.value })}
+                                        className={`form-input-inventory ${errors.contact_person ? 'error' : ''}`}
+                                        placeholder="Enter manager or contact person name"
+                                    />
+                                    {errors.contact_person && <span style={{ color: '#dc2626', fontSize: '12px' }}>{errors.contact_person}</span>}
+                                </div>
+
+                                <div className="form-group-inventory">
+                                    <label className="form-label-inventory">Phone Number</label>
+                                    <input
+                                        type="tel"
+                                        value={form.phone}
+                                        onChange={e => setForm({ ...form, phone: e.target.value })}
+                                        className={`form-input-inventory ${errors.phone ? 'error' : ''}`}
+                                        placeholder="Enter phone number (10-15 digits)"
+                                    />
+                                    {errors.phone && <span style={{ color: '#dc2626', fontSize: '12px' }}>{errors.phone}</span>}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="modal-footer-inventory" style={{ justifyContent: 'flex-end', gap: '8px' }}>
+                            <button
+                                type="button"
+                                className="modal-btn-inventory cancel"
                                 onClick={() => setShowAdd(false)}
                             >
                                 Cancel
                             </button>
                             <button
-                                className="branch-btn-submit"
+                                type="button"
+                                className="modal-btn-inventory save"
                                 onClick={requestSave}
                             >
-                                {editing ? "Update Branch" : "Add Branch"}
+                                Add Branch
                             </button>
                         </div>
                     </div>

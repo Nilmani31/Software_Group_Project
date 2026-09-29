@@ -541,13 +541,13 @@ export default function PurchaseOrder() {
                       >
                         Clear Filters
                       </button>
-                    </div>
 
-                    {canEdit && (
-                      <button className="btn-new-po" onClick={handleNewPO}>
-                        + New Purchase Order
-                      </button>
-                    )}
+                      {canEdit && (
+                        <button className="btn-new-po" onClick={handleNewPO}>
+                          + New Purchase Order
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </header>
 
@@ -570,8 +570,7 @@ export default function PurchaseOrder() {
                             <th scope="col" style={{ width: '10%' }}>Expected Date</th>
                             <th scope="col" style={{ width: '9%' }}>Created By</th>
                             <th scope="col" style={{ width: '6%', textAlign: 'center' }}>Items</th>
-                            <th scope="col" style={{ width: '7%', textAlign: 'center' }}>Status</th>
-                            <th scope="col" style={{ width: '8%', textAlign: 'center' }}>Actions</th>
+                            <th scope="col" style={{ width: '8%', textAlign: 'center' }}>Status</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -586,7 +585,13 @@ export default function PurchaseOrder() {
                               : (po.items && typeof po.items === 'object' ? Object.keys(po.items).length : 0);
 
                             return (
-                              <tr key={po.poNumber || po.id} className="inventory-row">
+                              <tr
+                                key={po.poNumber || po.id}
+                                className="inventory-row"
+                                onClick={() => { setSelected(po); setOpenView(true); }}
+                                title="Click to view details"
+                                style={{ cursor: 'pointer' }}
+                              >
                                 <td style={{ fontWeight: 700, color: 'var(--text-primary)' }}>
                                   {po.poNumber || po.id}
                                 </td>
@@ -627,15 +632,6 @@ export default function PurchaseOrder() {
                                   <span className={`po-detail-badge ${po.status === 'Pending' ? 'pending' : (po.status === 'Cancelled' ? 'cancelled' : 'received')}`} style={{ fontSize: '11px', padding: '3px 10px' }}>
                                     {po.status}
                                   </span>
-                                </td>
-                                <td style={{ textAlign: 'center' }}>
-                                  <button
-                                    className="btn-view-details"
-                                    onClick={() => { setSelected(po); setOpenView(true); }}
-                                    style={{ padding: '6px 14px', fontSize: '12px' }}
-                                  >
-                                    View Details
-                                  </button>
                                 </td>
                               </tr>
                             );
@@ -927,10 +923,10 @@ export default function PurchaseOrder() {
                   </tbody>
                 </table>
               </div>
-              <div className="modal-footer-inventory">
-                {selected.status === 'Pending' && canEdit && (
-                  <>
-                    <button type="button" className="modal-btn-inventory cancel" onClick={() => {
+              <div className="modal-footer-inventory" style={{ justifyContent: 'space-between' }}>
+                <div>
+                  {selected.status === 'Pending' && canEdit && (
+                    <button type="button" className="modal-btn-inventory delete" onClick={() => {
                       if (!selected) return
                       const today = new Date().toISOString().split('T')[0]
                       const username = localStorage.getItem('username') || ''
@@ -944,7 +940,11 @@ export default function PurchaseOrder() {
                       setOpenView(false)
                       setOpenCancel(true)
                     }}>Cancel Order</button>
-                    <button type="button" className="modal-btn-inventory submit" onClick={() => {
+                  )}
+                </div>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  {selected.status === 'Pending' && canEdit && (
+                    <button type="button" className="modal-btn-inventory edit" onClick={() => {
                       // Prepare edit form from selected and open edit modal
                       if (!selected) return
                       setEditForm({
@@ -968,9 +968,9 @@ export default function PurchaseOrder() {
                       setOpenEdit(true)
                       setEditCartVisible(true)
                     }}>Edit Order</button>
-                  </>
-                )}
-                <button type="button" className="modal-btn-inventory cancel" onClick={() => setOpenView(false)}>Close</button>
+                  )}
+                  <button type="button" className="modal-btn-inventory cancel" onClick={() => setOpenView(false)}>Close</button>
+                </div>
               </div>
             </div>
           </div>
@@ -1213,7 +1213,7 @@ export default function PurchaseOrder() {
 
                 <div className="modal-footer-inventory" style={{ justifyContent: 'space-between' }}>
                   <div style={{ display: 'flex', gap: 8 }}>
-                    <button type="submit" className="modal-btn-inventory submit">Save</button>
+                    <button type="submit" className="modal-btn-inventory save">Save Changes</button>
                     <button type="button" className="modal-btn-inventory cancel" onClick={() => { setOpenEdit(false); setOpenView(true); }}>View Details</button>
                   </div>
                   <div>
@@ -1311,7 +1311,7 @@ export default function PurchaseOrder() {
                 {cancelErrors.reason && <div className="field-error">{cancelErrors.reason}</div>}
               </div>
               <div className="modal-footer-inventory">
-                <button type="submit" className="modal-btn-inventory submit danger">Confirm Delete</button>
+                <button type="submit" className="modal-btn-inventory delete">Confirm Delete</button>
                 <button type="button" className="modal-btn-inventory cancel" onClick={() => { setOpenCancel(false); setOpenView(true) }}>View Details</button>
                 <button type="button" className="modal-btn-inventory cancel" onClick={() => setOpenCancel(false)}>Close</button>
               </div>
