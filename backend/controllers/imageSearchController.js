@@ -100,20 +100,23 @@ const findItemsByImageZeroShot = async (req, res, next) => {
 		// text-to-image, so a much higher bar is used here. This threshold is
 		// a starting point based on limited testing -- re-check it once more
 		// real item photos exist and can be tested against.
+				const ENABLE_REFERENCE_PHOTO_SEARCH = process.env.ENABLE_REFERENCE_PHOTO_SEARCH === "true";
 		const REAL_PHOTO_THRESHOLD = 0.75;
 		let confidentPhotoMatches = [];
-		try {
-			const qdrantResponse = await searchByImage(req.file);
-			confidentPhotoMatches = (qdrantResponse.results || [])
-				.filter((r) => (r.score || 0) >= REAL_PHOTO_THRESHOLD)
-				.map((r) => ({
-					name: r.name,
-					score: r.score,
-					productId: r.productId,
-					matchType: "photo",
-				}));
-		} catch (err) {
-			console.warn("⚠️  Real-photo (Qdrant) search failed, continuing with zero-shot only:", err.message);
+		if (ENABLE_REFERENCE_PHOTO_SEARCH) {
+			try {
+				const qdrantResponse = await searchByImage(req.file);
+				confidentPhotoMatches = (qdrantResponse.results || [])
+					.filter((r) => (r.score || 0) >= REAL_PHOTO_THRESHOLD)
+					.map((r) => ({
+						name: r.name,
+						score: r.score,
+						productId: r.productId,
+						matchType: "photo",
+					}));
+			} catch (err) {
+				console.warn("⚠️  Real-photo (Qdrant) search failed, continuing with zero-shot only:", err.message);
+			}
 		}
 
 		// 2) Fill remaining slots with zero-shot text matches for items that
@@ -139,22 +142,25 @@ const findItemsByImageZeroShot = async (req, res, next) => {
 		const combined = [...confidentPhotoMatches, ...confidentZeroShot].slice(0, 5);
 
 		// 4) Attach full live item data for the response
-		const results = combined.map((r) => {
-			const fullItem = allItems.find(
-				(i) => String(i._id) === String(r.productId) || i.name === r.name
-			);
-			return {
-				name: r.name,
-				score: r.score,
-				matchType: r.matchType,
-				productId: fullItem?._id || r.productId || null,
-				sku: fullItem?.sku || "",
-				category: fullItem?.category?.name || "",
-				imageUrl: fullItem?.image || "",
-				quantity: fullItem?.quantity ?? 0,
-				status: fullItem?.status || "",
-			};
-		});
+				const results = combined
+			.map((r) => {
+				const fullItem = allItems.find(
+					(i) => String(i._id) === String(r.productId) || i.name === r.name
+				);
+				if (!fullItem) return null;
+				return {
+					name: r.name,
+					score: r.score,
+					matchType: r.matchType,
+					productId: fullItem._id,
+					sku: fullItem.sku || "",
+					category: fullItem.category?.name || "",
+					imageUrl: fullItem.image || "",
+					quantity: fullItem.quantity ?? 0,
+					status: fullItem.status || "",
+				};
+			})
+			.filter(Boolean);
 
 		return res.status(200).json({ results, count: results.length });
 	} catch (error) {
