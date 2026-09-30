@@ -6,7 +6,7 @@ const Stock = require('../models/stock');
 const GoodsReceived = require('../models/goodsReceived');
 const { getBranchFilter } = require('../utils/branchFilter');
 
-//const { addReferenceImage } = require('../services/referenceImageService');
+const { addReferenceImage, deleteReferenceImage } = require('../services/referenceImageService');
 
 // Converts a base64 data URL (as stored in Item.image) into a
 // multer-style file object so it can be sent to the ML service the same
@@ -409,7 +409,7 @@ exports.createItem = async (req, res) => {
 
 
 if (image) {
-  await autoEmbedItemImage(item, image, itemObj.categoryName || itemObj.category);
+  autoEmbedItemImage(item, image, itemObj.categoryName || itemObj.category); 
 }
 
 
@@ -544,7 +544,7 @@ exports.updateItem = async (req, res) => {
   console.log('✅ Item updated:', { _id: itemObj._id, name: itemObj.name, hasImage: !!itemObj.image });
 
 if (req.body.image) {
-  await autoEmbedItemImage(item, req.body.image, itemObj.categoryName || itemObj.category);
+   autoEmbedItemImage(item, req.body.image, itemObj.categoryName || itemObj.category);
 }
 
 res.json(itemObj);
@@ -572,7 +572,9 @@ exports.deleteItem = async (req, res) => {
     } catch (error) {
       console.warn('⚠️  Warning: Could not delete related units/stocks:', error.message);
     }
-    
+     deleteReferenceImage(item._id.toString()).catch((err) =>
+      console.warn(`⚠️  Could not remove reference photo for ${item.name}:`, err.message)
+    );
     res.json({ message: 'Item and related itemUnits/stocks deleted successfully' });
   } catch (err) {
     res.status(400).json({ error: err.message });
