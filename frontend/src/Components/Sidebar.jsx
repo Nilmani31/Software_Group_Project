@@ -57,6 +57,7 @@ const Sidebar = () => {
       case '/branches':
         return userPermissions.includes('BRANCHES') || ['ADMIN', 'DIRECTOR'].includes(userRole);
       case '/categories':
+      case '/units':
         return userPermissions.includes('CATEGORIES') || ['ADMIN', 'DIRECTOR', 'MANAGER', 'BRANCH_MANAGER'].includes(userRole);
       case '/reports':
         return userPermissions.includes('REPORTS') || ['ADMIN', 'DIRECTOR', 'MANAGER', 'BRANCH_MANAGER'].includes(userRole);

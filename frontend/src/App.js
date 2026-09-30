@@ -39,6 +39,7 @@ function App() {
         <Route path="/branches" element={<ProtectedRoute path="/branches"><Branches /></ProtectedRoute>} />
         <Route path="/users" element={<ProtectedRoute path="/users"><Users /></ProtectedRoute>} />
         <Route path="/categories" element={<ProtectedRoute path="/categories"><Categories /></ProtectedRoute>} />
+        <Route path="/units" element={<ProtectedRoute path="/categories"><Categories defaultTab="units" /></ProtectedRoute>} />
         <Route path="/good-received" element={<ProtectedRoute path="/good-received"><GoodReceived /></ProtectedRoute>} />
         
         {/* Redirect common typos to correct routes */}

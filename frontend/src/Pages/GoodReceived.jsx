@@ -3,6 +3,7 @@ import Navbar from '../Components/Navbar';
 import Sidebar from '../Components/Sidebar';
 import ChatAssistant from '../Components/ChatAssistant';
 import ConfirmDialog from '../Components/ConfirmDialog';
+import ModernDropdown from '../Components/ModernDropdown';
 import { useForm, useFieldArray } from 'react-hook-form';
 import * as grnService from '../services/grnService';
 import * as poService from '../services/poService';
@@ -29,8 +30,8 @@ export default function GoodReceived() {
   const [editableItems, setEditableItems] = useState([]);
   const [editableGrn, setEditableGrn] = useState(null);
   const [query, setQuery] = useState('');
-  const [filterStatus, setFilterStatus] = useState('');
-  const [filterBranch, setFilterBranch] = useState('');
+  const [filterStatus, setFilterStatus] = useState([]);
+  const [filterBranch, setFilterBranch] = useState([]);
   const [branches, setBranches] = useState([]);
   const [imagePreview, setImagePreview] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -383,8 +384,15 @@ export default function GoodReceived() {
         (g.status && g.status.toLowerCase().includes(q))
       );
 
-      const matchesStatus = !filterStatus || g.status === filterStatus;
-      const matchesBranch = !filterBranch || g.branch === filterBranch;
+      const matchesStatus = 
+        !filterStatus || 
+        filterStatus.length === 0 || 
+        (Array.isArray(filterStatus) ? filterStatus.includes(g.status) : g.status === filterStatus);
+
+      const matchesBranch = 
+        !filterBranch || 
+        filterBranch.length === 0 || 
+        (Array.isArray(filterBranch) ? filterBranch.includes(g.branch) : g.branch === filterBranch);
 
       return matchesQuery && matchesStatus && matchesBranch;
     });
@@ -431,41 +439,37 @@ export default function GoodReceived() {
                     <div className="po-filters" style={{ marginLeft: 'auto' }}>
                       <div className="filter-group">
                         <label className="filter-label">Order Status:</label>
-                        <select
+                        <ModernDropdown
+                          options={uniqueStatuses.map(s => ({ value: s, label: s }))}
                           value={filterStatus}
-                          onChange={(e) => setFilterStatus(e.target.value)}
-                          className="filter-select"
-                        >
-                          <option value="">All Status</option>
-                          {uniqueStatuses.map(s => (
-                            <option key={s} value={s}>{s}</option>
-                          ))}
-                        </select>
+                          onChange={(val) => setFilterStatus(val)}
+                          placeholder="All Statuses"
+                          multiple={true}
+                          minWidth="130px"
+                        />
                       </div>
 
                       <div className="filter-group">
                         <label className="filter-label">Branch:</label>
-                        <select
+                        <ModernDropdown
+                          options={branchOptions.map(b => ({ value: b, label: b }))}
                           value={filterBranch}
-                          onChange={(e) => setFilterBranch(e.target.value)}
-                          className="filter-select"
-                        >
-                          <option value="">All Branches</option>
-                          {branchOptions.map(b => (
-                            <option key={b} value={b}>{b}</option>
-                          ))}
-                        </select>
+                          onChange={(val) => setFilterBranch(val)}
+                          placeholder="All Branches"
+                          multiple={true}
+                          minWidth="135px"
+                        />
                       </div>
 
                       <button
                         type="button"
                         className="btn-clear-filters"
                         onClick={() => {
-                          setFilterStatus('');
-                          setFilterBranch('');
+                          setFilterStatus([]);
+                          setFilterBranch([]);
                           setQuery('');
                         }}
-                        disabled={!query && !filterStatus && !filterBranch}
+                        disabled={!query && filterStatus.length === 0 && filterBranch.length === 0}
                       >
                         Clear Filters
                       </button>
@@ -665,31 +669,32 @@ export default function GoodReceived() {
                   <div className="form-grid-2">
                     <div className="form-group-inventory">
                       <label className="form-label-inventory">Purchase Order *</label>
-                      <select
-                        {...register('po')}
-                        onChange={(e) => handlePOSelect(e.target.value)}
-                        className="form-input-inventory filter-select"
-                      >
-                        <option value="">-- Select Purchase Order --</option>
-                        {poList && poList.length > 0 ? (
-                          poList
+                      <ModernDropdown
+                        value={watch('po') || ''}
+                        onChange={(val) => {
+                          setValue('po', val);
+                          handlePOSelect(val);
+                        }}
+                        placeholder="Select Purchase Order"
+                        searchable={true}
+                        options={[
+                          { value: '', label: '-- Select Purchase Order --' },
+                          ...(poList && poList.length > 0 ? poList
                             .filter(po => po.status === 'Pending')
-                            .map((po, idx) => {
+                            .map(po => {
                               const orderType = po.orderType || po.orderBy || 'Supplier';
                               const displayName = orderType === 'Branch'
                                 ? (po.branch || po.branchName || 'N/A')
                                 : (po.supplier || po.supplierName || 'N/A');
                               const status = po.status || 'Pending';
-                              return (
-                                <option key={idx} value={po.poNumber || po.id}>
-                                  {po.poNumber || po.id} - {displayName} ({orderType}) - {status}
-                                </option>
-                              );
-                            })
-                        ) : (
-                          <option disabled>No pending purchase orders available</option>
-                        )}
-                      </select>
+                              return {
+                                value: po.poNumber || po.id,
+                                label: `${po.poNumber || po.id} - ${displayName}`,
+                                subtitle: `${orderType} · ${status}`
+                              };
+                            }) : [])
+                        ]}
+                      />
                     </div>
 
                     <div className="form-group-inventory">
@@ -1156,10 +1161,9 @@ export default function GoodReceived() {
                         border: '1px solid #e2e8f0',
                         borderRadius: '6px'
                       }}>
-                        <select
+                        <ModernDropdown
                           value={item.itemName || ''}
-                          onChange={e => {
-                            const val = e.target.value;
+                          onChange={val => {
                             const selectedItem = inventoryItems.find(i => i.name === val);
                             handleItemChange(index, 'itemName', val);
                             if (selectedItem) {
@@ -1168,16 +1172,17 @@ export default function GoodReceived() {
                               handleItemChange(index, 'unitPrice', selectedItem.unitPrice || 0);
                             }
                           }}
-                          className="form-input-inventory"
-                          style={{ fontSize: '13px', width: '100%', minWidth: 0 }}
-                        >
-                          <option value="">Select Item</option>
-                          {inventoryItems.map((invItem) => (
-                            <option key={invItem.uniqueId || invItem._id} value={invItem.name}>
-                              {invItem.name} ({invItem.unit})
-                            </option>
-                          ))}
-                        </select>
+                          placeholder="Select Item"
+                          searchable={true}
+                          fullWidth={true}
+                          options={[
+                            { value: '', label: 'Select Item' },
+                            ...inventoryItems.map((invItem) => ({
+                              value: invItem.name,
+                              label: `${invItem.name} (${invItem.unit})`
+                            }))
+                          ]}
+                        />
                         <input
                           type="text"
                           placeholder="Unit"

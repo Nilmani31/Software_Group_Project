@@ -17,6 +17,7 @@ import {
 import Modal from '../Components/Modal';
 import ChatAssistant from '../Components/ChatAssistant';
 import ConfirmDialog from '../Components/ConfirmDialog';
+import ModernDropdown from '../Components/ModernDropdown';
 import { getAuthHeaders } from '../utils/authHeaders';
 
 const DEFAULT_PASSWORD_LENGTH = 12;
@@ -671,20 +672,44 @@ export default function Users() {
       </div>
 
       {/* ADD USER MODAL */}
-      <Modal title="Create New System User" open={openAdd} onClose={() => setOpenAdd(false)}>
-        <form style={{ display: 'flex', flexDirection: 'column', gap: 14 }} onSubmit={requestAddUser}>
+      <Modal 
+        title="Create New System User" 
+        subtitle="Register user credentials, assign company role and configure permissions"
+        open={openAdd} 
+        onClose={() => setOpenAdd(false)}
+        maxWidth="840px"
+      >
+        <form className="modal-form-inventory" onSubmit={requestAddUser}>
           
-          {/* Section: Basic Information */}
-          <div style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: 12 }}>
-            <div style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#64748b', marginBottom: 10 }}>
-              1. Account Credentials
+          {/* Top Account Profile Preview Card */}
+          <div className="sku-info-card">
+            <div className="sku-info-header">
+              <span className="sku-info-label">
+                <ShieldCheck size={14} style={{ marginRight: 6 }} /> System User Profile
+              </span>
+              <span className="sku-info-tag">
+                {roles.find(r => r.roleId === addForm.roleId)?.roleName || addForm.roleId || 'Role Unassigned'}
+              </span>
+            </div>
+            <div className="sku-info-value" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+              <span>{addForm.username ? `@${addForm.username}` : 'New User Account'}</span>
+              <span style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-muted)' }}>
+                Email: <strong style={{ color: 'var(--text-primary)' }}>{addForm.email || 'pending@domain.com'}</strong>
+              </span>
+            </div>
+          </div>
+
+          {/* Section 1: Account Credentials */}
+          <div className="form-section-group" style={{ marginTop: '12px' }}>
+            <div className="form-section-title">
+              <UserCheck size={14} style={{ marginRight: 6 }} /> Account Credentials
             </div>
             
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <div>
-                <label className="text-sm font-medium" style={{ display: 'block', marginBottom: 4 }}>Username *</label>
+            <div className="form-grid-2">
+              <div className="form-group-inventory">
+                <label className="form-label-inventory">Username *</label>
                 <input 
-                  className="input" 
+                  className="form-input-inventory" 
                   placeholder="e.g. j_smith" 
                   value={addForm.username} 
                   onChange={(e) => setAddForm({ ...addForm, username: e.target.value })} 
@@ -692,10 +717,10 @@ export default function Users() {
                 />
               </div>
 
-              <div>
-                <label className="text-sm font-medium" style={{ display: 'block', marginBottom: 4 }}>Email Address *</label>
+              <div className="form-group-inventory">
+                <label className="form-label-inventory">Email Address *</label>
                 <input 
-                  className="input" 
+                  className="form-input-inventory" 
                   type="email" 
                   placeholder="e.g. john@company.com" 
                   value={addForm.email} 
@@ -705,11 +730,11 @@ export default function Users() {
               </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 10 }}>
-              <div>
-                <label className="text-sm font-medium" style={{ display: 'block', marginBottom: 4 }}>Phone Number *</label>
+            <div className="form-grid-2" style={{ marginTop: '12px' }}>
+              <div className="form-group-inventory">
+                <label className="form-label-inventory">Phone Number *</label>
                 <input 
-                  className="input" 
+                  className="form-input-inventory" 
                   placeholder="e.g. 0712345678" 
                   value={addForm.phoneNumber} 
                   onChange={(e) => setAddForm({ ...addForm, phoneNumber: e.target.value })} 
@@ -717,11 +742,11 @@ export default function Users() {
                 />
               </div>
 
-              <div>
-                <label className="text-sm font-medium" style={{ display: 'block', marginBottom: 4 }}>Password</label>
-                <div style={{ display: 'flex', gap: 6 }}>
+              <div className="form-group-inventory">
+                <label className="form-label-inventory">Password</label>
+                <div style={{ display: 'flex', gap: '8px' }}>
                   <input 
-                    className="input" 
+                    className="form-input-inventory" 
                     type="password" 
                     placeholder="Leave empty to auto-generate" 
                     value={addForm.password} 
@@ -730,93 +755,94 @@ export default function Users() {
                   />
                   <button 
                     type="button" 
-                    className="btn-white" 
+                    className="modal-btn-inventory cancel" 
                     onClick={() => generatePassword('add')} 
-                    style={{ padding: '6px 12px', fontSize: '12px' }}
+                    style={{ padding: '0 12px', fontSize: '12px', height: '38px', display: 'inline-flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}
                     title="Generate secure password"
                   >
-                    <Key size={13} style={{ marginRight: 4 }} /> Gen
+                    <Key size={13} /> Gen
                   </button>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Section: Role and Branch Configuration */}
-          <div style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: 12 }}>
-            <div style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#64748b', marginBottom: 10 }}>
-              2. Role & Branch Assignment
+          {/* Section 2: Role and Branch Configuration */}
+          <div className="form-section-group" style={{ marginTop: '14px' }}>
+            <div className="form-section-title">
+              <Building size={14} style={{ marginRight: 6 }} /> Role & Branch Assignment
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <div>
-                <label className="text-sm font-medium" style={{ display: 'block', marginBottom: 4 }}>System Role *</label>
-                <select 
-                  className="input" 
-                  value={addForm.roleId} 
-                  onChange={(e) => handleAddRoleChange(e.target.value)} 
-                  required
-                >
-                  {roles.map(r => (
-                    <option key={r._id} value={r.roleId}>
-                      {r.roleName} ({r.roleId.replace('ROLE_', '')})
-                    </option>
-                  ))}
-                </select>
+            <div className="form-grid-2">
+              <div className="form-group-inventory">
+                <label className="form-label-inventory">System Role *</label>
+                <ModernDropdown
+                  value={addForm.roleId}
+                  onChange={(val) => handleAddRoleChange(val)}
+                  placeholder="Select Role"
+                  options={roles.map(r => ({
+                    value: r.roleId,
+                    label: `${r.roleName} (${r.roleId.replace('ROLE_', '')})`
+                  }))}
+                />
               </div>
 
               {/* Branch Selection based on Role */}
-              {(addForm.roleId === 'ROLE_ADMIN' || addForm.roleId === 'ROLE_DIRECTOR') ? (
-                <div>
-                  <label className="text-sm font-medium" style={{ display: 'block', marginBottom: 4 }}>Branch Scope</label>
-                  <div style={{ 
-                    padding: '8px 12px', 
-                    borderRadius: '6px', 
-                    backgroundColor: '#f0fdf4', 
-                    border: '1px solid #bbf7d0',
-                    color: '#15803d',
-                    fontSize: '13px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 6
-                  }}>
-                    <Globe size={16} />
-                    <span>Global Access (All Branches)</span>
-                  </div>
-                </div>
-              ) : (
-                <div>
-                  <label className="text-sm font-medium" style={{ display: 'block', marginBottom: 4 }}>
-                    {addForm.roleId === 'ROLE_MANAGER' ? 'Primary Branch *' : 'Assigned Branch *'}
-                  </label>
-                  <select 
-                    className="input" 
-                    value={addForm.branchId} 
-                    onChange={(e) => setAddForm({ ...addForm, branchId: e.target.value })} 
-                    required
-                  >
-                    <option value="">Select Branch</option>
-                    {branches.map(b => (
-                      <option key={b._id} value={b._id}>
-                        {b.branchName || b.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
+              <div className="form-group-inventory">
+                {(addForm.roleId === 'ROLE_ADMIN' || addForm.roleId === 'ROLE_DIRECTOR') ? (
+                  <>
+                    <label className="form-label-inventory">Branch Scope</label>
+                    <div style={{ 
+                      height: '32px',
+                      padding: '0 10px', 
+                      borderRadius: '6px', 
+                      backgroundColor: '#f0fdf4', 
+                      border: '1px solid #bbf7d0',
+                      color: '#15803d',
+                      fontSize: '12px',
+                      fontWeight: 600,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6
+                    }}>
+                      <Globe size={14} />
+                      <span>Global Access (All Branches)</span>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <label className="form-label-inventory">
+                      {addForm.roleId === 'ROLE_MANAGER' ? 'Primary Branch *' : 'Assigned Branch *'}
+                    </label>
+                    <ModernDropdown
+                      value={addForm.branchId}
+                      onChange={(val) => setAddForm({ ...addForm, branchId: val })}
+                      placeholder="Select Branch"
+                      searchable={true}
+                      options={[
+                        { value: "", label: "Select Branch" },
+                        ...branches.map(b => ({
+                          value: b._id,
+                          label: b.branchName || b.name
+                        }))
+                      ]}
+                    />
+                  </>
+                )}
+              </div>
             </div>
 
             {/* Allowed Branches for Managers */}
             {addForm.roleId === 'ROLE_MANAGER' && (
-              <div style={{ marginTop: 12, backgroundColor: '#f8fafc', padding: '10px 12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+              <div style={{ marginTop: '12px', backgroundColor: 'var(--bg-subtle, #f8fafc)', padding: '12px 14px', borderRadius: '8px', border: '1px solid var(--border-default, #e2e8f0)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                  <label className="text-xs font-semibold text-slate-700">
+                  <label className="form-label-inventory" style={{ margin: 0 }}>
                     Additional Permitted Branches (Multi-select)
                   </label>
                   <button 
                     type="button" 
                     onClick={() => toggleAllAllowedBranches('add')} 
-                    style={{ fontSize: '11px', color: '#2563eb', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 500 }}
+                    style={{ fontSize: '11px', color: '#2563eb', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}
                   >
                     Toggle All
                   </button>
@@ -837,21 +863,21 @@ export default function Users() {
             )}
           </div>
 
-          {/* Section: Feature Permissions and User Adding Access */}
-          <div>
+          {/* Section 3: Feature Permissions */}
+          <div className="form-section-group" style={{ marginTop: '14px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-              <div style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#64748b' }}>
-                3. Feature Permissions & User Adding Access
+              <div className="form-section-title" style={{ margin: 0 }}>
+                <ShieldCheck size={14} style={{ marginRight: 6 }} /> Feature Permissions & User Adding Access
               </div>
-              <span style={{ fontSize: '11px', color: '#64748b' }}>
+              <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
                 Role defaults pre-selected
               </span>
             </div>
 
             {/* Highlighted User Management & Adding Access Checkbox */}
             <div style={{ 
-              backgroundColor: addForm.permissions.includes('USERS') ? '#eff6ff' : '#f8fafc',
-              border: `1.5px solid ${addForm.permissions.includes('USERS') ? '#93c5fd' : '#e2e8f0'}`,
+              backgroundColor: addForm.permissions.includes('USERS') ? '#eff6ff' : 'var(--bg-subtle, #f8fafc)',
+              border: `1.5px solid ${addForm.permissions.includes('USERS') ? '#93c5fd' : 'var(--border-default, #e2e8f0)'}`,
               borderRadius: '8px',
               padding: '10px 14px',
               marginBottom: 10,
@@ -864,14 +890,14 @@ export default function Users() {
                 <input 
                   type="checkbox" 
                   checked={addForm.permissions.includes('USERS')} 
-                  onChange={() => {}} // handled by parent onClick
+                  onChange={() => {}} 
                   style={{ marginTop: 3 }}
                 />
                 <div>
                   <div style={{ fontSize: '13px', fontWeight: 600, color: '#1e3a8a', display: 'flex', alignItems: 'center', gap: 6 }}>
                     <UsersIcon size={14} className="text-blue-600" />
                     <span>User Management & User Adding Access</span>
-                    <span style={{ fontSize: '10px', backgroundColor: '#dbeafe', color: '#1d4ed8', padding: '1px 6px', borderRadius: '4px' }}>
+                    <span style={{ fontSize: '10px', backgroundColor: '#dbeafe', color: '#1d4ed8', padding: '1px 6px', borderRadius: '4px', fontWeight: 600 }}>
                       Key Permission
                     </span>
                   </div>
@@ -895,7 +921,7 @@ export default function Users() {
                       gap: 8, 
                       padding: '8px 10px', 
                       borderRadius: '6px',
-                      border: '1px solid #f1f5f9',
+                      border: '1px solid var(--border-default, #f1f5f9)',
                       backgroundColor: isChecked ? '#f8fafc' : '#ffffff',
                       cursor: 'pointer'
                     }}
@@ -916,9 +942,12 @@ export default function Users() {
             </div>
           </div>
 
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }} className="modal-actions">
-            <button className="btn-white" onClick={() => setOpenAdd(false)} type="button">Cancel</button>
-            <button className="btn-black" type="submit" disabled={addLoading}>
+          <div className="modal-footer-inventory" style={{ margin: '18px -18px -18px -18px', padding: '14px 18px' }}>
+            <button className="modal-btn-inventory cancel" onClick={() => setOpenAdd(false)} type="button">
+              Cancel
+            </button>
+            <button className="modal-btn-inventory save" type="submit" disabled={addLoading}>
+              <Plus size={14} style={{ marginRight: 4 }} />
               {addLoading ? 'Creating User...' : 'Create User Account'}
             </button>
           </div>
@@ -926,31 +955,55 @@ export default function Users() {
       </Modal>
 
       {/* EDIT USER MODAL */}
-      <Modal title={`Edit User: ${editing?.name || ''}`} open={openEdit} onClose={() => setOpenEdit(false)}>
+      <Modal 
+        title={`Edit User: ${editing?.name || ''}`} 
+        subtitle="Modify user credentials, operational branch scope and system permissions"
+        open={openEdit} 
+        onClose={() => setOpenEdit(false)}
+        maxWidth="840px"
+      >
         {editing && (
-          <form style={{ display: 'flex', flexDirection: 'column', gap: 14 }} onSubmit={handleUpdateUser}>
+          <form className="modal-form-inventory" onSubmit={handleUpdateUser}>
             
-            {/* Section: Basic Information */}
-            <div style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: 12 }}>
-              <div style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#64748b', marginBottom: 10 }}>
-                1. Account Details
+            {/* Top Editing Account Profile Preview Card */}
+            <div className="sku-info-card">
+              <div className="sku-info-header">
+                <span className="sku-info-label">
+                  <ShieldCheck size={14} style={{ marginRight: 6 }} /> User Profile Reference
+                </span>
+                <span className="sku-info-tag">
+                  {roles.find(r => r.roleId === editForm.roleId)?.roleName || editForm.roleId || 'Role Unassigned'}
+                </span>
+              </div>
+              <div className="sku-info-value" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                <span>@{editForm.username}</span>
+                <span style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-muted)' }}>
+                  Email: <strong style={{ color: 'var(--text-primary)' }}>{editForm.email}</strong>
+                </span>
+              </div>
+            </div>
+
+            {/* Section 1: Account Credentials */}
+            <div className="form-section-group" style={{ marginTop: '12px' }}>
+              <div className="form-section-title">
+                <UserCheck size={14} style={{ marginRight: 6 }} /> Account Details
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                <div>
-                  <label className="text-sm font-medium" style={{ display: 'block', marginBottom: 4 }}>Username *</label>
+              <div className="form-grid-2">
+                <div className="form-group-inventory">
+                  <label className="form-label-inventory">Username *</label>
                   <input 
-                    className="input" 
+                    className="form-input-inventory" 
                     value={editForm.username} 
                     onChange={(e) => setEditForm({ ...editForm, username: e.target.value })} 
                     required 
                   />
                 </div>
 
-                <div>
-                  <label className="text-sm font-medium" style={{ display: 'block', marginBottom: 4 }}>Email Address *</label>
+                <div className="form-group-inventory">
+                  <label className="form-label-inventory">Email Address *</label>
                   <input 
-                    className="input" 
+                    className="form-input-inventory" 
                     type="email" 
                     value={editForm.email} 
                     onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} 
@@ -959,21 +1012,21 @@ export default function Users() {
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 10 }}>
-                <div>
-                  <label className="text-sm font-medium" style={{ display: 'block', marginBottom: 4 }}>Phone Number</label>
+              <div className="form-grid-2" style={{ marginTop: '12px' }}>
+                <div className="form-group-inventory">
+                  <label className="form-label-inventory">Phone Number</label>
                   <input 
-                    className="input" 
+                    className="form-input-inventory" 
                     value={editForm.phoneNumber} 
                     onChange={(e) => setEditForm({ ...editForm, phoneNumber: e.target.value })} 
                   />
                 </div>
 
-                <div>
-                  <label className="text-sm font-medium" style={{ display: 'block', marginBottom: 4 }}>New Password (Optional)</label>
-                  <div style={{ display: 'flex', gap: 6 }}>
+                <div className="form-group-inventory">
+                  <label className="form-label-inventory">New Password (Optional)</label>
+                  <div style={{ display: 'flex', gap: '8px' }}>
                     <input 
-                      className="input" 
+                      className="form-input-inventory" 
                       type="password" 
                       placeholder="Leave blank to keep current" 
                       value={editForm.password || ''} 
@@ -982,91 +1035,92 @@ export default function Users() {
                     />
                     <button 
                       type="button" 
-                      className="btn-white" 
+                      className="modal-btn-inventory cancel" 
                       onClick={() => generatePassword('edit')} 
-                      style={{ padding: '6px 12px', fontSize: '12px' }}
+                      style={{ padding: '0 12px', fontSize: '12px', height: '38px', display: 'inline-flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}
                       title="Generate new password"
                     >
-                      <Key size={13} style={{ marginRight: 4 }} /> Gen
+                      <Key size={13} /> Gen
                     </button>
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Section: Role and Branch */}
-            <div style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: 12 }}>
-              <div style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#64748b', marginBottom: 10 }}>
-                2. Role & Branch Assignment
+            {/* Section 2: Role and Branch Assignment */}
+            <div className="form-section-group" style={{ marginTop: '14px' }}>
+              <div className="form-section-title">
+                <Building size={14} style={{ marginRight: 6 }} /> Role & Branch Assignment
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                <div>
-                  <label className="text-sm font-medium" style={{ display: 'block', marginBottom: 4 }}>System Role *</label>
-                  <select 
-                    className="input" 
-                    value={editForm.roleId} 
-                    onChange={(e) => handleEditRoleChange(e.target.value)} 
-                    required
-                  >
-                    {roles.map(r => (
-                      <option key={r._id} value={r.roleId}>
-                        {r.roleName} ({r.roleId.replace('ROLE_', '')})
-                      </option>
-                    ))}
-                  </select>
+              <div className="form-grid-2">
+                <div className="form-group-inventory">
+                  <label className="form-label-inventory">System Role *</label>
+                  <ModernDropdown
+                    value={editForm.roleId}
+                    onChange={(val) => handleEditRoleChange(val)}
+                    placeholder="Select Role"
+                    options={roles.map(r => ({
+                      value: r.roleId,
+                      label: `${r.roleName} (${r.roleId.replace('ROLE_', '')})`
+                    }))}
+                  />
                 </div>
 
-                {(editForm.roleId === 'ROLE_ADMIN' || editForm.roleId === 'ROLE_DIRECTOR') ? (
-                  <div>
-                    <label className="text-sm font-medium" style={{ display: 'block', marginBottom: 4 }}>Branch Scope</label>
-                    <div style={{ 
-                      padding: '8px 12px', 
-                      borderRadius: '6px', 
-                      backgroundColor: '#f0fdf4', 
-                      border: '1px solid #bbf7d0',
-                      color: '#15803d',
-                      fontSize: '13px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 6
-                    }}>
-                      <Globe size={16} />
-                      <span>Global Access (All Branches)</span>
-                    </div>
-                  </div>
-                ) : (
-                  <div>
-                    <label className="text-sm font-medium" style={{ display: 'block', marginBottom: 4 }}>
-                      {editForm.roleId === 'ROLE_MANAGER' ? 'Primary Branch *' : 'Assigned Branch *'}
-                    </label>
-                    <select 
-                      className="input" 
-                      value={editForm.branchId} 
-                      onChange={(e) => setEditForm({ ...editForm, branchId: e.target.value })} 
-                      required
-                    >
-                      <option value="">Select Branch</option>
-                      {branches.map(b => (
-                        <option key={b._id} value={b._id}>
-                          {b.branchName || b.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
+                <div className="form-group-inventory">
+                  {(editForm.roleId === 'ROLE_ADMIN' || editForm.roleId === 'ROLE_DIRECTOR') ? (
+                    <>
+                      <label className="form-label-inventory">Branch Scope</label>
+                      <div style={{ 
+                        height: '32px',
+                        padding: '0 10px', 
+                        borderRadius: '6px', 
+                        backgroundColor: '#f0fdf4', 
+                        border: '1px solid #bbf7d0',
+                        color: '#15803d',
+                        fontSize: '12px',
+                        fontWeight: 600,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 6
+                      }}>
+                        <Globe size={14} />
+                        <span>Global Access (All Branches)</span>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <label className="form-label-inventory">
+                        {editForm.roleId === 'ROLE_MANAGER' ? 'Primary Branch *' : 'Assigned Branch *'}
+                      </label>
+                      <ModernDropdown
+                        value={editForm.branchId}
+                        onChange={(val) => setEditForm({ ...editForm, branchId: val })}
+                        placeholder="Select Branch"
+                        searchable={true}
+                        options={[
+                          { value: "", label: "Select Branch" },
+                          ...branches.map(b => ({
+                            value: b._id,
+                            label: b.branchName || b.name
+                          }))
+                        ]}
+                      />
+                    </>
+                  )}
+                </div>
               </div>
 
               {editForm.roleId === 'ROLE_MANAGER' && (
-                <div style={{ marginTop: 12, backgroundColor: '#f8fafc', padding: '10px 12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                <div style={{ marginTop: '12px', backgroundColor: 'var(--bg-subtle, #f8fafc)', padding: '12px 14px', borderRadius: '8px', border: '1px solid var(--border-default, #e2e8f0)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                    <label className="text-xs font-semibold text-slate-700">
+                    <label className="form-label-inventory" style={{ margin: 0 }}>
                       Additional Permitted Branches
                     </label>
                     <button 
                       type="button" 
                       onClick={() => toggleAllAllowedBranches('edit')} 
-                      style={{ fontSize: '11px', color: '#2563eb', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 500 }}
+                      style={{ fontSize: '11px', color: '#2563eb', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}
                     >
                       Toggle All
                     </button>
@@ -1087,18 +1141,18 @@ export default function Users() {
               )}
             </div>
 
-            {/* Section: Permissions & User Adding Access */}
-            <div>
+            {/* Section 3: Permissions & User Adding Access */}
+            <div className="form-section-group" style={{ marginTop: '14px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                <div style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#64748b' }}>
-                  3. Feature Permissions & User Adding Access
+                <div className="form-section-title" style={{ margin: 0 }}>
+                  <ShieldCheck size={14} style={{ marginRight: 6 }} /> Feature Permissions & Access
                 </div>
               </div>
 
               {/* Highlighted User Management & Adding Access Checkbox */}
               <div style={{ 
-                backgroundColor: editForm.permissions.includes('USERS') ? '#eff6ff' : '#f8fafc',
-                border: `1.5px solid ${editForm.permissions.includes('USERS') ? '#93c5fd' : '#e2e8f0'}`,
+                backgroundColor: editForm.permissions.includes('USERS') ? '#eff6ff' : 'var(--bg-subtle, #f8fafc)',
+                border: `1.5px solid ${editForm.permissions.includes('USERS') ? '#93c5fd' : 'var(--border-default, #e2e8f0)'}`,
                 borderRadius: '8px',
                 padding: '10px 14px',
                 marginBottom: 10,
@@ -1117,7 +1171,7 @@ export default function Users() {
                     <div style={{ fontSize: '13px', fontWeight: 600, color: '#1e3a8a', display: 'flex', alignItems: 'center', gap: 6 }}>
                       <UsersIcon size={14} className="text-blue-600" />
                       <span>User Management & User Adding Access</span>
-                      <span style={{ fontSize: '10px', backgroundColor: '#dbeafe', color: '#1d4ed8', padding: '1px 6px', borderRadius: '4px' }}>
+                      <span style={{ fontSize: '10px', backgroundColor: '#dbeafe', color: '#1d4ed8', padding: '1px 6px', borderRadius: '4px', fontWeight: 600 }}>
                         Key Permission
                       </span>
                     </div>
@@ -1141,7 +1195,7 @@ export default function Users() {
                         gap: 8, 
                         padding: '8px 10px', 
                         borderRadius: '6px',
-                        border: '1px solid #f1f5f9',
+                        border: '1px solid var(--border-default, #f1f5f9)',
                         backgroundColor: isChecked ? '#f8fafc' : '#ffffff',
                         cursor: 'pointer'
                       }}
@@ -1162,9 +1216,11 @@ export default function Users() {
               </div>
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }} className="modal-actions">
-              <button className="btn-white" onClick={() => setOpenEdit(false)} type="button">Cancel</button>
-              <button className="btn-black" type="submit" disabled={editLoading}>
+            <div className="modal-footer-inventory" style={{ margin: '18px -18px -18px -18px', padding: '14px 18px' }}>
+              <button className="modal-btn-inventory cancel" onClick={() => setOpenEdit(false)} type="button">
+                Cancel
+              </button>
+              <button className="modal-btn-inventory save" type="submit" disabled={editLoading}>
                 {editLoading ? 'Updating User...' : 'Save Changes'}
               </button>
             </div>

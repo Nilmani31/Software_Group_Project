@@ -32,12 +32,13 @@ import {
   Layers,
   Activity,
 } from "lucide-react";
+import ModernDropdown from "../Components/ModernDropdown";
 
 export default function Report() {
   const [activeTab, setActiveTab] = useState("all"); // 'all', 'stock', 'low', 'branches', 'po', 'grn', 'transfers', 'analytics'
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState("all");
-  const [selectedBranch, setSelectedBranch] = useState("all");
+  const [selectedCategory, setSelectedCategory] = useState([]);
+  const [selectedBranch, setSelectedBranch] = useState([]);
   const [dateFilter, setDateFilter] = useState("all"); // 'all', '30d', '90d', 'custom'
   const [customStartDate, setCustomStartDate] = useState("");
   const [customEndDate, setCustomEndDate] = useState("");
@@ -135,14 +136,22 @@ export default function Report() {
       const sku = (item.sku || "").toLowerCase();
       const cat = (item.categoryName || item.category?.name || item.category || "").toLowerCase();
       const matchesSearch = !searchTerm || name.includes(searchTerm.toLowerCase()) || sku.includes(searchTerm.toLowerCase());
-      const matchesCat = selectedCategory === "all" || cat.toLowerCase() === selectedCategory.toLowerCase();
+      const matchesCat = 
+        !selectedCategory ||
+        selectedCategory.length === 0 ||
+        (Array.isArray(selectedCategory)
+          ? (selectedCategory.includes("all") || selectedCategory.some(c => c.toLowerCase() === cat.toLowerCase()))
+          : (selectedCategory === "all" || cat.toLowerCase() === selectedCategory.toLowerCase()));
 
       return matchesSearch && matchesCat;
     }).map(item => {
       let qty = Number(item.quantity || 0);
-      if (selectedBranch !== "all" && Array.isArray(item.branchStocks)) {
-        const bStock = item.branchStocks.find(s => (s.branchName || s.branch_name) === selectedBranch);
-        qty = bStock ? Number(bStock.quantity || 0) : 0;
+      const isBranchFiltered = Array.isArray(selectedBranch) ? selectedBranch.length > 0 && !selectedBranch.includes("all") : selectedBranch !== "all";
+      if (isBranchFiltered && Array.isArray(item.branchStocks)) {
+        const allowedBranches = Array.isArray(selectedBranch) ? selectedBranch : [selectedBranch];
+        qty = item.branchStocks
+          .filter(s => allowedBranches.some(b => (s.branchName || s.branch_name || "").toLowerCase() === b.toLowerCase()))
+          .reduce((sum, s) => sum + Number(s.quantity || 0), 0);
       }
       const unitPrice = Number(item.unitPrice || 0);
       const minStock = Number(item.minStock || 0);
@@ -172,7 +181,12 @@ export default function Report() {
       const sup = (po.supplier || po.orderDetails?.supplierName || "").toLowerCase();
       const br = (po.branch || po.createdByBranch || "").toLowerCase();
       const matchesSearch = !searchTerm || num.includes(searchTerm.toLowerCase()) || sup.includes(searchTerm.toLowerCase());
-      const matchesBranch = selectedBranch === "all" || br.includes(selectedBranch.toLowerCase());
+      const matchesBranch = 
+        !selectedBranch || 
+        selectedBranch.length === 0 || 
+        (Array.isArray(selectedBranch) 
+          ? (selectedBranch.includes("all") || selectedBranch.some(b => br.includes(b.toLowerCase()))) 
+          : (selectedBranch === "all" || br.includes(selectedBranch.toLowerCase())));
       const matchesDate = checkDateMatch(po.orderDate);
       return matchesSearch && matchesBranch && matchesDate;
     });
@@ -185,7 +199,12 @@ export default function Report() {
       const sup = (grn.supplierName || "").toLowerCase();
       const br = (grn.branch || grn.branchName || "").toLowerCase();
       const matchesSearch = !searchTerm || num.includes(searchTerm.toLowerCase()) || sup.includes(searchTerm.toLowerCase());
-      const matchesBranch = selectedBranch === "all" || br.includes(selectedBranch.toLowerCase());
+      const matchesBranch = 
+        !selectedBranch || 
+        selectedBranch.length === 0 || 
+        (Array.isArray(selectedBranch) 
+          ? (selectedBranch.includes("all") || selectedBranch.some(b => br.includes(b.toLowerCase()))) 
+          : (selectedBranch === "all" || br.includes(selectedBranch.toLowerCase())));
       const matchesDate = checkDateMatch(grn.receivedDate);
       return matchesSearch && matchesBranch && matchesDate;
     });
@@ -199,7 +218,12 @@ export default function Report() {
       const to = (note.toBranchId?.branchName || "").toLowerCase();
       const purpose = (note.purpose || "").toLowerCase();
       const matchesSearch = !searchTerm || num.includes(searchTerm.toLowerCase()) || purpose.includes(searchTerm.toLowerCase());
-      const matchesBranch = selectedBranch === "all" || from.includes(selectedBranch.toLowerCase()) || to.includes(selectedBranch.toLowerCase());
+      const matchesBranch = 
+        !selectedBranch || 
+        selectedBranch.length === 0 || 
+        (Array.isArray(selectedBranch) 
+          ? (selectedBranch.includes("all") || selectedBranch.some(b => from.includes(b.toLowerCase()) || to.includes(b.toLowerCase()))) 
+          : (selectedBranch === "all" || from.includes(selectedBranch.toLowerCase()) || to.includes(selectedBranch.toLowerCase())));
       const matchesDate = checkDateMatch(note.issueDate);
       return matchesSearch && matchesBranch && matchesDate;
     });
@@ -532,63 +556,43 @@ export default function Report() {
         {/* Category Filter */}
         <div style={{ display: "flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>
           <Layers size={15} style={{ color: "var(--text-muted)" }} />
-          <select
+          <ModernDropdown
             value={selectedCategory}
-            onChange={e => setSelectedCategory(e.target.value)}
-            style={{
-              padding: "7px 12px",
-              borderRadius: "var(--radius-md)",
-              border: "1px solid var(--border-default)",
-              fontSize: "13px",
-              background: "var(--bg-surface)",
-              cursor: "pointer"
-            }}
-          >
-            <option value="all">All Categories</option>
-            {categoriesList.map(c => <option key={c} value={c}>{c}</option>)}
-          </select>
+            onChange={setSelectedCategory}
+            placeholder="All Categories"
+            multiple={true}
+            searchable={true}
+            options={categoriesList.map(c => ({ value: c, label: c }))}
+          />
         </div>
 
         {/* Branch Filter */}
         <div style={{ display: "flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>
           <Building2 size={15} style={{ color: "var(--text-muted)" }} />
-          <select
+          <ModernDropdown
             value={selectedBranch}
-            onChange={e => setSelectedBranch(e.target.value)}
-            style={{
-              padding: "7px 12px",
-              borderRadius: "var(--radius-md)",
-              border: "1px solid var(--border-default)",
-              fontSize: "13px",
-              background: "var(--bg-surface)",
-              cursor: "pointer"
-            }}
-          >
-            <option value="all">All Branches</option>
-            {branchNamesList.map(b => <option key={b} value={b}>{b}</option>)}
-          </select>
+            onChange={setSelectedBranch}
+            placeholder="All Branches"
+            multiple={true}
+            searchable={true}
+            options={branchNamesList.map(b => ({ value: b, label: b }))}
+          />
         </div>
 
         {/* Date Filter */}
         <div style={{ display: "flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>
           <Calendar size={15} style={{ color: "var(--text-muted)" }} />
-          <select
+          <ModernDropdown
             value={dateFilter}
-            onChange={e => setDateFilter(e.target.value)}
-            style={{
-              padding: "7px 12px",
-              borderRadius: "var(--radius-md)",
-              border: "1px solid var(--border-default)",
-              fontSize: "13px",
-              background: "var(--bg-surface)",
-              cursor: "pointer"
-            }}
-          >
-            <option value="all">All Time</option>
-            <option value="30d">Last 30 Days</option>
-            <option value="90d">Last 90 Days</option>
-            <option value="custom">Custom Date Range</option>
-          </select>
+            onChange={setDateFilter}
+            placeholder="All Time"
+            options={[
+              { value: "all", label: "All Time" },
+              { value: "30d", label: "Last 30 Days" },
+              { value: "90d", label: "Last 90 Days" },
+              { value: "custom", label: "Custom Date Range" }
+            ]}
+          />
         </div>
 
         {dateFilter === "custom" && (
@@ -597,24 +601,26 @@ export default function Report() {
               type="date"
               value={customStartDate}
               onChange={e => setCustomStartDate(e.target.value)}
-              style={{ padding: "6px 8px", borderRadius: "var(--radius-sm)", border: "1px solid var(--border-default)", fontSize: "12px" }}
+              className="form-input-inventory"
+              style={{ width: "150px" }}
             />
             <span style={{ fontSize: "12px", color: "var(--text-muted)" }}>to</span>
             <input
               type="date"
               value={customEndDate}
               onChange={e => setCustomEndDate(e.target.value)}
-              style={{ padding: "6px 8px", borderRadius: "var(--radius-sm)", border: "1px solid var(--border-default)", fontSize: "12px" }}
+              className="form-input-inventory"
+              style={{ width: "150px" }}
             />
           </div>
         )}
 
-        {(searchTerm || selectedCategory !== "all" || selectedBranch !== "all" || dateFilter !== "all") && (
+        {(searchTerm || selectedCategory.length > 0 || selectedBranch.length > 0 || dateFilter !== "all") && (
           <button
             onClick={() => {
               setSearchTerm("");
-              setSelectedCategory("all");
-              setSelectedBranch("all");
+              setSelectedCategory([]);
+              setSelectedBranch([]);
               setDateFilter("all");
               setCustomStartDate("");
               setCustomEndDate("");

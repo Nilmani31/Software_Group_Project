@@ -3,6 +3,7 @@ import Navbar from '../Components/Navbar'
 import Sidebar from '../Components/Sidebar'
 import ChatAssistant from '../Components/ChatAssistant'
 import ConfirmDialog from '../Components/ConfirmDialog'
+import ModernDropdown from '../Components/ModernDropdown'
 import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
 import {
@@ -55,11 +56,11 @@ export default function PurchaseOrder() {
 
   const [pos, setPos] = useState([])
   const [query, setQuery] = useState('')
-  const [filterStatus, setFilterStatus] = useState('')
+  const [filterStatus, setFilterStatus] = useState([])
   const [filterOrderBy, setFilterOrderBy] = useState('')
   const [filterSupplier, setFilterSupplier] = useState('')
-  const [filterBranch, setFilterBranch] = useState('')
-  const [filterReceiverBranch, setFilterReceiverBranch] = useState('')
+  const [filterBranch, setFilterBranch] = useState([])
+  const [filterReceiverBranch, setFilterReceiverBranch] = useState([])
   const [branches, setBranches] = useState([])
   const [userBranchName, setUserBranchName] = useState('')
   const [categories, setCategories] = useState([])
@@ -118,11 +119,20 @@ export default function PurchaseOrder() {
     const matchesQuery = poNum.toLowerCase().includes(query.toLowerCase()) ||
       (po.supplier && po.supplier.toLowerCase().includes(query.toLowerCase()))
 
-    const matchesStatus = !filterStatus || po.status === filterStatus
+    const matchesStatus = !filterStatus || (Array.isArray(filterStatus)
+      ? (filterStatus.length === 0 || filterStatus.includes(po.status))
+      : (!filterStatus || po.status === filterStatus))
+
     const matchesOrderBy = !filterOrderBy || po.orderType === filterOrderBy
     const matchesSupplier = !filterSupplier || (po.supplier && po.supplier.toLowerCase().includes(filterSupplier.toLowerCase()))
-    const matchesBranch = !filterBranch || (po.branchName === filterBranch)
-    const matchesReceiverBranch = !filterReceiverBranch || (po.createdByBranch === filterReceiverBranch || po.branch === filterReceiverBranch)
+
+    const matchesBranch = !filterBranch || (Array.isArray(filterBranch)
+      ? (filterBranch.length === 0 || filterBranch.includes(po.branchName) || filterBranch.includes(po.branch))
+      : (!filterBranch || po.branchName === filterBranch || po.branch === filterBranch))
+
+    const matchesReceiverBranch = !filterReceiverBranch || (Array.isArray(filterReceiverBranch)
+      ? (filterReceiverBranch.length === 0 || filterReceiverBranch.includes(po.createdByBranch) || filterReceiverBranch.includes(po.branch))
+      : (!filterReceiverBranch || po.createdByBranch === filterReceiverBranch || po.branch === filterReceiverBranch))
 
     return matchesQuery && matchesStatus && matchesOrderBy && matchesSupplier && matchesBranch && matchesReceiverBranch
   })
@@ -472,21 +482,36 @@ export default function PurchaseOrder() {
                     <div className="po-filters">
                       <div className="filter-group">
                         <label className="filter-label">Order Status:</label>
-                        <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="filter-select">
-                          <option value="">All Status</option>
-                          <option value="Pending">Pending</option>
-                          <option value="Received">Received</option>
-                          <option value="Cancelled">Cancelled</option>
-                        </select>
+                        <ModernDropdown
+                          options={[
+                            { value: 'Pending', label: 'Pending' },
+                            { value: 'Received', label: 'Received' },
+                            { value: 'Cancelled', label: 'Cancelled' }
+                          ]}
+                          value={filterStatus}
+                          onChange={val => setFilterStatus(val)}
+                          placeholder="All Statuses"
+                          multiple={true}
+                          minWidth="135px"
+                        />
                       </div>
 
                       <div className="filter-group">
                         <label className="filter-label">Order By:</label>
-                        <select value={filterOrderBy} onChange={e => { setFilterOrderBy(e.target.value); setFilterSupplier(''); setFilterBranch(''); }} className="filter-select">
-                          <option value="">All Types</option>
-                          <option value="Supplier">Supplier</option>
-                          <option value="Branch">Branch</option>
-                        </select>
+                        <ModernDropdown
+                          options={[
+                            { value: 'Supplier', label: 'External Supplier' },
+                            { value: 'Branch', label: 'Internal Branch Transfer' }
+                          ]}
+                          value={filterOrderBy}
+                          onChange={val => {
+                            setFilterOrderBy(val);
+                            setFilterSupplier('');
+                            setFilterBranch([]);
+                          }}
+                          placeholder="All Sources"
+                          minWidth="145px"
+                        />
                       </div>
 
                       {filterOrderBy === 'Supplier' && (
@@ -505,47 +530,47 @@ export default function PurchaseOrder() {
                       {filterOrderBy === 'Branch' && (
                         <div className="filter-group">
                           <label className="filter-label">Branch:</label>
-                          <select value={filterBranch} onChange={e => setFilterBranch(e.target.value)} className="filter-select">
-                            <option value="">All Branches</option>
-                            {branches && branches.length > 0 ? (
-                              branches.map(branch => (
-                                <option key={branch._id} value={branch.name || branch.branchName}>
-                                  {branch.name || branch.branchName}
-                                </option>
-                              ))
-                            ) : (
-                              <option disabled>Loading branches...</option>
-                            )}
-                          </select>
+                          <ModernDropdown
+                            options={branches.map(b => ({
+                              value: b.name || b.branchName,
+                              label: b.name || b.branchName,
+                              subtitle: b.branchCode ? `Code: ${b.branchCode}` : undefined
+                            }))}
+                            value={filterBranch}
+                            onChange={val => setFilterBranch(val)}
+                            placeholder="All Branches"
+                            multiple={true}
+                            minWidth="145px"
+                          />
                         </div>
                       )}
 
                       {filterOrderBy === 'Branch' && (
                         <div className="filter-group">
                           <label className="filter-label">Branch Received:</label>
-                          <select value={filterReceiverBranch} onChange={e => setFilterReceiverBranch(e.target.value)} className="filter-select">
-                            <option value="">All Branches</option>
-                            {branches && branches.length > 0 ? (
-                              branches.map(branch => (
-                                <option key={branch._id} value={branch.name || branch.branchName}>
-                                  {branch.name || branch.branchName}
-                                </option>
-                              ))
-                            ) : (
-                              <option disabled>Loading branches...</option>
-                            )}
-                          </select>
+                          <ModernDropdown
+                            options={branches.map(b => ({
+                              value: b.name || b.branchName,
+                              label: b.name || b.branchName,
+                              subtitle: b.branchCode ? `Code: ${b.branchCode}` : undefined
+                            }))}
+                            value={filterReceiverBranch}
+                            onChange={val => setFilterReceiverBranch(val)}
+                            placeholder="All Branches"
+                            multiple={true}
+                            minWidth="145px"
+                          />
                         </div>
                       )}
 
                       <button
                         className="btn-clear-filters"
                         onClick={() => {
-                          setFilterStatus('')
+                          setFilterStatus([])
                           setFilterOrderBy('')
                           setFilterSupplier('')
-                          setFilterBranch('')
-                          setFilterReceiverBranch('')
+                          setFilterBranch([])
+                          setFilterReceiverBranch([])
                           setQuery('')
                         }}
                       >
@@ -708,15 +733,16 @@ export default function PurchaseOrder() {
                   <div className="form-grid-2">
                     <div className="form-group-inventory">
                       <label className="form-label-inventory">Order Source / Type *</label>
-                      <select
+                      <ModernDropdown
+                        options={[
+                          { value: 'Supplier', label: 'External Supplier' },
+                          { value: 'Branch', label: 'Internal Branch Transfer' }
+                        ]}
                         value={poForm.orderBy}
-                        onChange={e => updateForm('orderBy', e.target.value)}
-                        className="form-input-inventory filter-select"
-                        required
-                      >
-                        <option value="Supplier">External Supplier</option>
-                        <option value="Branch">Internal Branch Transfer</option>
-                      </select>
+                        onChange={val => updateForm('orderBy', val)}
+                        fullWidth
+                        clearable={false}
+                      />
                     </div>
 
                     <div className="form-group-inventory">
@@ -758,19 +784,17 @@ export default function PurchaseOrder() {
                   ) : (
                     <div className="form-group-inventory">
                       <label className="form-label-inventory">Target Fulfilling Branch *</label>
-                      <select
+                      <ModernDropdown
+                        options={branches.map(b => ({
+                          value: b.name || b.branchName,
+                          label: b.name || b.branchName,
+                          subtitle: b.branchCode ? `Branch Code: ${b.branchCode}` : undefined
+                        }))}
                         value={poForm.branch}
-                        onChange={e => updateForm('branch', e.target.value)}
-                        className="form-input-inventory filter-select"
-                        required={poForm.orderBy === 'Branch'}
-                      >
-                        <option value="">-- Select Source Branch --</option>
-                        {branches.map(b => (
-                          <option key={b._id || b.name} value={b.name || b.branchName}>
-                            {b.name || b.branchName}
-                          </option>
-                        ))}
-                      </select>
+                        onChange={val => updateForm('branch', val)}
+                        placeholder="Choose Fulfilling Branch..."
+                        fullWidth
+                      />
                     </div>
                   )}
 
@@ -818,40 +842,37 @@ export default function PurchaseOrder() {
                   <div className="form-grid-3">
                     <div className="form-group-inventory">
                       <label className="form-label-inventory">Category</label>
-                      <select
+                      <ModernDropdown
+                        options={categories.map(cat => ({
+                          value: cat.name || cat._id,
+                          label: cat.name
+                        }))}
                         value={line.category}
-                        onChange={e => updateLine('category', e.target.value)}
-                        className="form-input-inventory filter-select"
-                      >
-                        <option value="">-- Select Category --</option>
-                        {categories.map((cat, idx) => (
-                          <option key={idx} value={cat.name || cat._id}>
-                            {cat.name}
-                          </option>
-                        ))}
-                      </select>
+                        onChange={val => updateLine('category', val)}
+                        placeholder="-- Select Category --"
+                        fullWidth
+                      />
                     </div>
 
                     <div className="form-group-inventory">
                       <label className="form-label-inventory">Item</label>
-                      <select
-                        value={line.item}
-                        onChange={e => updateLine('item', e.target.value)}
-                        className="form-input-inventory filter-select"
-                        disabled={!line.category}
-                      >
-                        <option value="">{line.category ? '-- Select Item --' : 'Select category first'}</option>
-                        {line.category && itemsWithStock
+                      <ModernDropdown
+                        options={line.category ? itemsWithStock
                           .filter(item => {
                             const itemCategory = item.category?.name || item.categoryName || item.category;
                             return itemCategory === line.category;
                           })
-                          .map((item, idx) => (
-                            <option key={idx} value={`${item.name} - ${item.unit}`}>
-                              {item.name} - {item.unit}
-                            </option>
-                          ))}
-                      </select>
+                          .map(item => ({
+                            value: `${item.name} - ${item.unit}`,
+                            label: item.name,
+                            subtitle: `Unit: ${item.unit}`
+                          })) : []}
+                        value={line.item}
+                        onChange={val => updateLine('item', val)}
+                        placeholder={line.category ? "-- Choose Item to Add --" : "First select a category above"}
+                        disabled={!line.category}
+                        fullWidth
+                      />
                     </div>
 
                     <div className="form-group-inventory">
@@ -1221,18 +1242,24 @@ export default function PurchaseOrder() {
                 <div className="form-layout-inventory">
                   <div className="form-group-inventory">
                     <label className="form-label-inventory">Order By</label>
-                    <select value={editForm.orderBy} onChange={e => {
-                      setEditForm(prev => {
-                        if (e.target.value === 'Supplier') {
-                          return { ...prev, orderBy: e.target.value, branch: '' }
-                        } else {
-                          return { ...prev, orderBy: e.target.value, supplierName: '', phone: '' }
-                        }
-                      })
-                    }} className="form-input-inventory">
-                      <option>Supplier</option>
-                      <option>Branch</option>
-                    </select>
+                    <ModernDropdown
+                      options={[
+                        { value: 'Supplier', label: 'External Supplier' },
+                        { value: 'Branch', label: 'Internal Branch Transfer' }
+                      ]}
+                      value={editForm.orderBy}
+                      onChange={val => {
+                        setEditForm(prev => {
+                          if (val === 'Supplier') {
+                            return { ...prev, orderBy: val, branch: '' }
+                          } else {
+                            return { ...prev, orderBy: val, supplierName: '', phone: '' }
+                          }
+                        })
+                      }}
+                      fullWidth
+                      clearable={false}
+                    />
                   </div>
                   {editForm.orderBy === 'Supplier' ? (
                     <>
@@ -1248,12 +1275,17 @@ export default function PurchaseOrder() {
                   ) : (
                     <div className="form-group-inventory">
                       <label className="form-label-inventory">Branch</label>
-                      <select value={editForm.branch} onChange={e => setEditForm(prev => ({ ...prev, branch: e.target.value }))} className="form-input-inventory">
-                        <option value="">Select Branch</option>
-                        {branches.map(b => (
-                          <option key={b._id} value={b.name || b.branchName}>{b.name || b.branchName}</option>
-                        ))}
-                      </select>
+                      <ModernDropdown
+                        options={branches.map(b => ({
+                          value: b.name || b.branchName,
+                          label: b.name || b.branchName,
+                          subtitle: b.branchCode ? `Branch Code: ${b.branchCode}` : undefined
+                        }))}
+                        value={editForm.branch}
+                        onChange={val => setEditForm(prev => ({ ...prev, branch: val }))}
+                        placeholder="-- Choose Branch --"
+                        fullWidth
+                      />
                     </div>
                   )}
                   <div className="form-group-inventory">
@@ -1292,30 +1324,41 @@ export default function PurchaseOrder() {
                 <div className="form-layout-inventory">
                   <div className="form-group-inventory">
                     <label className="form-label-inventory">Category</label>
-                    <select value={editLine.category} onChange={e => updateEditLine('category', e.target.value)} className="form-input-inventory">
-                      <option value="">-- Select Category --</option>
-                      {categories.map((cat, idx) => (
-                        <option key={idx} value={cat.name || cat._id}>
-                          {cat.name}
-                        </option>
-                      ))}
-                    </select>
+                    <ModernDropdown
+                      value={editLine.category}
+                      onChange={val => updateEditLine('category', val)}
+                      placeholder="Select Category"
+                      searchable={true}
+                      options={[
+                        { value: '', label: 'Select Category' },
+                        ...categories.map(cat => ({
+                          value: cat.name || cat._id,
+                          label: cat.name
+                        }))
+                      ]}
+                    />
                   </div>
                   <div className="form-group-inventory">
                     <label className="form-label-inventory">Item</label>
-                    <select value={editLine.item} onChange={e => updateEditLine('item', e.target.value)} className="form-input-inventory">
-                      <option value="">-- Select Item --</option>
-                      {editLine.category && itemsWithStock
-                        .filter(item => {
-                          const itemCategory = item.category?.name || item.categoryName || item.category;
-                          return itemCategory === editLine.category;
-                        })
-                        .map((item, idx) => (
-                          <option key={idx} value={`${item.name} - ${item.unit}`}>
-                            {item.name} - {item.unit}
-                          </option>
-                        ))}
-                    </select>
+                    <ModernDropdown
+                      value={editLine.item}
+                      onChange={val => updateEditLine('item', val)}
+                      placeholder={editLine.category ? 'Choose Item' : 'Select category first'}
+                      searchable={true}
+                      disabled={!editLine.category}
+                      options={[
+                        { value: '', label: editLine.category ? 'Choose Item' : 'Select category first' },
+                        ...(editLine.category ? itemsWithStock
+                          .filter(item => {
+                            const itemCategory = item.category?.name || item.categoryName || item.category;
+                            return itemCategory === editLine.category;
+                          })
+                          .map(item => ({
+                            value: `${item.name} - ${item.unit}`,
+                            label: `${item.name} (${item.unit})`
+                          })) : [])
+                      ]}
+                    />
                   </div>
 
                   {selectedItemForCreate && (

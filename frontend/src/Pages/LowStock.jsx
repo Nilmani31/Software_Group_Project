@@ -2,8 +2,9 @@ import React, { useState, useEffect } from "react";
 import Sidebar from "../Components/Sidebar";
 import Navbar from "../Components/Navbar";
 import ChatAssistant from "../Components/ChatAssistant";
+import ModernDropdown from "../Components/ModernDropdown";
 import { getAuthHeaders } from "../utils/authHeaders";
-import { Package, AlertTriangle, AlertOctagon, ClipboardList, X } from "lucide-react";
+import { Package, AlertTriangle, AlertOctagon, ClipboardList, X, Truck, Building2, ShoppingCart, Plus } from "lucide-react";
 
 const LowStock = () => {
   const [lowStockItems, setLowStockItems] = useState([]);
@@ -236,158 +237,212 @@ const LowStock = () => {
 
       {/* Order Restock Modal */}
       {isModalOpen && selectedItem && (
-        <div className="modal-overlay" onClick={handleCloseModal}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <div>
-                <h2>Order Stock</h2>
-                <p className="modal-subtitle">Stock Available Branches or Supplier Details</p>
+        <div className="modal-overlay-inventory" onClick={handleCloseModal}>
+          <div className="modal-content-inventory add-item-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '740px', width: 'min(94vw, 740px)' }}>
+            <div className="modal-header-inventory">
+              <div className="modal-title-section-inventory">
+                <h2 className="modal-title-inventory">Order Stock Requisition</h2>
+                <p className="modal-subtitle-inventory">Reorder depleted inventory from branch surplus or approved suppliers</p>
               </div>
-              <button className="modal-close" onClick={handleCloseModal} aria-label="Close modal"><X size={18} /></button>
+              <button 
+                type="button" 
+                className="modal-close-btn-inventory" 
+                onClick={handleCloseModal} 
+                aria-label="Close modal"
+                title="Close"
+              >
+                <X size={18} />
+              </button>
             </div>
 
-            <div className="modal-body">
-              {/* Item Details */}
-              <div className="item-details">
-                <div className="detail-row">
-                  <span className="detail-label">SKU:</span>
-                  <span className="detail-value">{selectedItem.sku}</span>
+            <div className="modal-body-inventory">
+              <div className="modal-form-inventory">
+                {/* Item Details SKU Reference Card */}
+                <div className="sku-info-card">
+                  <div className="sku-info-header">
+                    <span className="sku-info-label">
+                      <Package size={14} style={{ marginRight: 6 }} /> Depleted Inventory SKU
+                    </span>
+                    <span className="sku-info-tag" style={{ background: '#fee2e2', color: '#b91c1c', border: '1px solid #fecaca' }}>
+                      {selectedItem.shortage} {selectedItem.unit} Shortage
+                    </span>
+                  </div>
+                  <div className="sku-info-value" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                    <span>{selectedItem.name} <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-muted)' }}>({selectedItem.sku})</span></span>
+                    <span style={{ fontSize: '12.5px', fontWeight: 600, color: 'var(--text-muted)' }}>
+                      Current Stock: <strong style={{ color: '#dc2626' }}>{selectedItem.currentStock} {selectedItem.unit}</strong>
+                    </span>
+                  </div>
                 </div>
-                <div className="detail-row">
-                  <span className="detail-label">Item:</span>
-                  <span className="detail-value">{selectedItem.name}</span>
-                </div>
-                <div className="detail-row">
-                  <span className="detail-label">Current Stock:</span>
-                  <span className="detail-value">{selectedItem.currentStock} {selectedItem.unit}</span>
-                </div>
-                <div className="detail-row">
-                  <span className="detail-label">Shortage:</span>
-                  <span className="detail-value shortage">{selectedItem.shortage} {selectedItem.unit}</span>
-                </div>
-              </div>
 
-              <div className="form-divider"></div>
+                {/* Section 1: Order Routing Type */}
+                <div className="form-section-group" style={{ marginTop: '12px' }}>
+                  <div className="form-section-title">
+                    <Truck size={14} style={{ marginRight: 6 }} /> Fulfillment Routing Source
+                  </div>
 
-              {/* Order Type */}
-              <div className="form-group">
-                <label className="form-label">Order Type</label>
-                <select
-                  className="form-select"
-                  value={orderType}
-                  onChange={(e) => setOrderType(e.target.value)}
-                >
-                  <option value="Branches">From Branches</option>
-                  <option value="Supplier">From Supplier</option>
-                </select>
-              </div>
+                  <div className="form-group-inventory">
+                    <label className="form-label-inventory">Order Sourcing Strategy *</label>
+                    <ModernDropdown
+                      value={orderType}
+                      onChange={(val) => setOrderType(val)}
+                      placeholder="Select Strategy"
+                      options={[
+                        { value: "Branches", label: "Transfer from Internal Branch Surplus" },
+                        { value: "Supplier", label: "Procure from External Supplier" }
+                      ]}
+                    />
+                  </div>
+                </div>
 
-              {/* Branch Selection */}
-              {orderType === "Branches" && (
-                <div className="form-group">
-                  <label className="form-label">Select Branch</label>
-                  {loadingBranches ? (
-                    <div style={{ padding: '20px', textAlign: 'center' }}>Loading branches...</div>
-                  ) : branches.length === 0 ? (
-                    <div style={{ padding: '20px', textAlign: 'center', color: '#777' }}>No branch stock data available.</div>
-                  ) : (
-                    <div className="selection-list">
-                      {branches.filter(branch => branch.quantity > 0).map((branch) => (
-                        <div key={branch.id} className="selection-item">
-                          <div className="selection-checkbox">
-                            <input
-                              type="checkbox"
-                              id={`branch-${branch.id}`}
-                              checked={selectedBranches.includes(branch.id)}
-                              onChange={() => handleBranchToggle(branch.id)}
-                              className="checkbox-input"
-                            />
-                          </div>
-                          <div className="selection-info">
-                            <label htmlFor={`branch-${branch.id}`} className="selection-name">
-                              {branch.name}
-                            </label>
-                            <span className="selection-details">
-                              Available: {branch.quantity} {selectedItem.unit}
-                              {branch.location ? ` - ${branch.location}` : ''}
-                            </span>
-                          </div>
-                          {selectedBranches.includes(branch.id) && (
-                            <div className="quantity-input-group">
-                              <input
-                                type="number"
-                                min="0"
-                                max={branch.quantity}
-                                placeholder="Qty"
-                                className="quantity-input"
-                                value={orderQuantities[branch.id] || ''}
-                                onChange={(e) => handleQuantityChange(branch.id, e.target.value)}
-                              />
-                            </div>
-                          )}
+                {/* Section 2: Source Selection & Quantities */}
+                <div className="form-section-group" style={{ marginTop: '14px' }}>
+                  <div className="form-section-title">
+                    {orderType === "Branches" ? (
+                      <><Building2 size={14} style={{ marginRight: 6 }} /> Available Branch Inventory</>
+                    ) : (
+                      <><Truck size={14} style={{ marginRight: 6 }} /> Registered Suppliers</>
+                    )}
+                  </div>
+
+                  {/* Branch Selection */}
+                  {orderType === "Branches" && (
+                    <div>
+                      {loadingBranches ? (
+                        <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-muted)' }}>Loading branch stocks...</div>
+                      ) : branches.length === 0 ? (
+                        <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-muted)', border: '1px dashed var(--border-default)', borderRadius: '8px' }}>
+                          No branch surplus stock available for this item.
                         </div>
-                      ))}
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '240px', overflowY: 'auto' }}>
+                          {branches.filter(branch => branch.quantity > 0).map((branch) => (
+                            <div 
+                              key={branch.id} 
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                padding: '10px 14px',
+                                borderRadius: '8px',
+                                border: selectedBranches.includes(branch.id) ? '1.5px solid #3b82f6' : '1px solid var(--border-default)',
+                                background: selectedBranches.includes(branch.id) ? '#eff6ff' : 'var(--bg-subtle, #ffffff)',
+                                transition: 'all 0.15s ease'
+                              }}
+                            >
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                <input
+                                  type="checkbox"
+                                  id={`branch-${branch.id}`}
+                                  checked={selectedBranches.includes(branch.id)}
+                                  onChange={() => handleBranchToggle(branch.id)}
+                                  style={{ cursor: 'pointer' }}
+                                />
+                                <div>
+                                  <label htmlFor={`branch-${branch.id}`} style={{ fontWeight: 600, fontSize: '13px', cursor: 'pointer', color: 'var(--text-primary)' }}>
+                                    {branch.name}
+                                  </label>
+                                  <div style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>
+                                    Available: <strong style={{ color: '#059669' }}>{branch.quantity} {selectedItem.unit}</strong>
+                                    {branch.location ? ` • ${branch.location}` : ''}
+                                  </div>
+                                </div>
+                              </div>
+                              {selectedBranches.includes(branch.id) && (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                  <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Qty:</span>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    max={branch.quantity}
+                                    placeholder="Qty"
+                                    className="form-input-inventory"
+                                    style={{ width: '80px', height: '32px', textAlign: 'center', fontWeight: 600 }}
+                                    value={orderQuantities[branch.id] || ''}
+                                    onChange={(e) => handleQuantityChange(branch.id, e.target.value)}
+                                  />
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Supplier Selection */}
+                  {orderType === "Supplier" && (
+                    <div>
+                      {loadingSuppliers ? (
+                        <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-muted)' }}>Loading suppliers...</div>
+                      ) : suppliers.length === 0 ? (
+                        <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-muted)', border: '1px dashed var(--border-default)', borderRadius: '8px' }}>
+                          No active suppliers found in system.
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '240px', overflowY: 'auto' }}>
+                          {suppliers.map((supplier) => (
+                            <div 
+                              key={supplier.id} 
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                padding: '10px 14px',
+                                borderRadius: '8px',
+                                border: selectedSuppliers.includes(supplier.id) ? '1.5px solid #3b82f6' : '1px solid var(--border-default)',
+                                background: selectedSuppliers.includes(supplier.id) ? '#eff6ff' : 'var(--bg-subtle, #ffffff)',
+                                transition: 'all 0.15s ease'
+                              }}
+                            >
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                <input
+                                  type="checkbox"
+                                  id={`supplier-${supplier.id}`}
+                                  checked={selectedSuppliers.includes(supplier.id)}
+                                  onChange={() => handleSupplierToggle(supplier.id)}
+                                  style={{ cursor: 'pointer' }}
+                                />
+                                <div>
+                                  <label htmlFor={`supplier-${supplier.id}`} style={{ fontWeight: 600, fontSize: '13px', cursor: 'pointer', color: 'var(--text-primary)' }}>
+                                    {supplier.name}
+                                  </label>
+                                  <div style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>
+                                    {supplier.contactPerson ? `${supplier.contactPerson} • ` : ''}
+                                    {supplier.phone || supplier.email || 'No contact details'}
+                                  </div>
+                                </div>
+                              </div>
+                              {selectedSuppliers.includes(supplier.id) && (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                  <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Qty:</span>
+                                  <input
+                                    type="number"
+                                    min="1"
+                                    placeholder="Qty"
+                                    className="form-input-inventory"
+                                    style={{ width: '80px', height: '32px', textAlign: 'center', fontWeight: 600 }}
+                                    value={orderQuantities[supplier.id] || ''}
+                                    onChange={(e) => handleQuantityChange(supplier.id, e.target.value)}
+                                  />
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
-              )}
-
-              {/* Supplier Selection */}
-              {orderType === "Supplier" && (
-                <div className="form-group">
-                  <label className="form-label">Select Supplier</label>
-                  {loadingSuppliers ? (
-                    <div style={{ padding: '20px', textAlign: 'center' }}>Loading suppliers...</div>
-                  ) : suppliers.length === 0 ? (
-                    <div style={{ padding: '20px', textAlign: 'center', color: '#777' }}>No suppliers found.</div>
-                  ) : (
-                    <div className="selection-list">
-                      {suppliers.map((supplier) => (
-                        <div key={supplier.id} className="selection-item">
-                          <div className="selection-checkbox">
-                            <input
-                              type="checkbox"
-                              id={`supplier-${supplier.id}`}
-                              checked={selectedSuppliers.includes(supplier.id)}
-                              onChange={() => handleSupplierToggle(supplier.id)}
-                              className="checkbox-input"
-                            />
-                          </div>
-                          <div className="selection-info">
-                            <label htmlFor={`supplier-${supplier.id}`} className="selection-name">
-                              {supplier.name}
-                            </label>
-                            <span className="selection-details">
-                              {supplier.contactPerson ? `${supplier.contactPerson} - ` : ''}
-                              {supplier.phone || supplier.email || 'No contact details'}
-                            </span>
-                          </div>
-                          {selectedSuppliers.includes(supplier.id) && (
-                            <div className="quantity-input-group">
-                              <input
-                                type="number"
-                                min="1"
-                                placeholder="Qty"
-                                className="quantity-input"
-                                value={orderQuantities[supplier.id] || ''}
-                                onChange={(e) => handleQuantityChange(supplier.id, e.target.value)}
-                              />
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
+              </div>
             </div>
 
-            <div className="modal-footer">
-              <button className="btn-cancel" onClick={handleCloseModal}>
+            <div className="modal-footer-inventory">
+              <button type="button" className="modal-btn-inventory cancel" onClick={handleCloseModal}>
                 Cancel
               </button>
-              <button className="btn-order" onClick={handleOrderSubmit}>
-                Order
+              <button type="button" className="modal-btn-inventory save" onClick={handleOrderSubmit}>
+                <ShoppingCart size={14} style={{ marginRight: 4 }} /> Submit Restock Order
               </button>
             </div>
           </div>

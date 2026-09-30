@@ -5,7 +5,7 @@ import ChatAssistant from "../Components/ChatAssistant";
 import ConfirmDialog from "../Components/ConfirmDialog";
 
 
-import { FaTimes, FaEdit, FaTrash } from "react-icons/fa";
+import { FaTimes, FaEdit, FaTrash, FaPlus, FaBuilding, FaPhoneAlt, FaMapMarkerAlt, FaUserTie } from "react-icons/fa";
 
 export default function Branches() {
     const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || "http://localhost:5005";
@@ -269,7 +269,7 @@ export default function Branches() {
             {/* View / Edit Branch Details Modal */}
             {selectedBranch && (
                 <div className="modal-overlay-inventory" onClick={() => { setSelectedBranch(null); setIsEditMode(false); }}>
-                    <div className="modal-content-inventory" style={{ maxWidth: '640px' }} onClick={e => e.stopPropagation()}>
+                    <div className="modal-content-inventory add-item-modal" style={{ maxWidth: '680px', width: 'min(94vw, 680px)' }} onClick={e => e.stopPropagation()}>
                         <div className="modal-header-inventory">
                             <div className="modal-title-section-inventory">
                                 <h2 className="modal-title-inventory">
@@ -283,8 +283,9 @@ export default function Branches() {
                                 className="modal-close-btn-inventory"
                                 onClick={() => { setSelectedBranch(null); setIsEditMode(false); }}
                                 aria-label="Close"
+                                title="Close"
                             >
-                                ×
+                                <FaTimes />
                             </button>
                         </div>
 
@@ -486,18 +487,20 @@ export default function Branches() {
             {/* Add New Branch Modal */}
             {showAdd && (
                 <div className="modal-overlay-inventory" onClick={() => setShowAdd(false)}>
-                    <div className="modal-content-inventory" style={{ maxWidth: '640px' }} onClick={e => e.stopPropagation()}>
+                    <div className="modal-content-inventory add-item-modal" style={{ maxWidth: '680px', width: 'min(94vw, 680px)' }} onClick={e => e.stopPropagation()}>
                         <div className="modal-header-inventory">
                             <div className="modal-title-section-inventory">
                                 <h2 className="modal-title-inventory">Add New Branch</h2>
                                 <p className="modal-subtitle-inventory">Register a new branch location into the system</p>
                             </div>
                             <button
+                                type="button"
                                 className="modal-close-btn-inventory"
                                 onClick={() => setShowAdd(false)}
                                 aria-label="Close"
+                                title="Close"
                             >
-                                ×
+                                <FaTimes />
                             </button>
                         </div>
 
@@ -516,58 +519,90 @@ export default function Branches() {
                                 </div>
                             )}
 
-                            <div className="form-layout-inventory">
-                                <div className="form-group-inventory">
-                                    <label className="form-label-inventory">Branch Name</label>
-                                    <input
-                                        type="text"
-                                        value={form.name}
-                                        onChange={e => setForm({ ...form, name: e.target.value })}
-                                        className={`form-input-inventory ${errors.name ? 'error' : ''}`}
-                                        placeholder="Enter branch name"
-                                    />
-                                    {errors.name && <span style={{ color: '#dc2626', fontSize: '12px' }}>{errors.name}</span>}
+                            {/* Reference Card */}
+                            <div className="sku-info-card">
+                                <div className="sku-info-header">
+                                    <span className="sku-info-label">
+                                        <FaBuilding style={{ marginRight: 6 }} /> Branch Network Entity
+                                    </span>
+                                    <span className="sku-info-tag">Physical Branch</span>
+                                </div>
+                                <div className="sku-info-value" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                                    <span>{form.name?.trim() ? form.name : 'New Branch Location'}</span>
+                                    <span style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-muted)' }}>
+                                        Location: <strong style={{ color: 'var(--text-primary)' }}>{form.location?.trim() ? form.location : 'Pending'}</strong>
+                                    </span>
+                                </div>
+                            </div>
+
+                            {/* Section 1: Location Profile */}
+                            <div className="form-section-group">
+                                <div className="form-section-title">
+                                    <FaMapMarkerAlt style={{ marginRight: 6 }} /> Branch Profile & Location
                                 </div>
 
-                                <div className="form-group-inventory">
-                                    <label className="form-label-inventory">Location</label>
-                                    <input
-                                        type="text"
-                                        value={form.location}
-                                        onChange={e => setForm({ ...form, location: e.target.value })}
-                                        className={`form-input-inventory ${errors.location ? 'error' : ''}`}
-                                        placeholder="Enter location"
-                                    />
-                                    {errors.location && <span style={{ color: '#dc2626', fontSize: '12px' }}>{errors.location}</span>}
+                                <div className="form-grid-2">
+                                    <div className="form-group-inventory">
+                                        <label className="form-label-inventory">Branch Name *</label>
+                                        <input
+                                            type="text"
+                                            value={form.name}
+                                            onChange={e => setForm({ ...form, name: e.target.value })}
+                                            className={`form-input-inventory ${errors.name ? 'error' : ''}`}
+                                            placeholder="e.g. Kandy Central Hub"
+                                        />
+                                        {errors.name && <span style={{ color: '#dc2626', fontSize: '12px' }}>{errors.name}</span>}
+                                    </div>
+
+                                    <div className="form-group-inventory">
+                                        <label className="form-label-inventory">Location / City *</label>
+                                        <input
+                                            type="text"
+                                            value={form.location}
+                                            onChange={e => setForm({ ...form, location: e.target.value })}
+                                            className={`form-input-inventory ${errors.location ? 'error' : ''}`}
+                                            placeholder="e.g. Kandy, Sri Lanka"
+                                        />
+                                        {errors.location && <span style={{ color: '#dc2626', fontSize: '12px' }}>{errors.location}</span>}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Section 2: Contact Information */}
+                            <div className="form-section-group" style={{ marginTop: '14px' }}>
+                                <div className="form-section-title">
+                                    <FaPhoneAlt style={{ marginRight: 6 }} /> Contact & Operational Management
                                 </div>
 
-                                <div className="form-group-inventory">
-                                    <label className="form-label-inventory">Manager/Contact Person</label>
-                                    <input
-                                        type="text"
-                                        value={form.contact_person}
-                                        onChange={e => setForm({ ...form, contact_person: e.target.value })}
-                                        className={`form-input-inventory ${errors.contact_person ? 'error' : ''}`}
-                                        placeholder="Enter manager or contact person name"
-                                    />
-                                    {errors.contact_person && <span style={{ color: '#dc2626', fontSize: '12px' }}>{errors.contact_person}</span>}
-                                </div>
+                                <div className="form-grid-2">
+                                    <div className="form-group-inventory">
+                                        <label className="form-label-inventory">Manager / Contact Person</label>
+                                        <input
+                                            type="text"
+                                            value={form.contact_person}
+                                            onChange={e => setForm({ ...form, contact_person: e.target.value })}
+                                            className={`form-input-inventory ${errors.contact_person ? 'error' : ''}`}
+                                            placeholder="e.g. Mr. Samantha Perera"
+                                        />
+                                        {errors.contact_person && <span style={{ color: '#dc2626', fontSize: '12px' }}>{errors.contact_person}</span>}
+                                    </div>
 
-                                <div className="form-group-inventory">
-                                    <label className="form-label-inventory">Phone Number</label>
-                                    <input
-                                        type="tel"
-                                        value={form.phone}
-                                        onChange={e => setForm({ ...form, phone: e.target.value })}
-                                        className={`form-input-inventory ${errors.phone ? 'error' : ''}`}
-                                        placeholder="Enter phone number (10-15 digits)"
-                                    />
-                                    {errors.phone && <span style={{ color: '#dc2626', fontSize: '12px' }}>{errors.phone}</span>}
+                                    <div className="form-group-inventory">
+                                        <label className="form-label-inventory">Phone Number</label>
+                                        <input
+                                            type="tel"
+                                            value={form.phone}
+                                            onChange={e => setForm({ ...form, phone: e.target.value })}
+                                            className={`form-input-inventory ${errors.phone ? 'error' : ''}`}
+                                            placeholder="e.g. 0812345678"
+                                        />
+                                        {errors.phone && <span style={{ color: '#dc2626', fontSize: '12px' }}>{errors.phone}</span>}
+                                    </div>
                                 </div>
                             </div>
                         </div>
 
-                        <div className="modal-footer-inventory" style={{ justifyContent: 'flex-end', gap: '8px' }}>
+                        <div className="modal-footer-inventory">
                             <button
                                 type="button"
                                 className="modal-btn-inventory cancel"
@@ -580,7 +615,7 @@ export default function Branches() {
                                 className="modal-btn-inventory save"
                                 onClick={requestSave}
                             >
-                                Add Branch
+                                <FaPlus style={{ marginRight: 4 }} /> Add Branch
                             </button>
                         </div>
                     </div>

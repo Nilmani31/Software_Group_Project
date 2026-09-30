@@ -4,6 +4,7 @@ import Sidebar from '../Components/Sidebar';
 import ChatAssistant from '../Components/ChatAssistant';
 import FindItemByImageModal from '../Components/FindItemByImageModal';
 import ConfirmDialog from '../Components/ConfirmDialog';
+import ModernDropdown from '../Components/ModernDropdown';
 
 import { FaTimes, FaEdit, FaTrash, FaImage, FaPlus, FaUpload, FaCloudUploadAlt, FaBarcode, FaBoxOpen, FaLayerGroup } from 'react-icons/fa';
 import { getAuthHeaders } from '../utils/authHeaders';
@@ -140,9 +141,9 @@ const Inventory = () => {
   const [expandedItemId, setExpandedItemId] = useState(null);
   const [stockLoading, setStockLoading] = useState(false);
   const [query, setQuery] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('All Categories');
-  const [branchFilter, setBranchFilter] = useState('All Branch');
-  const [statusFilter, setStatusFilter] = useState('All Status');
+  const [categoryFilter, setCategoryFilter] = useState([]);
+  const [branchFilter, setBranchFilter] = useState([]);
+  const [statusFilter, setStatusFilter] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [showFindByImageModal, setShowFindByImageModal] = useState(false);
   const [imagePreview, setImagePreview] = useState(null);
@@ -312,9 +313,12 @@ const Inventory = () => {
   };
 
   const getDisplayQuantity = (item) => {
-    if (branchFilter !== 'All Branch' && Array.isArray(item.branchStocks)) {
-      const selectedBranchStock = item.branchStocks.find(stock => stock.branchName === branchFilter);
-      return selectedBranchStock ? selectedBranchStock.quantity || 0 : 0;
+    const isBranchFiltered = Array.isArray(branchFilter) ? branchFilter.length > 0 && !branchFilter.includes('All Branch') : branchFilter !== 'All Branch';
+    if (isBranchFiltered && Array.isArray(item.branchStocks)) {
+      const allowed = Array.isArray(branchFilter) ? branchFilter : [branchFilter];
+      return item.branchStocks
+        .filter(stock => allowed.includes(stock.branchName))
+        .reduce((sum, stock) => sum + Number(stock.quantity || 0), 0);
     }
 
     return item.quantity || item.qty || 0;
@@ -336,9 +340,9 @@ const Inventory = () => {
 
   const handleClearFilters = () => {
     setQuery('');
-    setCategoryFilter('All Categories');
-    setBranchFilter('All Branch');
-    setStatusFilter('All Status');
+    setCategoryFilter([]);
+    setBranchFilter([]);
+    setStatusFilter([]);
   };
 
   const groupedItems = useMemo(() => {
@@ -440,9 +444,20 @@ const Inventory = () => {
       const matchesQuery = !q ||
         searchText.includes(q);
 
-      const matchesCategory = categoryFilter === 'All Categories' || categoryName === categoryFilter;
-      const matchesBranch = branchFilter === 'All Branch' || branchNames.includes(branchFilter);
-      const matchesStatus = statusFilter === 'All Status' || status === statusFilter;
+      const matchesCategory = 
+        !categoryFilter || 
+        categoryFilter.length === 0 || 
+        (Array.isArray(categoryFilter) ? (categoryFilter.includes('All Categories') || categoryFilter.includes(categoryName)) : (categoryFilter === 'All Categories' || categoryName === categoryFilter));
+
+      const matchesBranch = 
+        !branchFilter || 
+        branchFilter.length === 0 || 
+        (Array.isArray(branchFilter) ? (branchFilter.includes('All Branch') || branchFilter.some(bf => branchNames.includes(bf))) : (branchFilter === 'All Branch' || branchNames.includes(branchFilter)));
+
+      const matchesStatus = 
+        !statusFilter || 
+        statusFilter.length === 0 || 
+        (Array.isArray(statusFilter) ? (statusFilter.includes('All Status') || statusFilter.includes(status)) : (statusFilter === 'All Status' || status === statusFilter));
 
       return matchesQuery && matchesCategory && matchesBranch && matchesStatus;
     });
@@ -827,49 +842,49 @@ const Inventory = () => {
                     </div>
 
                     <div className="filter">
-                      <select
+                      <ModernDropdown
+                        options={categories.map(c => ({ value: c.name, label: c.name }))}
                         value={categoryFilter}
-                        onChange={(e) => setCategoryFilter(e.target.value)}
-                        className="filter-select"
-                      >
-                        <option value="All Categories">All Categories</option>
-                        {categories.map(c => (
-                          <option key={c._id} value={c.name}>{c.name}</option>
-                        ))}
-                      </select>
+                        onChange={(val) => setCategoryFilter(val)}
+                        placeholder="All Categories"
+                        multiple={true}
+                        searchable={true}
+                        minWidth="130px"
+                      />
                     </div>
 
                     <div className="filter">
-                      <select
+                      <ModernDropdown
+                        options={branches.map(b => ({ value: b, label: b }))}
                         value={branchFilter}
-                        onChange={(e) => setBranchFilter(e.target.value)}
-                        className="filter-select"
-                      >
-                        <option value="All Branch">All Branch</option>
-                        {branches.map(b => (
-                          <option key={b} value={b}>{b}</option>
-                        ))}
-                      </select>
+                        onChange={(val) => setBranchFilter(val)}
+                        placeholder="All Branches"
+                        multiple={true}
+                        searchable={true}
+                        minWidth="130px"
+                      />
                     </div>
 
                     <div className="filter">
-                      <select
+                      <ModernDropdown
+                        options={[
+                          { value: 'normal', label: 'Normal' },
+                          { value: 'low', label: 'Low Stock' },
+                          { value: 'out', label: 'Out of Stock' }
+                        ]}
                         value={statusFilter}
-                        onChange={(e) => setStatusFilter(e.target.value)}
-                        className="filter-select"
-                      >
-                        <option value="All Status">All Status</option>
-                        <option value="normal">Normal</option>
-                        <option value="low">Low Stock</option>
-                        <option value="out">Out of Stock</option>
-                      </select>
+                        onChange={(val) => setStatusFilter(val)}
+                        placeholder="All Statuses"
+                        multiple={true}
+                        minWidth="125px"
+                      />
                     </div>
 
                     <button
                       type="button"
                       className="filter-clear-btn"
                       onClick={handleClearFilters}
-                      disabled={!query && categoryFilter === 'All Categories' && branchFilter === 'All Branch' && statusFilter === 'All Status'}
+                      disabled={!query && categoryFilter.length === 0 && branchFilter.length === 0 && statusFilter.length === 0}
                     >
                       Clear
                     </button>
@@ -1053,18 +1068,16 @@ const Inventory = () => {
                       {/* Category */}
                       <div className="form-group-inventory" style={{ margin: 0 }}>
                         <label className="form-label-inventory">Category *</label>
-                        <select
-                          name="category"
+                        <ModernDropdown
                           value={formData.category}
-                          onChange={handleInputChange}
-                          className="form-input-inventory filter-select"
-                          required
-                        >
-                          <option value="">Select product category</option>
-                          {categories.map(c => (
-                            <option key={c._id} value={c.name}>{c.name}</option>
-                          ))}
-                        </select>
+                          onChange={(val) => handleInputChange({ target: { name: 'category', value: val } })}
+                          placeholder="Select product category"
+                          searchable={true}
+                          options={[
+                            { value: "", label: "Select product category" },
+                            ...categories.map(c => ({ value: c.name, label: c.name }))
+                          ]}
+                        />
                       </div>
                     </div>
 
@@ -1078,17 +1091,16 @@ const Inventory = () => {
                         {/* Unit */}
                         <div className="form-group-inventory" style={{ margin: 0 }}>
                           <label className="form-label-inventory">Unit *</label>
-                          <select
-                            name="unit"
+                          <ModernDropdown
                             value={formData.unit}
-                            onChange={handleInputChange}
-                            className="form-input-inventory filter-select"
-                            required
-                          >
-                            <option value="kg">kg (Kilogram)</option>
-                            <option value="ltr">ltr (Liter)</option>
-                            <option value="pcs">pcs (Pieces)</option>
-                          </select>
+                            onChange={(val) => handleInputChange({ target: { name: 'unit', value: val } })}
+                            placeholder="Select Unit"
+                            options={[
+                              { value: "kg", label: "kg (Kilogram)" },
+                              { value: "ltr", label: "ltr (Liter)" },
+                              { value: "pcs", label: "pcs (Pieces)" }
+                            ]}
+                          />
                         </div>
 
                         {/* Unit Size */}
@@ -1543,23 +1555,22 @@ const Inventory = () => {
                       {/* Category */}
                       <div className="form-group-inventory" style={{ margin: 0 }}>
                         <label className="form-label-inventory">Category *</label>
-                        <select
-                          name="category"
+                        <ModernDropdown
                           value={typeof editFormData.category === 'object'
                             ? (editFormData.category?.name || editFormData.category?.categoryName || '')
                             : (editFormData.category || '')
                           }
-                          onChange={handleEditInputChange}
-                          className="form-input-inventory filter-select"
-                          required
-                        >
-                          <option value="">Select Category</option>
-                          {categories.map((cat) => (
-                            <option key={cat._id} value={cat.name}>
-                              {cat.name}
-                            </option>
-                          ))}
-                        </select>
+                          onChange={(val) => handleEditInputChange({ target: { name: 'category', value: val } })}
+                          placeholder="Select Category"
+                          searchable={true}
+                          options={[
+                            { value: "", label: "Select Category" },
+                            ...categories.map((cat) => ({
+                              value: cat.name,
+                              label: cat.name
+                            }))
+                          ]}
+                        />
                       </div>
                     </div>
 
@@ -1573,17 +1584,16 @@ const Inventory = () => {
                         {/* Unit */}
                         <div className="form-group-inventory" style={{ margin: 0 }}>
                           <label className="form-label-inventory">Unit *</label>
-                          <select
-                            name="unit"
+                          <ModernDropdown
                             value={editFormData.unit}
-                            onChange={handleEditInputChange}
-                            className="form-input-inventory filter-select"
-                            required
-                          >
-                            <option value="kg">kg (Kilogram)</option>
-                            <option value="ltr">ltr (Liter)</option>
-                            <option value="pcs">pcs (Pieces)</option>
-                          </select>
+                            onChange={(val) => handleEditInputChange({ target: { name: 'unit', value: val } })}
+                            placeholder="Select Unit"
+                            options={[
+                              { value: "kg", label: "kg (Kilogram)" },
+                              { value: "ltr", label: "ltr (Liter)" },
+                              { value: "pcs", label: "pcs (Pieces)" }
+                            ]}
+                          />
                         </div>
 
                         {/* Unit Size */}
