@@ -3,14 +3,13 @@ import Sidebar from "../Components/Sidebar";
 import Navbar from "../Components/Navbar";
 import ChatAssistant from "../Components/ChatAssistant";
 import ConfirmDialog from "../Components/ConfirmDialog";
-import ModernDropdown from "../Components/ModernDropdown";
 import { getAuthHeaders } from "../utils/authHeaders";
 import {
   FileText, CheckCircle2, Clock, XCircle, Plus, Search, Building2, Calendar,
   Printer, Edit3, Trash2, Layers, Boxes, ArrowRight, Send, AlertCircle,
   X, Check, Ban, Eye, RotateCcw, PackageCheck, Truck, ArrowRightLeft, User, DollarSign, Filter
 } from "lucide-react";
-import { FaPrint, FaSave, FaTimes, FaPlus, FaTrash, FaBoxOpen, FaTruck, FaFileInvoice } from "react-icons/fa";
+import { FaPrint, FaSave } from "react-icons/fa";
 
 const IssueNote = () => {
   const [issueNotes, setIssueNotes] = useState([]); // Initialize as empty array
@@ -27,7 +26,7 @@ const IssueNote = () => {
   const userRole = roleId.replace('ROLE_', '');
   const canEdit = ['ADMIN', 'DIRECTOR', 'MANAGER', 'BRANCH_MANAGER'].includes(userRole);
   const [viewType, setViewType] = useState("list");
-  const [activeTab, setActiveTab] = useState("issueNotes");
+  const [activeTab, setActiveTab] = useState("branchRequests");
   const [expandedId, setExpandedId] = useState(null);
   const [selectedItem, setSelectedItem] = useState(null);
   const [showModal, setShowModal] = useState(false);
@@ -50,8 +49,8 @@ const IssueNote = () => {
 
   // Search & Filter State
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedBranchFilter, setSelectedBranchFilter] = useState([]);
-  const [selectedStatusFilter, setSelectedStatusFilter] = useState([]);
+  const [selectedBranchFilter, setSelectedBranchFilter] = useState("all");
+  const [selectedStatusFilter, setSelectedStatusFilter] = useState("all");
 
   // Fetch data from API on component mount
   useEffect(() => {
@@ -266,23 +265,24 @@ const IssueNote = () => {
 
   const isBranchRequest = (note) => {
     const original = note._original || note;
-    return original.creationMode === 'branchRequest';
+    const mode = String(original.creationMode || '').toLowerCase();
+    const purpose = String(original.purpose || note.issueType || '').toLowerCase();
+    return mode === 'branchrequest' || Boolean(original.toBranchId) || /branch|stock|transfer|request|requisition/i.test(purpose);
   };
 
-  const getRequestStatus = (note) =>
-    String(note._original?.status || note.status || '').toLowerCase();
-
-  const branchRequestData = issueNotes
-    .filter(isBranchRequest)
-    .map(note => ({
-      ...note,
-      requestNumber: note.issueNumber,
-      requestFrom: note.issuedTo,
-      requestedFrom: note.issuedTo,
-      requestedBy: note.issuedBy,
-      requestDate: note.issueDate,
-      requestType: note.issueType
-    }));
+  const branchRequestsList = useMemo(() => {
+    return issueNotes
+      .filter(isBranchRequest)
+      .map(note => ({
+        ...note,
+        requestNumber: note.issueNumber,
+        requestFrom: note.issuedTo,
+        requestedFrom: note.issuedTo,
+        requestedBy: note.issuedBy,
+        requestDate: note.issueDate,
+        requestType: note.issueType
+      }));
+  }, [issueNotes]);
 
   const issueNotesList = useMemo(() => {
     return issueNotes.filter(note => !isBranchRequest(note));
@@ -1211,8 +1211,7 @@ const IssueNote = () => {
       setSelectedItemForAdd(null);
       setItemQuantity(0);
 
-      alert(createMode === "branchRequest" ? "Branch request created successfully!" : "Issue note created successfully!");
-      setActiveTab(createMode === "branchRequest" ? "branchRequests" : "issueNotes");
+      alert("Issue note created successfully!");
       closeCreateModal();
       await Promise.all([
         fetchIssueNotes(),
@@ -1265,39 +1264,6 @@ const IssueNote = () => {
                 }}>
                   <button
                     type="button"
-                    onClick={() => handleTabChange("issueNotes")}
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      padding: '8px 18px',
-                      borderRadius: '8px',
-                      fontSize: '13px',
-                      fontWeight: 600,
-                      border: 'none',
-                      cursor: 'pointer',
-                      transition: 'all 0.2s ease',
-                      background: activeTab === "issueNotes" ? 'var(--bg-surface, #ffffff)' : 'transparent',
-                      color: activeTab === "issueNotes" ? 'var(--primary-color, #2563eb)' : 'var(--text-secondary, #64748b)',
-                      boxShadow: activeTab === "issueNotes" ? '0 2px 6px rgba(0, 0, 0, 0.08)' : 'none'
-                    }}
-                  >
-                    <FileText size={16} />
-                    <span>Issue Notes</span>
-                    <span style={{
-                      padding: '2px 8px',
-                      borderRadius: '9999px',
-                      fontSize: '11px',
-                      fontWeight: 700,
-                      background: activeTab === "issueNotes" ? '#eff6ff' : 'rgba(0,0,0,0.06)',
-                      color: activeTab === "issueNotes" ? '#2563eb' : '#64748b'
-                    }}>
-                      {issueNotesList.length}
-                    </span>
-                  </button>
-
-                  <button
-                    type="button"
                     onClick={() => handleTabChange("branchRequests")}
                     style={{
                       display: 'inline-flex',
@@ -1326,6 +1292,39 @@ const IssueNote = () => {
                       color: activeTab === "branchRequests" ? '#2563eb' : '#64748b'
                     }}>
                       {branchRequestsList.length}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleTabChange("issueNotes")}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      padding: '8px 18px',
+                      borderRadius: '8px',
+                      fontSize: '13px',
+                      fontWeight: 600,
+                      border: 'none',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                      background: activeTab === "issueNotes" ? 'var(--bg-surface, #ffffff)' : 'transparent',
+                      color: activeTab === "issueNotes" ? 'var(--primary-color, #2563eb)' : 'var(--text-secondary, #64748b)',
+                      boxShadow: activeTab === "issueNotes" ? '0 2px 6px rgba(0, 0, 0, 0.08)' : 'none'
+                    }}
+                  >
+                    <FileText size={16} />
+                    <span>Issue Notes</span>
+                    <span style={{
+                      padding: '2px 8px',
+                      borderRadius: '9999px',
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      background: activeTab === "issueNotes" ? '#eff6ff' : 'rgba(0,0,0,0.06)',
+                      color: activeTab === "issueNotes" ? '#2563eb' : '#64748b'
+                    }}>
+                      {issueNotesList.length}
                     </span>
                   </button>
                 </div>
@@ -1420,80 +1419,101 @@ const IssueNote = () => {
                   </div>
                 </div>
 
-              {/* Stats Cards */}
-              <div className="stats-row">
-                {activeTab === "issueNotes" ? (
-                  <>
-                    {/*<div className="stat-card">
-                      <div className="stat-icon completed">
-                        <FaCheckCircle />
-                      </div>
-                      <div className="stat-info">
-                        <span className="stat-label">Completed</span>
-                        <span className="stat-value">{issueNotes.filter(i => i.status === "Completed").length}</span>
-                      </div>
+                {/* Approved / Issued */}
+                <div style={{
+                  background: 'var(--bg-surface, #ffffff)',
+                  border: '1px solid var(--border-default, #e2e8f0)',
+                  borderRadius: '14px',
+                  padding: '16px 20px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '16px',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
+                }}>
+                  <div style={{
+                    width: '46px',
+                    height: '46px',
+                    borderRadius: '12px',
+                    background: '#ecfdf5',
+                    color: '#059669',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}>
+                    <CheckCircle2 size={22} />
+                  </div>
+                  <div>
+                    <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary, #64748b)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      Approved / Issued
+                    </span>
+                    <div style={{ fontSize: '24px', fontWeight: 700, color: '#059669', lineHeight: 1.2, marginTop: '2px' }}>
+                      {activeRawList.filter(i => i.status === "issued" || i.status === "Approved").length}
                     </div>
-                    <div className="stat-card">
-                      <div className="stat-icon processing">
-                        <FaClock />
-                      </div>
-                      <div className="stat-info">
-                        <span className="stat-label">Processing</span>
-                        <span className="stat-value">{issueNotes.filter(i => i.status === "Processing").length}</span>
-                      </div>
+                  </div>
+                </div>
+
+                {/* Processing */}
+                <div style={{
+                  background: 'var(--bg-surface, #ffffff)',
+                  border: '1px solid var(--border-default, #e2e8f0)',
+                  borderRadius: '14px',
+                  padding: '16px 20px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '16px',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
+                }}>
+                  <div style={{
+                    width: '46px',
+                    height: '46px',
+                    borderRadius: '12px',
+                    background: '#fef3c7',
+                    color: '#d97706',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}>
+                    <Clock size={22} />
+                  </div>
+                  <div>
+                    <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary, #64748b)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      In Processing
+                    </span>
+                    <div style={{ fontSize: '24px', fontWeight: 700, color: '#d97706', lineHeight: 1.2, marginTop: '2px' }}>
+                      {activeRawList.filter(i => i.status === "Processing").length}
                     </div>
-                    <div className="stat-card">
-                      <div className="stat-icon pending">
-                        <FaTimesCircle />
-                      </div>
-                      <div className="stat-info">
-                        <span className="stat-label">Pending</span>
-                        <span className="stat-value">{issueNotes.filter(i => i.status === "Pending").length}</span>
-                      </div>
-                    </div>
-                    <div className="stat-card total">
-                      <div className="stat-icon">📊</div>
-                      <div className="stat-info">
-                        <span className="stat-label">Total Issues</span>
-                        <span className="stat-value">{issueNotes.length}</span>
-                      </div>
-                    </div>*/}
-                  </>
-                ) : (
-                  <>
-                    <div className="stat-card">
-                      <div className="stat-icon issued">
-                        <FaCheckCircle />
-                      </div>
-                      <div className="stat-info">
-                        <span className="stat-label">Issued</span>
-                        <span className="stat-value">{branchRequestData.filter(i => getRequestStatus(i) === "issued").length}</span>
-                      </div>
-                    </div>
-                    <div className="stat-card">
-                      <div className="stat-icon processing">
-                        <FaClock />
-                      </div>
-                      <div className="stat-info">
-                        <span className="stat-label">Pending</span>
-                        <span className="stat-value">{branchRequestData.filter(i => getRequestStatus(i) === "pending").length}</span>
-                      </div>
-                    </div>
-                    <div className="stat-card">
-                      <div className="stat-icon pending">
-                        <FaTimesCircle />
-                      </div>
-                      <div className="stat-info">
-                        <span className="stat-label">Rejected</span>
-                        <span className="stat-value">{branchRequestData.filter(i => getRequestStatus(i) === "rejected").length}</span>
-                      </div>
-                    </div>
-                    <div className="stat-card total">
-                      <div className="stat-icon">📮</div>
-                      <div className="stat-info">
-                        <span className="stat-label">Total Requests</span>
-                        <span className="stat-value">{branchRequestData.length}</span>
-                      </div>
+                  </div>
+                </div>
+
+                {/* Pending */}
+                <div style={{
+                  background: 'var(--bg-surface, #ffffff)',
+                  border: '1px solid var(--border-default, #e2e8f0)',
+                  borderRadius: '14px',
+                  padding: '16px 20px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '16px',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
+                }}>
+                  <div style={{
+                    width: '46px',
+                    height: '46px',
+                    borderRadius: '12px',
+                    background: '#fff1f2',
+                    color: '#e11d48',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}>
+                    <AlertCircle size={22} />
+                  </div>
+                  <div>
+                    <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary, #64748b)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      Pending Approval
+                    </span>
+                    <div style={{ fontSize: '24px', fontWeight: 700, color: '#e11d48', lineHeight: 1.2, marginTop: '2px' }}>
+                      {activeRawList.filter(i => i.status === "Pending").length}
                     </div>
                   </div>
                 </div>
@@ -1566,40 +1586,58 @@ const IssueNote = () => {
                     )}
                   </div>
 
-                  {/* Branch Filter Dropdown (Multi-select) */}
-                  <ModernDropdown
+                  {/* Branch Filter Dropdown */}
+                  <select
                     value={selectedBranchFilter}
-                    onChange={setSelectedBranchFilter}
-                    placeholder="All Branches"
-                    multiple={true}
-                    searchable={true}
-                    options={branches.map(b => ({
-                      value: b.branchName || b.name,
-                      label: b.branchName || b.name
-                    }))}
-                  />
+                    onChange={(e) => setSelectedBranchFilter(e.target.value)}
+                    style={{
+                      padding: '9px 12px',
+                      fontSize: '13px',
+                      borderRadius: '9px',
+                      border: '1px solid var(--border-default, #cbd5e1)',
+                      background: 'var(--bg-surface, #ffffff)',
+                      color: 'var(--text-primary, #0f172a)',
+                      outline: 'none',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <option value="all">All Branches</option>
+                    {branches.map(b => (
+                      <option key={b._id || b.id} value={b.branchName || b.name}>
+                        {b.branchName || b.name}
+                      </option>
+                    ))}
+                  </select>
 
-                  {/* Status Filter Dropdown (Multi-select) */}
-                  <ModernDropdown
+                  {/* Status Filter Dropdown */}
+                  <select
                     value={selectedStatusFilter}
-                    onChange={setSelectedStatusFilter}
-                    placeholder="All Statuses"
-                    multiple={true}
-                    options={[
-                      { value: "Pending", label: "Pending" },
-                      { value: "Processing", label: "Processing" },
-                      { value: "issued", label: "Approved / Issued" },
-                      { value: "Rejected", label: "Rejected" }
-                    ]}
-                  />
+                    onChange={(e) => setSelectedStatusFilter(e.target.value)}
+                    style={{
+                      padding: '9px 12px',
+                      fontSize: '13px',
+                      borderRadius: '9px',
+                      border: '1px solid var(--border-default, #cbd5e1)',
+                      background: 'var(--bg-surface, #ffffff)',
+                      color: 'var(--text-primary, #0f172a)',
+                      outline: 'none',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <option value="all">All Statuses</option>
+                    <option value="Pending">Pending</option>
+                    <option value="Processing">Processing</option>
+                    <option value="issued">Approved / Issued</option>
+                    <option value="Rejected">Rejected</option>
+                  </select>
 
-                  {(searchTerm || selectedBranchFilter.length > 0 || selectedStatusFilter.length > 0) && (
+                  {(searchTerm || selectedBranchFilter !== "all" || selectedStatusFilter !== "all") && (
                     <button
                       type="button"
                       onClick={() => {
                         setSearchTerm("");
-                        setSelectedBranchFilter([]);
-                        setSelectedStatusFilter([]);
+                        setSelectedBranchFilter("all");
+                        setSelectedStatusFilter("all");
                       }}
                       style={{
                         display: 'inline-flex',
@@ -1666,7 +1704,7 @@ const IssueNote = () => {
                     No {activeTab === "branchRequests" ? "Branch Requests" : "Issue Notes"} Found
                   </h3>
                   <p style={{ fontSize: '13px', color: 'var(--text-secondary, #64748b)', maxWidth: '420px', margin: 0 }}>
-                    {searchTerm || selectedBranchFilter.length > 0 || selectedStatusFilter.length > 0
+                    {searchTerm || selectedBranchFilter !== "all" || selectedStatusFilter !== "all"
                       ? "No records matched your search filters. Try clearing or relaxing the filters."
                       : activeTab === "branchRequests"
                         ? "There are currently no branch requests. Branch requests are generated automatically through Purchase Orders ordered from branches."
@@ -1879,351 +1917,268 @@ const IssueNote = () => {
       </div>
 
       {/* CREATE MODAL POPUP */}
-      {/* CREATE MODAL POPUP - MATCHING GRN CREATE MODAL STYLE */}
       {showCreateModal && (
         <div className="modal-overlay-inventory" onClick={closeCreateModal}>
-          <div className="modal-content-inventory add-item-modal create-grn-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '820px', width: 'min(94vw, 820px)' }}>
+          <div className="modal-content-inventory" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '780px', width: 'min(94vw, 780px)' }}>
             <div className="modal-header-inventory">
               <div className="modal-title-section-inventory">
                 <h2 className="modal-title-inventory">Create Issue Note</h2>
                 <p className="modal-subtitle-inventory">Issue stock items to branches or training sessions</p>
               </div>
-              <button
-                type="button"
-                className="modal-close-btn-inventory"
-                onClick={closeCreateModal}
-                title="Close"
-              >
-                <FaTimes />
-              </button>
+              <button className="modal-close-btn-inventory" onClick={closeCreateModal} title="Close"><X size={18} /></button>
             </div>
 
             <div className="modal-body-inventory">
-              <div className="modal-form-inventory">
-
-                {/* Top Reference Card (matching SKU card from Add Item / Create GRN modal) */}
-                <div className="sku-info-card">
-                  <div className="sku-info-header">
-                    <span className="sku-info-label">
-                      <FaFileInvoice /> Document Reference & Requisition Details
-                    </span>
-                    <span className="sku-info-tag">
-                      {formData.issueType || 'Branch Transfer'}
-                    </span>
-                  </div>
-                  <div className="sku-info-value" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
-                    <span>{formData.issueNumber || 'ISS-2026-XXX'}</span>
-                    <span style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-muted)' }}>
-                      Issue Date: <strong style={{ color: 'var(--text-primary)' }}>{formData.issueDate}</strong>
-                    </span>
-                  </div>
+              <div className="form-layout-inventory" style={{ marginBottom: '16px' }}>
+                <div className="form-group-inventory">
+                  <label className="form-label-inventory">Reference Number</label>
+                  <input
+                    type="text"
+                    value={formData.issueNumber}
+                    disabled
+                    className="form-input-inventory"
+                    style={{ background: '#f1f5f9', color: '#64748b', fontFamily: 'var(--font-mono)' }}
+                  />
                 </div>
 
-                {/* Section 1: Transfer & Requisition Details */}
-                <div className="form-section-group">
-                  <div className="form-section-title">
-                    <FaTruck /> Requisition & Transfer Details
-                  </div>
-
-                  <div className="form-grid-2">
-                    <div className="form-group-inventory">
-                      <label className="form-label-inventory">Source Branch (Issuing From) *</label>
-                      <ModernDropdown
-                        value={formData.fromBranch || ""}
-                        onChange={(val) => {
-                          handleFormChange('fromBranch', val);
-                          setSelectedItemForAdd(null);
-                          setItemQuantity(0);
-                        }}
-                        placeholder="Choose Source Branch"
-                        searchable={true}
-                        options={[
-                          { value: "", label: "-- Choose Source Branch --" },
-                          ...branches.map(branch => {
-                            const branchName = branch.branchName || branch.branch_name || branch.name || 'Unknown';
-                            const branchCode = branch.branchCode || branch.branch_code || '';
-                            const branchId = branch._id || branch.id;
-                            return {
-                              value: branchId,
-                              label: `${branchName}${branchCode ? ` (${branchCode})` : ''}`
-                            };
-                          })
-                        ]}
-                      />
-                    </div>
-
-                    <div className="form-group-inventory">
-                      <label className="form-label-inventory">Issue Classification / Type *</label>
-                      <ModernDropdown
-                        value={formData.issueType}
-                        onChange={(val) => handleFormChange('issueType', val)}
-                        placeholder="Select Issue Type"
-                        options={[
-                          { value: "", label: "-- Select Issue Type --" },
-                          { value: "Branch Transfer", label: "Inter-Branch Transfer" },
-                          { value: "Training Sessions", label: "Training & Workshop Session" },
-                          { value: "Stock Transfer", label: "Stock Transfer" }
-                        ]}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="form-grid-2">
-                    <div className="form-group-inventory">
-                      <label className="form-label-inventory">
-                        {formData.issueType === "Training Sessions"
-                          ? "Training Session / Program Name *"
-                          : "Destination Branch (Issued To) *"}
-                      </label>
-                      {formData.issueType === "Training Sessions" ? (
-                        <input
-                          type="text"
-                          value={formData.trainingSession}
-                          onChange={(e) => handleFormChange('trainingSession', e.target.value)}
-                          placeholder="e.g. Barista Workshop Cohort 4"
-                          className="form-input-inventory"
-                        />
-                      ) : (
-                        <ModernDropdown
-                          value={formData.trainingSession}
-                          onChange={(val) => handleFormChange('trainingSession', val)}
-                          placeholder="Choose Destination Branch"
-                          searchable={true}
-                          options={[
-                            { value: "", label: "-- Choose Destination Branch --" },
-                            ...branches
-                              .filter(branch => String(branch._id || branch.id) !== String(formData.fromBranch))
-                              .map(branch => {
-                                const branchName = branch.branchName || branch.branch_name || 'Unknown';
-                                const branchCode = branch.branchCode || branch.branch_code || '';
-                                const branchId = branch._id || branch.id;
-                                return {
-                                  value: branchId,
-                                  label: `${branchName}${branchCode ? ` (${branchCode})` : ''}`
-                                };
-                              })
-                          ]}
-                        />
-                      )}
-                    </div>
-
-                    <div className="form-group-inventory">
-                      <label className="form-label-inventory">Issue Date *</label>
-                      <input
-                        type="date"
-                        value={formData.issueDate}
-                        onChange={(e) => handleFormChange('issueDate', e.target.value)}
-                        className="form-input-inventory"
-                        required
-                      />
-                    </div>
-                  </div>
+                <div className="form-group-inventory">
+                  <label className="form-label-inventory">Date</label>
+                  <input
+                    type="date"
+                    value={formData.issueDate}
+                    onChange={(e) => handleFormChange('issueDate', e.target.value)}
+                    className="form-input-inventory"
+                  />
                 </div>
 
-                {/* Section 2: Items Requisitioned */}
-                <div className="form-section-group">
-                  <div className="form-section-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <FaBoxOpen /> Requisition Items ({formData.items.length})
-                    </span>
-                    <span className="sku-info-tag">
-                      Total: Rs {formData.items.reduce((s, i) => s + ((Number(i.qty) || 0) * (Number(i.unitPrice) || 0)), 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                    </span>
-                  </div>
+                <div className="form-group-inventory">
+                  <label className="form-label-inventory">Issuing From (Source Branch)</label>
+                  <select
+                    value={formData.fromBranch || ""}
+                    onChange={(e) => {
+                      handleFormChange('fromBranch', e.target.value);
+                      setSelectedItemForAdd(null);
+                      setItemQuantity(0);
+                    }}
+                    className="form-input-inventory"
+                  >
+                    <option value="">Select a Source Branch...</option>
+                    {branches.map(branch => {
+                      const branchName = branch.branchName || branch.branch_name || branch.name || 'Unknown';
+                      const branchCode = branch.branchCode || branch.branch_code || '';
+                      const branchId = branch._id || branch.id;
+                      return (
+                        <option key={branchId} value={branchId}>
+                          {branchName} {branchCode ? `(${branchCode})` : ''}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
 
-                  {/* Staging Select Bar (Clean, modern Add Item bar matching GRN style) */}
-                  <div style={{
-                    background: 'var(--bg-subtle)',
-                    padding: '12px 14px',
-                    borderRadius: 'var(--radius-md)',
-                    border: '1px solid var(--border-default)',
-                    display: 'grid',
-                    gridTemplateColumns: 'minmax(140px, 1fr) minmax(220px, 2fr) 90px auto',
-                    gap: '10px',
-                    alignItems: 'end'
-                  }}>
-                    <div>
-                      <label className="form-label-inventory" style={{ fontSize: '11px' }}>Category</label>
-                      <ModernDropdown
-                        value={formData.category}
-                        onChange={(val) => handleFormChange('category', val)}
-                        placeholder="All Categories"
-                        searchable={true}
-                        options={[
-                          { value: "", label: "All Categories" },
-                          ...categories.map(cat => ({
-                            value: cat.id,
-                            label: cat.name
-                          }))
-                        ]}
-                      />
-                    </div>
+                <div className="form-group-inventory">
+                  <label className="form-label-inventory">Issue Type</label>
+                  <select
+                    value={formData.issueType}
+                    onChange={(e) => handleFormChange('issueType', e.target.value)}
+                    className="form-input-inventory"
+                  >
+                    <option value="">Select Type...</option>
+                    <option value="Branch Transfer">Branch Transfer</option>
+                    <option value="Training Sessions">Training Sessions</option>
+                    <option value="Stock Transfer">Stock Transfer</option>
+                  </select>
+                </div>
 
-                    <div>
-                      <label className="form-label-inventory" style={{ fontSize: '11px' }}>Select Item</label>
-                      <ModernDropdown
-                        value={selectedItemForAdd || ""}
-                        onChange={(val) => setSelectedItemForAdd(val)}
-                        placeholder="Choose Item to Requisition"
-                        searchable={true}
-                        options={[
-                          { value: "", label: "-- Choose Item to Requisition --" },
-                          ...getAvailableItems().map(item => ({
-                            value: getItemOptionId(item),
-                            label: getIssueItemLabel(item)
-                          }))
-                        ]}
-                      />
-                    </div>
-
-                    <div>
-                      <label className="form-label-inventory" style={{ fontSize: '11px' }}>Quantity</label>
-                      <input
-                        type="number"
-                        min="1"
-                        value={itemQuantity || ""}
-                        onChange={(e) => setItemQuantity(parseInt(e.target.value) || 0)}
-                        placeholder="Qty"
-                        className="form-input-inventory"
-                        style={{ fontSize: '12.5px', height: '36px', textAlign: 'center', borderColor: '#2563eb', fontWeight: 600 }}
-                      />
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={handleAddItemToForm}
-                      disabled={!selectedItemForAdd || itemQuantity <= 0}
-                      className="modal-btn-inventory save"
-                      style={{
-                        height: '36px',
-                        padding: '0 16px',
-                        fontSize: '12.5px',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '6px',
-                        opacity: (!selectedItemForAdd || itemQuantity <= 0) ? 0.5 : 1,
-                        cursor: (!selectedItemForAdd || itemQuantity <= 0) ? 'not-allowed' : 'pointer'
-                      }}
-                    >
-                      <FaPlus size={11} /> Add Item
-                    </button>
-                  </div>
-
-                  {/* Items Table */}
-                  {formData.items.length > 0 ? (
-                    <div className="po-detail-table-wrap" style={{ maxHeight: '250px', overflowY: 'auto' }}>
-                      <table className="po-detail-table" style={{ margin: 0, minWidth: '650px' }}>
-                        <thead>
-                          <tr>
-                            <th>Item Name</th>
-                            <th style={{ width: '80px', textAlign: 'center' }}>Unit</th>
-                            <th style={{ width: '120px', textAlign: 'right' }}>Unit Price (Rs)</th>
-                            <th style={{ width: '100px', textAlign: 'center' }}>Quantity</th>
-                            <th style={{ width: '120px', textAlign: 'right' }}>Total (Rs)</th>
-                            <th style={{ width: '90px', textAlign: 'center' }}>Action</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {formData.items.map((item) => (
-                            <tr key={item.tempId}>
-                              <td style={{ fontWeight: 600 }}>{item.name}</td>
-                              <td style={{ textAlign: 'center', color: '#64748b' }}>{item.unit}</td>
-                              <td style={{ textAlign: 'right', color: '#64748b' }}>
-                                {(Number(item.unitPrice) || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                              </td>
-                              <td style={{ textAlign: 'center' }}>
-                                {editingItemId === item.tempId ? (
-                                  <input
-                                    type="number"
-                                    min="1"
-                                    value={item.qty}
-                                    onChange={(e) => handleUpdateItemQty(item.tempId, e.target.value)}
-                                    className="form-input-inventory"
-                                    style={{ width: '70px', height: '30px', padding: '2px 6px', fontSize: '12px', textAlign: 'center', borderColor: '#3b82f6', margin: '0 auto' }}
-                                  />
-                                ) : (
-                                  <span style={{ fontWeight: 600 }}>{item.qty}</span>
-                                )}
-                              </td>
-                              <td style={{ textAlign: 'right', fontWeight: 700, color: '#059669' }}>
-                                {((Number(item.qty) || 0) * (Number(item.unitPrice) || 0)).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                              </td>
-                              <td style={{ textAlign: 'center' }}>
-                                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                                  {editingItemId === item.tempId ? (
-                                    <button
-                                      type="button"
-                                      onClick={handleSaveItemEdit}
-                                      style={{ border: 'none', background: '#ecfdf5', color: '#059669', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
-                                      title="Save quantity"
-                                    >
-                                      ✓
-                                    </button>
-                                  ) : (
-                                    <button
-                                      type="button"
-                                      onClick={() => handleEditItem(item.tempId)}
-                                      style={{ border: 'none', background: '#eff6ff', color: '#2563eb', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer' }}
-                                      title="Edit quantity"
-                                    >
-                                      ✎
-                                    </button>
-                                  )}
-                                  <button
-                                    type="button"
-                                    onClick={() => handleRemoveItemFromForm(item.tempId)}
-                                    className="modal-btn-inventory delete"
-                                    style={{ height: '26px', padding: '0 8px', fontSize: '11px', display: 'inline-flex', alignItems: 'center' }}
-                                    title="Remove item"
-                                  >
-                                    <FaTrash size={11} />
-                                  </button>
-                                </div>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                      <div style={{ padding: '10px 14px', background: '#f8fafc', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', fontSize: '12.5px' }}>
-                        <span style={{ color: '#64748b', fontWeight: 600 }}>Total Lines: {formData.items.length}</span>
-                        <strong style={{ color: '#2563eb' }}>
-                          Grand Total: Rs {formData.items.reduce((s, i) => s + ((Number(i.qty) || 0) * (Number(i.unitPrice) || 0)), 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                        </strong>
-                      </div>
-                    </div>
+                <div className="form-group-inventory" style={{ gridColumn: '1 / -1' }}>
+                  <label className="form-label-inventory">
+                    {formData.issueType === "Training Sessions"
+                      ? "Training Session / Destination Name"
+                      : "Destination Branch (Issued To)"}
+                  </label>
+                  {formData.issueType === "Training Sessions" ? (
+                    <input
+                      type="text"
+                      value={formData.trainingSession}
+                      onChange={(e) => handleFormChange('trainingSession', e.target.value)}
+                      placeholder="e.g. Barista Workshop Cohort 4"
+                      className="form-input-inventory"
+                    />
                   ) : (
-                    <div style={{
-                      padding: '24px',
-                      textAlign: 'center',
-                      color: '#94a3b8',
-                      fontSize: '12.5px',
-                      border: '1px dashed #cbd5e1',
-                      borderRadius: 'var(--radius-md)',
-                      background: 'var(--bg-hover)'
-                    }}>
-                      No items added yet. Select an item and quantity above, then click <strong>+ Add Item</strong>.
-                    </div>
+                    <select
+                      value={formData.trainingSession}
+                      onChange={(e) => handleFormChange('trainingSession', e.target.value)}
+                      className="form-input-inventory"
+                    >
+                      <option value="">Select Destination Branch...</option>
+                      {branches.map(branch => {
+                        const branchName = branch.branchName || branch.branch_name || 'Unknown';
+                        const branchCode = branch.branchCode || branch.branch_code || '';
+                        const branchId = branch._id || branch.id;
+                        return (
+                          <option key={branchId} value={branchId}>
+                            {branchName} {branchCode ? `(${branchCode})` : ''}
+                          </option>
+                        );
+                      })}
+                    </select>
                   )}
                 </div>
+              </div>
 
+              {/* Staging Select Items */}
+              <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '12px', border: '1px solid #e2e8f0', marginBottom: '16px' }}>
+                <h4 style={{ margin: '0 0 12px 0', fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  Select Items to Requisition
+                </h4>
+                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(140px, 1fr) minmax(200px, 2fr) 90px auto', gap: '10px', alignItems: 'end' }}>
+                  <div>
+                    <label className="form-label-inventory" style={{ fontSize: '11px' }}>Category</label>
+                    <select
+                      value={formData.category}
+                      onChange={(e) => handleFormChange('category', e.target.value)}
+                      className="form-input-inventory"
+                      style={{ fontSize: '12.5px', padding: '7px 10px' }}
+                    >
+                      <option value="">All Categories</option>
+                      {categories.map(cat => (
+                        <option key={cat.id} value={cat.id}>{cat.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="form-label-inventory" style={{ fontSize: '11px' }}>Item Name</label>
+                    <select
+                      value={selectedItemForAdd || ""}
+                      onChange={(e) => setSelectedItemForAdd(e.target.value)}
+                      className="form-input-inventory"
+                      style={{ fontSize: '12.5px', padding: '7px 10px' }}
+                    >
+                      <option value="">Select Item to add...</option>
+                      {getAvailableItems().map(item => (
+                        <option key={getItemOptionId(item)} value={getItemOptionId(item)}>
+                          {getIssueItemLabel(item)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="form-label-inventory" style={{ fontSize: '11px' }}>Quantity</label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={itemQuantity || ""}
+                      onChange={(e) => setItemQuantity(parseInt(e.target.value) || 0)}
+                      placeholder="Qty"
+                      className="form-input-inventory"
+                      style={{ fontSize: '12.5px', padding: '7px 10px', textAlign: 'center' }}
+                    />
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleAddItemToForm}
+                    disabled={!selectedItemForAdd || itemQuantity <= 0}
+                    className="btn-add"
+                    style={{
+                      height: '36px',
+                      padding: '0 14px',
+                      fontSize: '12.5px',
+                      opacity: (!selectedItemForAdd || itemQuantity <= 0) ? 0.5 : 1,
+                      cursor: (!selectedItemForAdd || itemQuantity <= 0) ? 'not-allowed' : 'pointer'
+                    }}
+                  >
+                    + Add
+                  </button>
+                </div>
+
+                {/* Staged Items List */}
+                {formData.items.length > 0 ? (
+                  <div className="po-detail-table-wrap" style={{ marginTop: '14px', marginBottom: 0 }}>
+                    <table className="po-detail-table">
+                      <thead>
+                        <tr>
+                          <th>Item</th>
+                          <th style={{ textAlign: 'center' }}>Qty</th>
+                          <th style={{ textAlign: 'right' }}>Unit Price</th>
+                          <th style={{ textAlign: 'right' }}>Total</th>
+                          <th style={{ textAlign: 'center', width: '80px' }}>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {formData.items.map((item) => (
+                          <tr key={item.tempId}>
+                            <td style={{ fontWeight: 600 }}>{item.name}</td>
+                            <td style={{ textAlign: 'center' }}>
+                              {editingItemId === item.tempId ? (
+                                <input
+                                  type="number"
+                                  min="1"
+                                  value={item.qty}
+                                  onChange={(e) => handleUpdateItemQty(item.tempId, e.target.value)}
+                                  style={{ width: '60px', padding: '3px 6px', fontSize: '12px', textAlign: 'center', border: '1px solid #3b82f6', borderRadius: '4px' }}
+                                />
+                              ) : (
+                                <span>{item.qty} {item.unit}</span>
+                              )}
+                            </td>
+                            <td style={{ textAlign: 'right', color: '#64748b' }}>
+                              Rs {(Number(item.unitPrice) || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                            </td>
+                            <td style={{ textAlign: 'right', fontWeight: 700, color: '#059669' }}>
+                              Rs {((Number(item.qty) || 0) * (Number(item.unitPrice) || 0)).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                            </td>
+                            <td style={{ textAlign: 'center' }}>
+                              {editingItemId === item.tempId ? (
+                                <button
+                                  type="button"
+                                  onClick={handleSaveItemEdit}
+                                  style={{ border: 'none', background: '#ecfdf5', color: '#059669', padding: '4px 6px', borderRadius: '4px', cursor: 'pointer', marginRight: '4px' }}
+                                >
+                                  ✓
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => handleEditItem(item.tempId)}
+                                  style={{ border: 'none', background: '#eff6ff', color: '#2563eb', padding: '4px 6px', borderRadius: '4px', cursor: 'pointer', marginRight: '4px' }}
+                                >
+                                  ✎
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveItemFromForm(item.tempId)}
+                                style={{ border: 'none', background: '#fee2e2', color: '#ef4444', padding: '4px 6px', borderRadius: '4px', cursor: 'pointer' }}
+                              >
+                                ✕
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    <div style={{ padding: '10px 14px', background: '#f8fafc', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', fontSize: '12.5px' }}>
+                      <span style={{ color: '#64748b', fontWeight: 600 }}>Total Items: {formData.items.length}</span>
+                      <strong style={{ color: '#2563eb' }}>
+                        Rs {formData.items.reduce((s, i) => s + ((Number(i.qty) || 0) * (Number(i.unitPrice) || 0)), 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                      </strong>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ padding: '14px', textAlign: 'center', color: '#94a3b8', fontSize: '12px', marginTop: '12px', border: '1px dashed #cbd5e1', borderRadius: '8px' }}>
+                    No items added yet. Select an item and quantity above, then click <strong>+ Add</strong>.
+                  </div>
+                )}
               </div>
             </div>
 
             <div className="modal-footer-inventory">
-              <button
-                type="button"
-                className="modal-btn-inventory cancel"
-                onClick={closeCreateModal}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="modal-btn-inventory save"
-                onClick={requestCreateIssueNote}
-                disabled={formData.items.length === 0 || !formData.fromBranch}
-              >
-                <FaPlus /> Create Issue Note
+              <button type="button" className="btn-cancel" onClick={closeCreateModal}>Cancel</button>
+              <button type="button" className="btn-add" onClick={requestCreateIssueNote}>
+                Add Issue Note
               </button>
             </div>
           </div>

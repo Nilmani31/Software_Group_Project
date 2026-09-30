@@ -40,11 +40,6 @@ const issueNoteSchema = new mongoose.Schema({
     type: String,
     required: false
   },
-  creationMode: {
-    type: String,
-    enum: ['issueNote', 'branchRequest'],
-    default: 'issueNote'
-  },
   remarks: {
     type: String,
     required: false
