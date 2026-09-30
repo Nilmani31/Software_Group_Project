@@ -36,9 +36,14 @@ const issueNoteSchema = new mongoose.Schema({
     enum: ['pending', 'approved', 'rejected', 'issued', 'cancelled'],
     default: 'pending'
   },
-  purpose: {
+   purpose: {
     type: String,
     required: false
+  },
+  creationMode: {
+    type: String,
+    enum: ['issueNote', 'branchRequest'],
+    default: 'issueNote'
   },
   remarks: {
     type: String,

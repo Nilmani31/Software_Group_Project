@@ -265,56 +265,27 @@ const IssueNote = () => {
 
   const isBranchRequest = (note) => {
     const original = note._original || note;
-    const mode = String(original.creationMode || '').toLowerCase();
-    const purpose = String(original.purpose || note.issueType || '').toLowerCase();
-    return mode === 'branchrequest' || Boolean(original.toBranchId) || /branch|stock|transfer|request|requisition/i.test(purpose);
+    return original.creationMode === 'branchRequest';
   };
 
-  const branchRequestsList = useMemo(() => {
-    return issueNotes
-      .filter(isBranchRequest)
-      .map(note => ({
-        ...note,
-        requestNumber: note.issueNumber,
-        requestFrom: note.issuedTo,
-        requestedFrom: note.issuedTo,
-        requestedBy: note.issuedBy,
-        requestDate: note.issueDate,
-        requestType: note.issueType
-      }));
-  }, [issueNotes]);
+  const getRequestStatus = (note) =>
+    String(note._original?.status || note.status || '').toLowerCase();
 
-  const issueNotesList = useMemo(() => {
-    return issueNotes.filter(note => !isBranchRequest(note));
-  }, [issueNotes]);
+  const branchRequestData = issueNotes
+    .filter(isBranchRequest)
+    .map(note => ({
+      ...note,
+      requestNumber: note.issueNumber,
+      requestFrom: note.issuedTo,
+      requestedFrom: note.issuedTo,
+      requestedBy: note.issuedBy,
+      requestDate: note.issueDate,
+      requestType: note.issueType
+    }));
 
-  const activeRawList = activeTab === "branchRequests" ? branchRequestsList : issueNotesList;
-
-  // Real-time dynamic filtering
-  const currentData = useMemo(() => {
-    return activeRawList.filter(item => {
-      const num = (item.issueNumber || item.requestNumber || '').toLowerCase();
-      const branch = (item.issuedTo || item.requestFrom || item.requestedFrom || '').toLowerCase();
-      const by = (item.issuedBy || item.requestedBy || '').toLowerCase();
-      const purpose = (item.issueType || item.requestType || '').toLowerCase();
-      const itemNames = (item.items || []).map(i => (i.name || '').toLowerCase()).join(' ');
-
-      const matchesSearch = !searchTerm ||
-        num.includes(searchTerm.toLowerCase()) ||
-        branch.includes(searchTerm.toLowerCase()) ||
-        by.includes(searchTerm.toLowerCase()) ||
-        purpose.includes(searchTerm.toLowerCase()) ||
-        itemNames.includes(searchTerm.toLowerCase());
-
-      const matchesBranch = selectedBranchFilter === "all" ||
-        branch.includes(selectedBranchFilter.toLowerCase());
-
-      const matchesStatus = selectedStatusFilter === "all" ||
-        item.status.toLowerCase() === selectedStatusFilter.toLowerCase();
-
-      return matchesSearch && matchesBranch && matchesStatus;
-    });
-  }, [activeRawList, searchTerm, selectedBranchFilter, selectedStatusFilter]);
+  const currentData = activeTab === "branchRequests"
+    ? branchRequestData
+    : issueNotes.filter(note => !isBranchRequest(note));
 
   const getStatusIcon = (status) => {
     switch (status) {
@@ -1211,7 +1182,8 @@ const IssueNote = () => {
       setSelectedItemForAdd(null);
       setItemQuantity(0);
 
-      alert("Issue note created successfully!");
+      alert(createMode === "branchRequest" ? "Branch request created successfully!" : "Issue note created successfully!");
+      setActiveTab(createMode === "branchRequest" ? "branchRequests" : "issueNotes");
       closeCreateModal();
       await Promise.all([
         fetchIssueNotes(),
@@ -1419,101 +1391,80 @@ const IssueNote = () => {
                   </div>
                 </div>
 
-                {/* Approved / Issued */}
-                <div style={{
-                  background: 'var(--bg-surface, #ffffff)',
-                  border: '1px solid var(--border-default, #e2e8f0)',
-                  borderRadius: '14px',
-                  padding: '16px 20px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '16px',
-                  boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
-                }}>
-                  <div style={{
-                    width: '46px',
-                    height: '46px',
-                    borderRadius: '12px',
-                    background: '#ecfdf5',
-                    color: '#059669',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center'
-                  }}>
-                    <CheckCircle2 size={22} />
-                  </div>
-                  <div>
-                    <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary, #64748b)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                      Approved / Issued
-                    </span>
-                    <div style={{ fontSize: '24px', fontWeight: 700, color: '#059669', lineHeight: 1.2, marginTop: '2px' }}>
-                      {activeRawList.filter(i => i.status === "issued" || i.status === "Approved").length}
+              {/* Stats Cards */}
+              <div className="stats-row">
+                {activeTab === "issueNotes" ? (
+                  <>
+                    {/*<div className="stat-card">
+                      <div className="stat-icon completed">
+                        <FaCheckCircle />
+                      </div>
+                      <div className="stat-info">
+                        <span className="stat-label">Completed</span>
+                        <span className="stat-value">{issueNotes.filter(i => i.status === "Completed").length}</span>
+                      </div>
                     </div>
-                  </div>
-                </div>
-
-                {/* Processing */}
-                <div style={{
-                  background: 'var(--bg-surface, #ffffff)',
-                  border: '1px solid var(--border-default, #e2e8f0)',
-                  borderRadius: '14px',
-                  padding: '16px 20px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '16px',
-                  boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
-                }}>
-                  <div style={{
-                    width: '46px',
-                    height: '46px',
-                    borderRadius: '12px',
-                    background: '#fef3c7',
-                    color: '#d97706',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center'
-                  }}>
-                    <Clock size={22} />
-                  </div>
-                  <div>
-                    <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary, #64748b)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                      In Processing
-                    </span>
-                    <div style={{ fontSize: '24px', fontWeight: 700, color: '#d97706', lineHeight: 1.2, marginTop: '2px' }}>
-                      {activeRawList.filter(i => i.status === "Processing").length}
+                    <div className="stat-card">
+                      <div className="stat-icon processing">
+                        <FaClock />
+                      </div>
+                      <div className="stat-info">
+                        <span className="stat-label">Processing</span>
+                        <span className="stat-value">{issueNotes.filter(i => i.status === "Processing").length}</span>
+                      </div>
                     </div>
-                  </div>
-                </div>
-
-                {/* Pending */}
-                <div style={{
-                  background: 'var(--bg-surface, #ffffff)',
-                  border: '1px solid var(--border-default, #e2e8f0)',
-                  borderRadius: '14px',
-                  padding: '16px 20px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '16px',
-                  boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
-                }}>
-                  <div style={{
-                    width: '46px',
-                    height: '46px',
-                    borderRadius: '12px',
-                    background: '#fff1f2',
-                    color: '#e11d48',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center'
-                  }}>
-                    <AlertCircle size={22} />
-                  </div>
-                  <div>
-                    <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary, #64748b)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                      Pending Approval
-                    </span>
-                    <div style={{ fontSize: '24px', fontWeight: 700, color: '#e11d48', lineHeight: 1.2, marginTop: '2px' }}>
-                      {activeRawList.filter(i => i.status === "Pending").length}
+                    <div className="stat-card">
+                      <div className="stat-icon pending">
+                        <FaTimesCircle />
+                      </div>
+                      <div className="stat-info">
+                        <span className="stat-label">Pending</span>
+                        <span className="stat-value">{issueNotes.filter(i => i.status === "Pending").length}</span>
+                      </div>
+                    </div>
+                    <div className="stat-card total">
+                      <div className="stat-icon">📊</div>
+                      <div className="stat-info">
+                        <span className="stat-label">Total Issues</span>
+                        <span className="stat-value">{issueNotes.length}</span>
+                      </div>
+                    </div>*/}
+                  </>
+                ) : (
+                  <>
+                    <div className="stat-card">
+                      <div className="stat-icon issued">
+                        <FaCheckCircle />
+                      </div>
+                      <div className="stat-info">
+                        <span className="stat-label">Issued</span>
+                        <span className="stat-value">{branchRequestData.filter(i => getRequestStatus(i) === "issued").length}</span>
+                      </div>
+                    </div>
+                    <div className="stat-card">
+                      <div className="stat-icon processing">
+                        <FaClock />
+                      </div>
+                      <div className="stat-info">
+                        <span className="stat-label">Pending</span>
+                        <span className="stat-value">{branchRequestData.filter(i => getRequestStatus(i) === "pending").length}</span>
+                      </div>
+                    </div>
+                    <div className="stat-card">
+                      <div className="stat-icon pending">
+                        <FaTimesCircle />
+                      </div>
+                      <div className="stat-info">
+                        <span className="stat-label">Rejected</span>
+                        <span className="stat-value">{branchRequestData.filter(i => getRequestStatus(i) === "rejected").length}</span>
+                      </div>
+                    </div>
+                    <div className="stat-card total">
+                      <div className="stat-icon">📮</div>
+                      <div className="stat-info">
+                        <span className="stat-label">Total Requests</span>
+                        <span className="stat-value">{branchRequestData.length}</span>
+                      </div>
                     </div>
                   </div>
                 </div>
