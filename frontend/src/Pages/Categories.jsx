@@ -593,6 +593,7 @@ export default function Categories({ defaultTab }) {
 
                   {/* Primary Action Button (Matching Issue Note Gradient Pill Style) */}
                   <button
+                    className="btn-add"
                     onClick={() => {
                       if (tab === 'user') {
                         setAddForm({ name: '', desc: '' });
@@ -602,29 +603,6 @@ export default function Categories({ defaultTab }) {
                         setCatAddForm({ name: '', desc: '' });
                       }
                       setOpenAdd(true);
-                    }}
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      padding: '10px 18px',
-                      background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
-                      color: '#ffffff',
-                      border: 'none',
-                      borderRadius: '10px',
-                      fontSize: '13px',
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      boxShadow: '0 4px 10px rgba(37, 99, 235, 0.25)',
-                      transition: 'all 0.2s ease'
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.transform = 'translateY(-1px)';
-                      e.currentTarget.style.boxShadow = '0 6px 14px rgba(37, 99, 235, 0.35)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.transform = 'none';
-                      e.currentTarget.style.boxShadow = '0 4px 10px rgba(37, 99, 235, 0.25)';
                     }}
                   >
                     <Plus size={18} />

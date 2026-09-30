@@ -221,17 +221,26 @@ exports.getLowStockItems = async (req, res) => {
       const branchStocks = stockRecords.map(stock => {
         const branch = stock.branchId;
         const quantity = stock.quantity || 0;
+        const branchMinStock = (stock.minStock !== undefined && stock.minStock !== null && stock.minStock > 0) ? stock.minStock : minStock;
         return {
           stockId: stock._id,
           branchObjectId: branch?._id,
           branchId: branch?.branchId || branch?._id,
-          branchName: branch?.branchName || 'Unknown Branch',
+          branchName: branch?.branchName || branch?.name || 'Unknown Branch',
           branchCode: branch?.branchCode || '',
           location: branch?.location || branch?.city || '',
           quantity,
-          status: quantity === 0 ? 'out' : quantity < minStock ? 'low' : 'normal',
+          minStock: branchMinStock,
+          shortage: Math.max(0, branchMinStock - quantity),
+          status: quantity === 0 ? 'out' : quantity < branchMinStock ? 'low' : 'normal',
         };
       });
+
+      // If any branch is low/out, mark the overall status as low if it was normal
+      const hasLowBranch = branchStocks.some(b => b.status === 'low' || b.status === 'out');
+      if (status === 'normal' && hasLowBranch) {
+        status = 'low';
+      }
 
       itemObj.quantity = totalQuantity;
       itemObj.currentStock = totalQuantity;
@@ -246,7 +255,7 @@ exports.getLowStockItems = async (req, res) => {
     }));
     
     const lowStockItems = itemsWithStatus.filter(item => 
-      item.status === 'low' || item.status === 'out'
+      item.status === 'low' || item.status === 'out' || (item.branchStocks || []).some(b => b.status === 'low' || b.status === 'out')
     );
     
     res.json(lowStockItems);
