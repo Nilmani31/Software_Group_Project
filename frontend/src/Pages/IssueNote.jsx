@@ -10,7 +10,7 @@ import {
   Printer, Edit3, Trash2, Layers, Boxes, ArrowRight, Send, AlertCircle,
   X, Check, Ban, Eye, RotateCcw, PackageCheck, Truck, ArrowRightLeft, User, DollarSign, Filter
 } from "lucide-react";
-import { FaPrint, FaSave, FaTimes, FaPlus, FaTrash, FaBoxOpen, FaTruck, FaFileInvoice } from "react-icons/fa";
+import { FaPrint, FaSave, FaTimes, FaPlus, FaTrash, FaBoxOpen, FaTruck, FaFileInvoice, FaCheckCircle, FaClock, FaTimesCircle } from "react-icons/fa";
 
 const IssueNote = () => {
   const [issueNotes, setIssueNotes] = useState([]); // Initialize as empty array
@@ -284,6 +284,8 @@ const IssueNote = () => {
       requestType: note.issueType
     }));
 
+  const branchRequestsList = branchRequestData;
+
   const issueNotesList = useMemo(() => {
     return issueNotes.filter(note => !isBranchRequest(note));
   }, [issueNotes]);
@@ -306,11 +308,19 @@ const IssueNote = () => {
         purpose.includes(searchTerm.toLowerCase()) ||
         itemNames.includes(searchTerm.toLowerCase());
 
-      const matchesBranch = selectedBranchFilter === "all" ||
-        branch.includes(selectedBranchFilter.toLowerCase());
+      const matchesBranch = !selectedBranchFilter ||
+        selectedBranchFilter.length === 0 ||
+        selectedBranchFilter === "all" ||
+        (Array.isArray(selectedBranchFilter)
+          ? selectedBranchFilter.includes("all") || selectedBranchFilter.some(b => branch.includes(String(b).toLowerCase()))
+          : branch.includes(String(selectedBranchFilter).toLowerCase()));
 
-      const matchesStatus = selectedStatusFilter === "all" ||
-        item.status.toLowerCase() === selectedStatusFilter.toLowerCase();
+      const matchesStatus = !selectedStatusFilter ||
+        selectedStatusFilter.length === 0 ||
+        selectedStatusFilter === "all" ||
+        (Array.isArray(selectedStatusFilter)
+          ? selectedStatusFilter.includes("all") || selectedStatusFilter.some(s => String(item.status || '').toLowerCase() === String(s).toLowerCase())
+          : String(item.status || '').toLowerCase() === String(selectedStatusFilter).toLowerCase());
 
       return matchesSearch && matchesBranch && matchesStatus;
     });
@@ -1329,38 +1339,6 @@ const IssueNote = () => {
                     </span>
                   </button>
                 </div>
-
-                {canEdit && activeTab === "issueNotes" && (
-                  <button
-                    onClick={() => openCreateModal()}
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      padding: '10px 18px',
-                      background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
-                      color: '#ffffff',
-                      border: 'none',
-                      borderRadius: '10px',
-                      fontSize: '13px',
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      boxShadow: '0 4px 10px rgba(37, 99, 235, 0.25)',
-                      transition: 'all 0.2s ease'
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.transform = 'translateY(-1px)';
-                      e.currentTarget.style.boxShadow = '0 6px 14px rgba(37, 99, 235, 0.35)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.transform = 'none';
-                      e.currentTarget.style.boxShadow = '0 4px 10px rgba(37, 99, 235, 0.25)';
-                    }}
-                  >
-                    <Plus size={18} />
-                    <span>Create Issue Note</span>
-                  </button>
-                )}
               </div>
 
               {/* Alert / Notice Messages */}
@@ -1381,124 +1359,6 @@ const IssueNote = () => {
                 </div>
               )}
 
-              {/* KPI Summary Cards Grid - 4 Horizontal Cards */}
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-                gap: '14px'
-              }}>
-                {/* Total Records */}
-                <div style={{
-                  background: 'var(--bg-surface, #ffffff)',
-                  border: '1px solid var(--border-default, #e2e8f0)',
-                  borderRadius: '14px',
-                  padding: '16px 20px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '16px',
-                  boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
-                }}>
-                  <div style={{
-                    width: '46px',
-                    height: '46px',
-                    borderRadius: '12px',
-                    background: '#eff6ff',
-                    color: '#2563eb',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center'
-                  }}>
-                    <Layers size={22} />
-                  </div>
-                  <div>
-                    <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary, #64748b)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                      Total {activeTab === "branchRequests" ? "Requests" : "Issue Notes"}
-                    </span>
-                    <div style={{ fontSize: '24px', fontWeight: 700, color: 'var(--text-primary, #0f172a)', lineHeight: 1.2, marginTop: '2px' }}>
-                      {activeRawList.length}
-                    </div>
-                  </div>
-                </div>
-
-              {/* Stats Cards */}
-              <div className="stats-row">
-                {activeTab === "issueNotes" ? (
-                  <>
-                    {/*<div className="stat-card">
-                      <div className="stat-icon completed">
-                        <FaCheckCircle />
-                      </div>
-                      <div className="stat-info">
-                        <span className="stat-label">Completed</span>
-                        <span className="stat-value">{issueNotes.filter(i => i.status === "Completed").length}</span>
-                      </div>
-                    </div>
-                    <div className="stat-card">
-                      <div className="stat-icon processing">
-                        <FaClock />
-                      </div>
-                      <div className="stat-info">
-                        <span className="stat-label">Processing</span>
-                        <span className="stat-value">{issueNotes.filter(i => i.status === "Processing").length}</span>
-                      </div>
-                    </div>
-                    <div className="stat-card">
-                      <div className="stat-icon pending">
-                        <FaTimesCircle />
-                      </div>
-                      <div className="stat-info">
-                        <span className="stat-label">Pending</span>
-                        <span className="stat-value">{issueNotes.filter(i => i.status === "Pending").length}</span>
-                      </div>
-                    </div>
-                    <div className="stat-card total">
-                      <div className="stat-icon">📊</div>
-                      <div className="stat-info">
-                        <span className="stat-label">Total Issues</span>
-                        <span className="stat-value">{issueNotes.length}</span>
-                      </div>
-                    </div>*/}
-                  </>
-                ) : (
-                  <>
-                    <div className="stat-card">
-                      <div className="stat-icon issued">
-                        <FaCheckCircle />
-                      </div>
-                      <div className="stat-info">
-                        <span className="stat-label">Issued</span>
-                        <span className="stat-value">{branchRequestData.filter(i => getRequestStatus(i) === "issued").length}</span>
-                      </div>
-                    </div>
-                    <div className="stat-card">
-                      <div className="stat-icon processing">
-                        <FaClock />
-                      </div>
-                      <div className="stat-info">
-                        <span className="stat-label">Pending</span>
-                        <span className="stat-value">{branchRequestData.filter(i => getRequestStatus(i) === "pending").length}</span>
-                      </div>
-                    </div>
-                    <div className="stat-card">
-                      <div className="stat-icon pending">
-                        <FaTimesCircle />
-                      </div>
-                      <div className="stat-info">
-                        <span className="stat-label">Rejected</span>
-                        <span className="stat-value">{branchRequestData.filter(i => getRequestStatus(i) === "rejected").length}</span>
-                      </div>
-                    </div>
-                    <div className="stat-card total">
-                      <div className="stat-icon">📮</div>
-                      <div className="stat-info">
-                        <span className="stat-label">Total Requests</span>
-                        <span className="stat-value">{branchRequestData.length}</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
               {/* Search & Filter Toolbar */}
               <div style={{
                 background: 'var(--bg-surface, #ffffff)',
@@ -1512,60 +1372,68 @@ const IssueNote = () => {
                 gap: '12px',
                 boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
               }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: '1 1 320px' }}>
-                  <div style={{
-                    position: 'relative',
-                    flex: '1 1 240px',
-                    maxWidth: '460px'
-                  }}>
-                    <Search
-                      size={16}
+                {/* Search Box on the Left */}
+                <div style={{
+                  position: 'relative',
+                  flex: '1 1 240px',
+                  maxWidth: '420px'
+                }}>
+                  <Search
+                    size={16}
+                    style={{
+                      position: 'absolute',
+                      left: '12px',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      color: '#94a3b8'
+                    }}
+                  />
+                  <input
+                    type="text"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    placeholder={`Search by reference, branch, requester, items...`}
+                    style={{
+                      width: '100%',
+                      padding: '9px 12px 9px 36px',
+                      fontSize: '13px',
+                      borderRadius: '9px',
+                      border: '1px solid var(--border-default, #cbd5e1)',
+                      background: 'var(--bg-surface, #ffffff)',
+                      color: 'var(--text-primary, #0f172a)',
+                      outline: 'none',
+                      transition: 'border-color 0.2s'
+                    }}
+                  />
+                  {searchTerm && (
+                    <button
+                      type="button"
+                      onClick={() => setSearchTerm('')}
                       style={{
                         position: 'absolute',
-                        left: '12px',
+                        right: '10px',
                         top: '50%',
                         transform: 'translateY(-50%)',
-                        color: '#94a3b8'
+                        background: 'none',
+                        border: 'none',
+                        color: '#94a3b8',
+                        cursor: 'pointer',
+                        padding: '2px'
                       }}
-                    />
-                    <input
-                      type="text"
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      placeholder={`Search by reference, branch, requester, items...`}
-                      style={{
-                        width: '100%',
-                        padding: '9px 12px 9px 36px',
-                        fontSize: '13px',
-                        borderRadius: '9px',
-                        border: '1px solid var(--border-default, #cbd5e1)',
-                        background: 'var(--bg-surface, #ffffff)',
-                        color: 'var(--text-primary, #0f172a)',
-                        outline: 'none',
-                        transition: 'border-color 0.2s'
-                      }}
-                    />
-                    {searchTerm && (
-                      <button
-                        type="button"
-                        onClick={() => setSearchTerm('')}
-                        style={{
-                          position: 'absolute',
-                          right: '10px',
-                          top: '50%',
-                          transform: 'translateY(-50%)',
-                          background: 'none',
-                          border: 'none',
-                          color: '#94a3b8',
-                          cursor: 'pointer',
-                          padding: '2px'
-                        }}
-                      >
-                        <X size={14} />
-                      </button>
-                    )}
-                  </div>
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
 
+                {/* Filters & Actions Aligned to the Right */}
+                <div style={{
+                  marginLeft: 'auto',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  flexWrap: 'wrap'
+                }}>
                   {/* Branch Filter Dropdown (Multi-select) */}
                   <ModernDropdown
                     value={selectedBranchFilter}
@@ -1619,10 +1487,40 @@ const IssueNote = () => {
                       Reset
                     </button>
                   )}
-                </div>
 
-                <div style={{ fontSize: '13px', color: 'var(--text-secondary, #64748b)', fontWeight: 500 }}>
-                  Showing <strong style={{ color: 'var(--text-primary, #0f172a)' }}>{currentData.length}</strong> of {activeRawList.length} records
+                  {canEdit && activeTab === "issueNotes" && (
+                    <button
+                      onClick={() => openCreateModal()}
+                      className="btn-create-issue"
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        padding: '9px 18px',
+                        background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
+                        color: '#ffffff',
+                        border: 'none',
+                        borderRadius: '10px',
+                        fontSize: '13px',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        boxShadow: '0 4px 10px rgba(37, 99, 235, 0.25)',
+                        transition: 'all 0.2s ease',
+                        whiteSpace: 'nowrap'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.transform = 'translateY(-1px)';
+                        e.currentTarget.style.boxShadow = '0 6px 14px rgba(37, 99, 235, 0.35)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.transform = 'none';
+                        e.currentTarget.style.boxShadow = '0 4px 10px rgba(37, 99, 235, 0.25)';
+                      }}
+                    >
+                      <Plus size={18} />
+                      <span>Create Issue Note</span>
+                    </button>
+                  )}
                 </div>
               </div>
 

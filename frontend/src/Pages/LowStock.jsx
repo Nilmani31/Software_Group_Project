@@ -1,10 +1,13 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import Sidebar from "../Components/Sidebar";
 import Navbar from "../Components/Navbar";
 import ChatAssistant from "../Components/ChatAssistant";
 import ModernDropdown from "../Components/ModernDropdown";
 import { getAuthHeaders } from "../utils/authHeaders";
-import { Package, AlertTriangle, AlertOctagon, ClipboardList, X, Truck, Building2, ShoppingCart, Plus } from "lucide-react";
+import { 
+  Package, AlertTriangle, ClipboardList, X, Truck, 
+  Building2, ShoppingCart, Search, RotateCcw 
+} from "lucide-react";
 
 const LowStock = () => {
   const [lowStockItems, setLowStockItems] = useState([]);
@@ -13,6 +16,14 @@ const LowStock = () => {
   const [loadingBranches, setLoadingBranches] = useState(false);
   const [suppliers, setSuppliers] = useState([]);
   const [loadingSuppliers, setLoadingSuppliers] = useState(true);
+
+  // Filter and search states
+  const [allBranches, setAllBranches] = useState([]);
+  const [allCategories, setAllCategories] = useState([]);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedBranchFilter, setSelectedBranchFilter] = useState([]);
+  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState([]);
+  const [targetBranch, setTargetBranch] = useState(null);
 
   // Role check
   const roleId = localStorage.getItem('roleId') || '';
@@ -41,7 +52,7 @@ const LowStock = () => {
             currentStock: item.currentStock ?? item.quantity ?? 0,
             minimumStock: item.minStock || 0,
             shortage: item.shortage ?? Math.max(0, (item.minStock || 0) - (item.quantity || 0)),
-            category: item.category || 'N/A',
+            category: item.categoryName || item.category || 'N/A',
             unit: item.unit || 'units',
             unitPrice: item.unitPrice || 0,
             branchStocks: item.branchStocks || [],
@@ -56,6 +67,32 @@ const LowStock = () => {
         console.error('Error fetching low stock items:', err);
         setLoading(false);
       });
+  }, []);
+
+  // Fetch branches list for filter
+  useEffect(() => {
+    fetch('http://localhost:5005/api/branches', {
+      headers: getAuthHeaders()
+    })
+      .then(res => res.json())
+      .then(data => {
+        const list = Array.isArray(data) ? data : (data?.data || []);
+        setAllBranches(list);
+      })
+      .catch(err => console.error('Error fetching branches for filter:', err));
+  }, []);
+
+  // Fetch categories list for filter
+  useEffect(() => {
+    fetch('http://localhost:5005/api/categories', {
+      headers: getAuthHeaders()
+    })
+      .then(res => res.json())
+      .then(data => {
+        const list = Array.isArray(data) ? data : (data?.data || []);
+        setAllCategories(list);
+      })
+      .catch(err => console.error('Error fetching categories for filter:', err));
   }, []);
 
   // Fetch supplier list from backend
@@ -82,18 +119,121 @@ const LowStock = () => {
       });
   }, []);
 
-  const handleOrderClick = (item) => {
+  // Flatten items into low stock branch entries
+  const lowStockRows = useMemo(() => {
+    const rows = [];
+    lowStockItems.forEach(item => {
+      // Find branches where quantity is below minimum value
+      const lowBranches = (item.branchStocks || []).filter(b => {
+        const minVal = (b.minStock !== undefined && b.minStock !== null && b.minStock > 0) 
+          ? b.minStock 
+          : (item.minimumStock || 0);
+        return (b.quantity || 0) < minVal || b.status === 'low' || b.status === 'out';
+      });
+
+      if (lowBranches.length > 0) {
+        lowBranches.forEach(b => {
+          const minStock = (b.minStock !== undefined && b.minStock !== null && b.minStock > 0)
+            ? b.minStock
+            : (item.minimumStock || 0);
+          const currentStock = b.quantity ?? 0;
+          const shortage = Math.max(0, minStock - currentStock);
+          rows.push({
+            id: `${item.id}_${b.branchId || b.branchObjectId || b.branchName}`,
+            itemId: item.id,
+            originalItem: item,
+            name: item.name,
+            sku: item.sku,
+            category: item.category,
+            branchName: b.branchName || 'Unknown Branch',
+            branchId: b.branchId || b.branchObjectId,
+            currentStock,
+            minimumStock: minStock,
+            shortage,
+            unit: item.unit,
+            unitPrice: item.unitPrice,
+            status: currentStock === 0 ? 'Critical' : 'Low',
+            branchStocks: item.branchStocks,
+            availableBranches: item.availableBranches
+          });
+        });
+      } else {
+        // Fallback: item overall is low or out, but individual branches were not detailed
+        rows.push({
+          id: item.id,
+          itemId: item.id,
+          originalItem: item,
+          name: item.name,
+          sku: item.sku,
+          category: item.category,
+          branchName: 'All Branches / Central',
+          branchId: 'all',
+          currentStock: item.currentStock ?? 0,
+          minimumStock: item.minimumStock || 0,
+          shortage: item.shortage ?? Math.max(0, (item.minimumStock || 0) - (item.currentStock ?? 0)),
+          unit: item.unit,
+          unitPrice: item.unitPrice,
+          status: item.status,
+          branchStocks: item.branchStocks || [],
+          availableBranches: item.availableBranches || []
+        });
+      }
+    });
+    return rows;
+  }, [lowStockItems]);
+
+  // Apply search, branch, and category filters
+  const filteredRows = useMemo(() => {
+    return lowStockRows.filter(row => {
+      // Search filter
+      if (searchTerm.trim()) {
+        const term = searchTerm.toLowerCase();
+        const matchName = (row.name || '').toLowerCase().includes(term);
+        const matchSku = (row.sku || '').toLowerCase().includes(term);
+        const matchCategory = (row.category || '').toLowerCase().includes(term);
+        const matchBranch = (row.branchName || '').toLowerCase().includes(term);
+        if (!matchName && !matchSku && !matchCategory && !matchBranch) {
+          return false;
+        }
+      }
+
+      // Branch filter
+      if (selectedBranchFilter.length > 0) {
+        const matchesBranch = selectedBranchFilter.some(b => 
+          (row.branchName || '').toLowerCase() === b.toLowerCase() ||
+          row.branchName === 'All Branches / Central'
+        );
+        if (!matchesBranch) return false;
+      }
+
+      // Category filter
+      if (selectedCategoryFilter.length > 0) {
+        const matchesCat = selectedCategoryFilter.some(c =>
+          (row.category || '').toLowerCase() === c.toLowerCase()
+        );
+        if (!matchesCat) return false;
+      }
+
+      return true;
+    });
+  }, [lowStockRows, searchTerm, selectedBranchFilter, selectedCategoryFilter]);
+
+  const handleOrderClick = (item, destinationBranch = null) => {
     setSelectedItem(item);
+    setTargetBranch(destinationBranch);
     setIsModalOpen(true);
     setLoadingBranches(false);
-    setBranches((item.availableBranches || item.branchStocks || []).map(branch => ({
-      id: branch.branchObjectId || branch.branchId,
-      name: branch.branchName,
-      code: branch.branchCode,
-      location: branch.location,
-      quantity: branch.quantity || 0,
-      status: branch.status
-    })));
+    setBranches((item.availableBranches || item.branchStocks || [])
+      .filter(branch => !destinationBranch || branch.branchName !== destinationBranch)
+      .map(branch => ({
+        id: branch.branchObjectId || branch.branchId,
+        name: branch.branchName,
+        code: branch.branchCode,
+        location: branch.location,
+        quantity: branch.quantity || 0,
+        status: branch.status
+      }))
+    );
     setSelectedBranches([]);
     setSelectedSuppliers([]);
     setOrderQuantities({});
@@ -125,6 +265,7 @@ const LowStock = () => {
   const handleOrderSubmit = () => {
     const orderData = {
       item: selectedItem,
+      destinationBranch: targetBranch,
       orderType,
       selectedBranches: orderType === "Branches" ? selectedBranches : [],
       selectedSuppliers: orderType === "Supplier" ? selectedSuppliers : [],
@@ -137,6 +278,7 @@ const LowStock = () => {
   const handleCloseModal = () => {
     setIsModalOpen(false);
     setSelectedItem(null);
+    setTargetBranch(null);
   };
 
   return (
@@ -148,79 +290,240 @@ const LowStock = () => {
           <div className="content-wrapper">
             <div className="low-stock-container">
 
+              {/* Stats Cards */}
               <div className="stats-cards">
                 <div className="stat-card">
                   <div className="stat-icon"><Package size={20} /></div>
                   <div className="stat-content">
-                    <h3>Low Stock Items</h3>
-                    <p className="stat-number">{lowStockItems.length}</p>
-                    <span className="stat-label">Below minimum</span>
+                    <h3>Low Stock Alerts</h3>
+                    <p className="stat-number">{filteredRows.length}</p>
+                    <span className="stat-label">Below branch minimum</span>
                   </div>
                 </div>
                 <div className="stat-card critical">
                   <div className="stat-icon"><AlertTriangle size={20} /></div>
                   <div className="stat-content">
                     <h3>Critical Items</h3>
-                    <p className="stat-number">{lowStockItems.filter(item => item.status === 'Critical').length}</p>
-                    <span className="stat-label">Urgent attention</span>
+                    <p className="stat-number">{filteredRows.filter(item => item.status === 'Critical').length}</p>
+                    <span className="stat-label">Out of stock in branch</span>
                   </div>
                 </div>
                 <div className="stat-card">
                   <div className="stat-icon"><ClipboardList size={20} /></div>
                   <div className="stat-content">
                     <h3>Total Shortage</h3>
-                    <p className="stat-number">{lowStockItems.reduce((sum, item) => sum + item.shortage, 0)}</p>
+                    <p className="stat-number">{filteredRows.reduce((sum, item) => sum + item.shortage, 0)}</p>
                     <span className="stat-label">Units needed</span>
                   </div>
                 </div>
               </div>
 
+              {/* Search & Filter Toolbar */}
+              <div style={{
+                background: 'var(--bg-surface, #ffffff)',
+                border: '1px solid var(--border-default, #e2e8f0)',
+                borderRadius: '14px',
+                padding: '14px 18px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: '12px',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
+              }}>
+                {/* Search Bar on the Left */}
+                <div style={{
+                  position: 'relative',
+                  flex: '1 1 240px',
+                  maxWidth: '420px'
+                }}>
+                  <Search
+                    size={16}
+                    style={{
+                      position: 'absolute',
+                      left: '12px',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      color: '#94a3b8'
+                    }}
+                  />
+                  <input
+                    type="text"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    placeholder="Search by item, SKU, branch, category..."
+                    style={{
+                      width: '100%',
+                      padding: '9px 12px 9px 36px',
+                      fontSize: '13px',
+                      borderRadius: '9px',
+                      border: '1px solid var(--border-default, #cbd5e1)',
+                      background: 'var(--bg-surface, #ffffff)',
+                      color: 'var(--text-primary, #0f172a)',
+                      outline: 'none',
+                      transition: 'border-color 0.2s'
+                    }}
+                  />
+                  {searchTerm && (
+                    <button
+                      type="button"
+                      onClick={() => setSearchTerm('')}
+                      style={{
+                        position: 'absolute',
+                        right: '10px',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        background: 'none',
+                        border: 'none',
+                        color: '#94a3b8',
+                        cursor: 'pointer',
+                        padding: '2px'
+                      }}
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
+
+                {/* Filters Aligned to the Right */}
+                <div style={{
+                  marginLeft: 'auto',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  flexWrap: 'wrap'
+                }}>
+                  {/* Branch Filter Dropdown */}
+                  <ModernDropdown
+                    value={selectedBranchFilter}
+                    onChange={setSelectedBranchFilter}
+                    placeholder="All Branches"
+                    multiple={true}
+                    searchable={true}
+                    options={allBranches.map(b => ({
+                      value: b.branchName || b.name,
+                      label: b.branchName || b.name
+                    }))}
+                  />
+
+                  {/* Category Filter Dropdown */}
+                  <ModernDropdown
+                    value={selectedCategoryFilter}
+                    onChange={setSelectedCategoryFilter}
+                    placeholder="All Categories"
+                    multiple={true}
+                    searchable={true}
+                    options={allCategories.map(c => ({
+                      value: c.name || c,
+                      label: c.name || c
+                    }))}
+                  />
+
+                  {(searchTerm || selectedBranchFilter.length > 0 || selectedCategoryFilter.length > 0) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSearchTerm('');
+                        setSelectedBranchFilter([]);
+                        setSelectedCategoryFilter([]);
+                      }}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        padding: '8px 12px',
+                        fontSize: '12px',
+                        fontWeight: 600,
+                        color: '#64748b',
+                        background: '#f1f5f9',
+                        border: 'none',
+                        borderRadius: '8px',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <RotateCcw size={13} />
+                      Reset
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Items Table View */}
               <div className="items-table">
                 {loading ? (
                   <div style={{ textAlign: 'center', padding: '40px' }}>Loading low stock items...</div>
-                ) : lowStockItems.length === 0 ? (
-                  <div style={{ textAlign: 'center', padding: '40px' }}>No low stock items found.</div>
+                ) : filteredRows.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted, #64748b)' }}>
+                    No low stock items found matching your filters.
+                  </div>
                 ) : (
                   <table>
                     <thead>
                       <tr>
-                        <th>SKU</th>
+                        <th>Item / SKU</th>
+                        <th>Branch Name</th>
                         <th>Current Stock</th>
                         <th>Minimum Stock</th>
                         <th>Shortage</th>
                         <th>Category</th>
-                        <th>Branch Details</th>
                         <th>Action</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {lowStockItems.map((item) => (
-                        <tr key={item.id} className={`status-${item.status.toLowerCase()}`}>
+                      {filteredRows.map((row) => (
+                        <tr key={row.id} className={`status-${row.status.toLowerCase()}`}>
                           <td>
-                            <span className="name">{item.name}</span>
-                            <span className="sku">{item.sku}</span>
-                            <span className={`badge ${item.status.toLowerCase()}`}>{item.status}</span>
+                            <span className="name">{row.name}</span>
+                            <span className="sku">{row.sku}</span>
+                            <span className={`badge ${row.status.toLowerCase()}`}>{row.status}</span>
                           </td>
-                          <td>{item.currentStock} {item.unit}</td>
-                          <td>{item.minimumStock} {item.unit}</td>
-                          <td>{item.shortage} {item.unit}</td>
-                          <td>{item.category}</td>
                           <td>
-                            <div className="branch-stock-summary">
-                              {(item.branchStocks || []).map(branch => (
-                                <span key={branch.stockId || branch.branchId} className={`branch-stock-chip ${branch.status}`}>
-                                  {branch.branchName}: {branch.quantity} {item.unit}
-                                </span>
-                              ))}
+                            <div style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                              fontWeight: 600,
+                              color: 'var(--text-primary, #0f172a)'
+                            }}>
+                              <Building2 size={15} style={{ color: '#2563eb', flexShrink: 0 }} />
+                              <span>{row.branchName}</span>
                             </div>
+                          </td>
+                          <td>
+                            <span style={{ 
+                              fontWeight: 700, 
+                              color: row.currentStock === 0 ? '#dc2626' : '#d97706' 
+                            }}>
+                              {row.currentStock} {row.unit}
+                            </span>
+                          </td>
+                          <td>{row.minimumStock} {row.unit}</td>
+                          <td>
+                            <span style={{ fontWeight: 700, color: '#dc2626' }}>
+                              {row.shortage} {row.unit}
+                            </span>
+                          </td>
+                          <td>
+                            <span style={{
+                              display: 'inline-block',
+                              padding: '2px 8px',
+                              borderRadius: '6px',
+                              background: 'var(--bg-subtle, #f1f5f9)',
+                              fontSize: '12px',
+                              fontWeight: 500,
+                              color: 'var(--text-secondary, #475569)',
+                              border: '1px solid var(--border-default, #e2e8f0)'
+                            }}>
+                              {row.category}
+                            </span>
                           </td>
                           <td>
                             {canEdit && (
                               <button
                                 className="restock-btn"
-                                onClick={() => handleOrderClick(item)}
+                                onClick={() => handleOrderClick(row.originalItem, row.branchName)}
                               >
-                                Order Restock
+                                <ShoppingCart size={13} style={{ marginRight: 4 }} /> Order Restock
                               </button>
                             )}
                           </td>
@@ -263,9 +566,16 @@ const LowStock = () => {
                     <span className="sku-info-label">
                       <Package size={14} style={{ marginRight: 6 }} /> Depleted Inventory SKU
                     </span>
-                    <span className="sku-info-tag" style={{ background: '#fee2e2', color: '#b91c1c', border: '1px solid #fecaca' }}>
-                      {selectedItem.shortage} {selectedItem.unit} Shortage
-                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      {targetBranch && targetBranch !== 'All Branches / Central' && (
+                        <span className="sku-info-tag" style={{ background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                          <Building2 size={12} /> {targetBranch}
+                        </span>
+                      )}
+                      <span className="sku-info-tag" style={{ background: '#fee2e2', color: '#b91c1c', border: '1px solid #fecaca' }}>
+                        {selectedItem.shortage} {selectedItem.unit} Shortage
+                      </span>
+                    </div>
                   </div>
                   <div className="sku-info-value" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
                     <span>{selectedItem.name} <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-muted)' }}>({selectedItem.sku})</span></span>

@@ -841,55 +841,56 @@ const Inventory = () => {
                       </div>
                     </div>
 
-                    <div className="filter">
-                      <ModernDropdown
-                        options={categories.map(c => ({ value: c.name, label: c.name }))}
-                        value={categoryFilter}
-                        onChange={(val) => setCategoryFilter(val)}
-                        placeholder="All Categories"
-                        multiple={true}
-                        searchable={true}
-                        minWidth="130px"
-                      />
-                    </div>
+                    {/* Filter & Action Section (Right Aligned, matching PO page) */}
+                    <div className="po-filters" style={{ marginLeft: 'auto' }}>
+                      <div className="filter-group">
+                        <ModernDropdown
+                          options={categories.map(c => ({ value: c.name, label: c.name }))}
+                          value={categoryFilter}
+                          onChange={(val) => setCategoryFilter(val)}
+                          placeholder="All Categories"
+                          multiple={true}
+                          searchable={true}
+                          minWidth="130px"
+                        />
+                      </div>
 
-                    <div className="filter">
-                      <ModernDropdown
-                        options={branches.map(b => ({ value: b, label: b }))}
-                        value={branchFilter}
-                        onChange={(val) => setBranchFilter(val)}
-                        placeholder="All Branches"
-                        multiple={true}
-                        searchable={true}
-                        minWidth="130px"
-                      />
-                    </div>
+                      <div className="filter-group">
+                        <ModernDropdown
+                          options={branches.map(b => ({ value: b, label: b }))}
+                          value={branchFilter}
+                          onChange={(val) => setBranchFilter(val)}
+                          placeholder="All Branches"
+                          multiple={true}
+                          searchable={true}
+                          minWidth="130px"
+                        />
+                      </div>
 
-                    <div className="filter">
-                      <ModernDropdown
-                        options={[
-                          { value: 'normal', label: 'Normal' },
-                          { value: 'low', label: 'Low Stock' },
-                          { value: 'out', label: 'Out of Stock' }
-                        ]}
-                        value={statusFilter}
-                        onChange={(val) => setStatusFilter(val)}
-                        placeholder="All Statuses"
-                        multiple={true}
-                        minWidth="125px"
-                      />
-                    </div>
+                      <div className="filter-group">
+                        <ModernDropdown
+                          options={[
+                            { value: 'normal', label: 'Normal' },
+                            { value: 'low', label: 'Low Stock' },
+                            { value: 'out', label: 'Out of Stock' }
+                          ]}
+                          value={statusFilter}
+                          onChange={(val) => setStatusFilter(val)}
+                          placeholder="All Statuses"
+                          multiple={true}
+                          minWidth="125px"
+                        />
+                      </div>
 
-                    <button
-                      type="button"
-                      className="filter-clear-btn"
-                      onClick={handleClearFilters}
-                      disabled={!query && categoryFilter.length === 0 && branchFilter.length === 0 && statusFilter.length === 0}
-                    >
-                      Clear
-                    </button>
+                      <button
+                        type="button"
+                        className="btn-clear-filters"
+                        onClick={handleClearFilters}
+                        disabled={!query && categoryFilter.length === 0 && branchFilter.length === 0 && statusFilter.length === 0}
+                      >
+                        Clear Filters
+                      </button>
 
-                    <div className="inventory-actions">
                       {canEdit && (
                         <>
                           <button className="btn btn-find" onClick={handleFindByImage}>
