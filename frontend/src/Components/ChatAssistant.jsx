@@ -2,6 +2,14 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import {
+  Bot,
+  Sparkles,
+  X,
+  Send,
+  Mic,
+  Square
+} from 'lucide-react';
 
 const ChatAssistant = () => {
   const location = useLocation();
@@ -232,7 +240,7 @@ const ChatAssistant = () => {
   const handleQuickAction = (query) => {
     setInputMessage(query);
     setTimeout(() => {
-      document.querySelector('.message-input')?.focus();
+      document.querySelector('.ai-input-field')?.focus();
     }, 0);
   };
 
@@ -252,38 +260,72 @@ const ChatAssistant = () => {
 
   return (
     <>
-      {/* Floating Chat Icon */}
-      <div
-        className={`chat-float-button ${isOpen ? 'active' : ''}`}
+      {/* Floating AI Assistant Trigger Icon (Right Bottom) */}
+      <button
+        type="button"
+        className={`ai-assistant-float-btn ${isOpen ? 'is-open' : ''}`}
         onClick={() => setIsOpen(!isOpen)}
-        title={pageInfo.name}
+        aria-label="Toggle AI Assistant"
+        title="Open AI Inventory Assistant"
       >
-        {isOpen ? '✕' : '💬'}
-      </div>
+        {isOpen ? (
+          <X size={22} strokeWidth={2.5} />
+        ) : (
+          <div className="ai-icon-content">
+            <Bot size={26} strokeWidth={2.2} className="ai-icon-bot" />
+            <Sparkles size={13} className="ai-icon-sparkle" />
+            <span className="ai-online-indicator" title="AI Assistant Online" />
+          </div>
+        )}
+      </button>
 
-      {/* Chat Window */}
+      {/* AI Assistant Chat Panel */}
       {isOpen && (
-        <div className="chat-window">
-          <div className="chat-header">
-            <div className="chat-header-info">
-              <div className="ai-avatar">🤖</div>
+        <div className="ai-assistant-panel">
+          {/* Header */}
+          <div className="ai-panel-header">
+            <div className="ai-header-brand">
+              <div className="ai-header-avatar">
+                <Bot size={20} strokeWidth={2.2} />
+              </div>
               <div>
-                <h4>Stock Assistant</h4>
-                <span className="status">{pageInfo.name}</span>
+                <h4 className="ai-header-title">AI Inventory Assistant</h4>
+                <div className="ai-header-status">
+                  <span className="ai-status-dot" />
+                  <span>{pageInfo.name} • Active</span>
+                </div>
               </div>
             </div>
             <button
-              className="minimize-btn"
+              type="button"
+              className="ai-header-close-btn"
               onClick={() => setIsOpen(false)}
+              title="Close Assistant"
             >
-              _
+              <X size={16} />
             </button>
           </div>
 
-          <div className="chat-messages">
+          {/* Quick Suggestions Chips */}
+          <div className="ai-suggestions-row">
+            {pageInfo.suggestions.map((suggestion, index) => (
+              <button
+                key={index}
+                type="button"
+                className="ai-suggestion-chip"
+                onClick={() => handleQuickAction(suggestion.query)}
+                title={suggestion.query}
+              >
+                {suggestion.text}
+              </button>
+            ))}
+          </div>
+
+          {/* Messages Scroll Area */}
+          <div className="ai-messages-scroll">
             {messages.map((message) => (
-              <div key={message.id} className={`message ${message.sender}`}>
-                <div className="message-content">
+              <div key={message.id} className={`ai-msg ${message.sender}`}>
+                <div className="ai-msg-bubble">
                   {message.isHTML ? (
                     <div className="markdown-body">
                       <ReactMarkdown remarkPlugins={[remarkGfm]}>
@@ -291,17 +333,17 @@ const ChatAssistant = () => {
                       </ReactMarkdown>
                     </div>
                   ) : (
-                    <p>{message.text}</p>
+                    <p style={{ margin: 0 }}>{message.text}</p>
                   )}
-                  <span className="timestamp">{message.timestamp}</span>
                 </div>
+                <span className="ai-msg-time">{message.timestamp}</span>
               </div>
             ))}
 
             {isTyping && (
-              <div className="message ai typing">
-                <div className="message-content">
-                  <div className="typing-indicator">
+              <div className="ai-msg ai">
+                <div className="ai-msg-bubble">
+                  <div className="ai-typing-dots">
                     <span></span>
                     <span></span>
                     <span></span>
@@ -312,49 +354,40 @@ const ChatAssistant = () => {
             <div ref={messagesEndRef} />
           </div>
 
-          <div className="chat-input-area">
-            <div className="quick-actions">
-              {pageInfo.suggestions.map((suggestion, index) => (
-                <button
-                  key={index}
-                  className="quick-btn"
-                  onClick={() => handleQuickAction(suggestion.query)}
-                  title={suggestion.query}
-                >
-                  {suggestion.text}
-                </button>
-              ))}
-            </div>
-
-            <div className="chat-input">
-              <input
-                type="text"
-                value={inputMessage}
-                onChange={(e) => setInputMessage(e.target.value)}
-                onKeyPress={handleKeyPress}
-                placeholder={isListening ? "Listening... 🎙️" : "Ask about item availability..."}
-                className="message-input"
-              />
-              {voiceSupported && (
-                <button
-                  className={`voice-btn ${isListening ? 'listening' : ''}`}
-                  onClick={isListening ? handleStopListening : handleStartListening}
-                  title={isListening ? 'Stop listening' : 'Start voice input'}
-                >
-                  {isListening ? '⏹️' : '🎤'}
-                </button>
-              )}
-              {interimTranscript && (
-                <span className="interim-text" style={{ marginRight: '8px' }}>{interimTranscript}</span>
-              )}
+          {/* Input Bar */}
+          <div className="ai-input-container">
+            <input
+              type="text"
+              value={inputMessage}
+              onChange={(e) => setInputMessage(e.target.value)}
+              onKeyDown={handleKeyPress}
+              placeholder={isListening ? "Listening... Speak now..." : "Ask about stock, items, availability..."}
+              className="ai-input-field"
+            />
+            {voiceSupported && (
               <button
-                className="send-btn"
-                onClick={handleSendMessage}
-                disabled={!inputMessage.trim()}
+                type="button"
+                className={`ai-action-btn ${isListening ? 'active' : ''}`}
+                onClick={isListening ? handleStopListening : handleStartListening}
+                title={isListening ? 'Stop listening' : 'Start voice input'}
               >
-                🚀
+                {isListening ? <Square size={16} /> : <Mic size={16} />}
               </button>
-            </div>
+            )}
+            {interimTranscript && (
+              <span style={{ fontSize: '11px', color: '#64748b', fontStyle: 'italic', maxWidth: '80px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {interimTranscript}
+              </span>
+            )}
+            <button
+              type="button"
+              className="ai-send-btn"
+              onClick={handleSendMessage}
+              disabled={!inputMessage.trim()}
+              title="Send message"
+            >
+              <Send size={16} />
+            </button>
           </div>
         </div>
       )}

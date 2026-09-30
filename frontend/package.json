@@ -28,8 +28,8 @@
     "watch:css": "node node_modules/@tailwindcss/cli/dist/index.mjs -i src/tailwind.input.css -o src/index.css --watch",
     "prestart": "npm run build:css",
     "prebuild": "npm run build:css",
-    "start": "react-scripts start",
-    "build": "react-scripts build",
+    "start": "node --max-old-space-size=4096 node_modules/react-scripts/bin/react-scripts.js start",
+    "build": "node --max-old-space-size=4096 node_modules/react-scripts/bin/react-scripts.js build",
     "test": "react-scripts test",
     "eject": "react-scripts eject"
   },

@@ -1,11 +1,13 @@
 const express = require('express');
 const router = express.Router();
 const Stock = require('../models/stock');
+const { getBranchFilter } = require('../utils/branchFilter');
 
 // GET all stock
 router.get('/', async (req, res) => {
   try {
-    const stock = await Stock.find()
+    const branchFilter = await getBranchFilter(req);
+    const stock = await Stock.find(branchFilter)
       .populate('itemId', 'name sku')
       .populate('branchId', 'branchName');
     res.json(stock);

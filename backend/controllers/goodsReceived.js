@@ -3,7 +3,7 @@ const PurchaseOrder = require('../models/purchaseOrder');
 const Item = require('../models/items');
 const Stock = require('../models/stock');
 const User = require('../models/users');
-const { getBranchFilter } = require('../utils/branchFilter');
+const { getGRNBranchFilter } = require('../utils/branchFilter');
 
 // Get all GRNs with pagination
 exports.getAllGRNs = async (req, res) => {
@@ -12,7 +12,7 @@ exports.getAllGRNs = async (req, res) => {
     const limit = parseInt(req.query.limit) || 10;
     const skip = (page - 1) * limit;
 
-    const branchFilter = getBranchFilter(req);
+    const branchFilter = await getGRNBranchFilter(req);
 
     const grns = await GoodsReceived.find(branchFilter)
       .sort({ receivedDate: -1 })
@@ -78,6 +78,29 @@ exports.createGRN = async (req, res) => {
       branch
     } = req.body;
 
+    // Resolve branch if not explicitly provided
+    let targetBranch = branch;
+    if (!targetBranch) {
+      if (purchaseOrderId || poNumber) {
+        try {
+          const poObj = await PurchaseOrder.findOne({
+            $or: [
+              ...(purchaseOrderId ? [{ _id: purchaseOrderId }] : []),
+              ...(poNumber ? [{ poNumber }] : [])
+            ]
+          });
+          if (poObj) {
+            targetBranch = poObj.createdByBranch || poObj.branch;
+          }
+        } catch (e) {
+          console.warn('Could not resolve PO for branch:', e.message);
+        }
+      }
+      if (!targetBranch) {
+        targetBranch = req.headers['x-user-branch-name'] || 'Colombo Main Branch';
+      }
+    }
+
     // Validate items array
     if (!items || !Array.isArray(items) || items.length === 0) {
       return res.status(400).json({
@@ -94,7 +117,7 @@ exports.createGRN = async (req, res) => {
     const newGRN = new GoodsReceived({
       grnNumber,
       purchaseOrderId,
-      branch: branch || '',
+      branch: targetBranch || '',
       items: items.map(item => ({
         itemId: item.itemId || '',
         itemName: item.itemName || '',
@@ -436,7 +459,7 @@ exports.deleteGRN = async (req, res) => {
 exports.getGRNsByPONumber = async (req, res) => {
   try {
     const { poNumber } = req.params;
-    const branchFilter = getBranchFilter(req);
+    const branchFilter = await getGRNBranchFilter(req);
 
     const grns = await GoodsReceived.find({ poNumber, ...branchFilter });
 
@@ -456,7 +479,7 @@ exports.getGRNsByPONumber = async (req, res) => {
 // Get GRN summary report
 exports.getGRNSummary = async (req, res) => {
   try {
-    const branchFilter = getBranchFilter(req);
+    const branchFilter = await getGRNBranchFilter(req);
     const totalGRNs = await GoodsReceived.countDocuments(branchFilter);
     const thisMonth = new Date();
     thisMonth.setDate(1);
@@ -524,7 +547,7 @@ exports.searchGRNs = async (req, res) => {
       };
     }
 
-    const branchFilter = getBranchFilter(req);
+    const branchFilter = await getGRNBranchFilter(req);
     Object.assign(searchCriteria, branchFilter);
 
     const results = await GoodsReceived.find(searchCriteria).limit(20);

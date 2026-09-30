@@ -1,5 +1,6 @@
 {
   "scripts": {
+    "start": "npm run start:all",
     "start:backend": "npm --prefix backend run dev",
     "start:frontend": "npm --prefix frontend start",
     "start:ml": "cd ml-service && python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000",

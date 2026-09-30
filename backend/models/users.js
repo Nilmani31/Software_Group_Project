@@ -39,6 +39,9 @@ const userSchema = new mongoose.Schema({
   allowedBranches: [{
     type: String
   }],
+  permissions: [{
+    type: String
+  }],
   phoneNumber: {
     type: String,
     required: true,

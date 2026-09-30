@@ -4,8 +4,9 @@ import Sidebar from '../Components/Sidebar';
 import ChatAssistant from '../Components/ChatAssistant';
 import FindItemByImageModal from '../Components/FindItemByImageModal';
 import ConfirmDialog from '../Components/ConfirmDialog';
+import ModernDropdown from '../Components/ModernDropdown';
 
-import { FaTimes, FaEdit, FaTrash, FaImage } from 'react-icons/fa';
+import { FaTimes, FaEdit, FaTrash, FaImage, FaPlus, FaUpload, FaCloudUploadAlt, FaBarcode, FaBoxOpen, FaLayerGroup } from 'react-icons/fa';
 import { getAuthHeaders } from '../utils/authHeaders';
 
 // Helper function to generate SKU with first 3 letters of category name
@@ -105,6 +106,31 @@ const getPriceRangeText = (prices = []) => {
   return `${formatPrice(minPrice)} - ${formatPrice(maxPrice)}`;
 };
 
+const getBranchPriceBreakdown = (item) => {
+  const branchMap = new Map();
+  const variations = Array.isArray(item.variations) && item.variations.length > 0 ? item.variations : [item];
+
+  variations.forEach(variation => {
+    const price = Number(variation.unitPrice) || 0;
+    const stocks = Array.isArray(variation.branchStocks) ? variation.branchStocks : [];
+
+    stocks.forEach(s => {
+      const bName = s.branchName || (s.branch && (s.branch.branchName || s.branch.name)) || 'Unknown Branch';
+      if (!branchMap.has(bName)) {
+        branchMap.set(bName, { branchName: bName, prices: [], totalQty: 0, totalVal: 0 });
+      }
+      const bData = branchMap.get(bName);
+      const qty = Number(s.quantity) || 0;
+      const val = qty * price;
+      bData.prices.push({ price, quantity: qty, value: val });
+      bData.totalQty += qty;
+      bData.totalVal += val;
+    });
+  });
+
+  return Array.from(branchMap.values());
+};
+
 const Inventory = () => {
   const [items, setItems] = useState([]);
   const [categories, setCategories] = useState([]); // Store full category objects
@@ -112,10 +138,12 @@ const Inventory = () => {
   const [branches, setBranches] = useState([]);
   const [branchMap, setBranchMap] = useState({}); // Map branch name to ID
   const [loading, setLoading] = useState(true);
+  const [expandedItemId, setExpandedItemId] = useState(null);
+  const [stockLoading, setStockLoading] = useState(false);
   const [query, setQuery] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('All Categories');
-  const [branchFilter, setBranchFilter] = useState('All Branch');
-  const [statusFilter, setStatusFilter] = useState('All Status');
+  const [categoryFilter, setCategoryFilter] = useState([]);
+  const [branchFilter, setBranchFilter] = useState([]);
+  const [statusFilter, setStatusFilter] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [showFindByImageModal, setShowFindByImageModal] = useState(false);
   const [imagePreview, setImagePreview] = useState(null);
@@ -228,6 +256,7 @@ const Inventory = () => {
   // Fetch stock data for a specific item
   const fetchStockData = async (item) => {
     try {
+      setStockLoading(true);
       const url = `http://localhost:5005/api/items/stock/${item._id || item.id}`;
       const response = await fetch(url, {
         headers: getAuthHeaders()
@@ -256,6 +285,8 @@ const Inventory = () => {
     } catch (err) {
       console.error('Error fetching stock data:', err);
       setStockData([]);
+    } finally {
+      setStockLoading(false);
     }
   };
 
@@ -282,9 +313,12 @@ const Inventory = () => {
   };
 
   const getDisplayQuantity = (item) => {
-    if (branchFilter !== 'All Branch' && Array.isArray(item.branchStocks)) {
-      const selectedBranchStock = item.branchStocks.find(stock => stock.branchName === branchFilter);
-      return selectedBranchStock ? selectedBranchStock.quantity || 0 : 0;
+    const isBranchFiltered = Array.isArray(branchFilter) ? branchFilter.length > 0 && !branchFilter.includes('All Branch') : branchFilter !== 'All Branch';
+    if (isBranchFiltered && Array.isArray(item.branchStocks)) {
+      const allowed = Array.isArray(branchFilter) ? branchFilter : [branchFilter];
+      return item.branchStocks
+        .filter(stock => allowed.includes(stock.branchName))
+        .reduce((sum, stock) => sum + Number(stock.quantity || 0), 0);
     }
 
     return item.quantity || item.qty || 0;
@@ -306,9 +340,9 @@ const Inventory = () => {
 
   const handleClearFilters = () => {
     setQuery('');
-    setCategoryFilter('All Categories');
-    setBranchFilter('All Branch');
-    setStatusFilter('All Status');
+    setCategoryFilter([]);
+    setBranchFilter([]);
+    setStatusFilter([]);
   };
 
   const groupedItems = useMemo(() => {
@@ -410,9 +444,20 @@ const Inventory = () => {
       const matchesQuery = !q ||
         searchText.includes(q);
 
-      const matchesCategory = categoryFilter === 'All Categories' || categoryName === categoryFilter;
-      const matchesBranch = branchFilter === 'All Branch' || branchNames.includes(branchFilter);
-      const matchesStatus = statusFilter === 'All Status' || status === statusFilter;
+      const matchesCategory = 
+        !categoryFilter || 
+        categoryFilter.length === 0 || 
+        (Array.isArray(categoryFilter) ? (categoryFilter.includes('All Categories') || categoryFilter.includes(categoryName)) : (categoryFilter === 'All Categories' || categoryName === categoryFilter));
+
+      const matchesBranch = 
+        !branchFilter || 
+        branchFilter.length === 0 || 
+        (Array.isArray(branchFilter) ? (branchFilter.includes('All Branch') || branchFilter.some(bf => branchNames.includes(bf))) : (branchFilter === 'All Branch' || branchNames.includes(branchFilter)));
+
+      const matchesStatus = 
+        !statusFilter || 
+        statusFilter.length === 0 || 
+        (Array.isArray(statusFilter) ? (statusFilter.includes('All Status') || statusFilter.includes(status)) : (statusFilter === 'All Status' || status === statusFilter));
 
       return matchesQuery && matchesCategory && matchesBranch && matchesStatus;
     });
@@ -597,8 +642,21 @@ const Inventory = () => {
         maxStock: selectedItem.maxStock || 1000,
         image: selectedItem.image || null
       });
-      // Use current stockData if available, otherwise it will be populated
-      setEditableStockData(stockData.length > 0 ? [...stockData] : []);
+      // Populate editableStockData from stockData or branches
+      setEditableStockData(
+        stockData && stockData.length > 0
+          ? stockData.map(s => ({
+              ...s,
+              quantity: Number(s.totalQuantity) || Number(s.quantity) || 0,
+              originalQty: Number(s.totalQuantity) || Number(s.quantity) || 0
+            }))
+          : branches.map(bName => ({
+              branchName: bName,
+              branchId: branchMap[bName],
+              quantity: 0,
+              originalQty: 0
+            }))
+      );
       setEditImagePreview(selectedItem.image || null);
       setShowItemDetailModal(false);
       setShowEditItemModal(true);
@@ -784,49 +842,49 @@ const Inventory = () => {
                     </div>
 
                     <div className="filter">
-                      <select
+                      <ModernDropdown
+                        options={categories.map(c => ({ value: c.name, label: c.name }))}
                         value={categoryFilter}
-                        onChange={(e) => setCategoryFilter(e.target.value)}
-                        className="filter-select"
-                      >
-                        <option value="All Categories">All Categories</option>
-                        {categories.map(c => (
-                          <option key={c._id} value={c.name}>{c.name}</option>
-                        ))}
-                      </select>
+                        onChange={(val) => setCategoryFilter(val)}
+                        placeholder="All Categories"
+                        multiple={true}
+                        searchable={true}
+                        minWidth="130px"
+                      />
                     </div>
 
                     <div className="filter">
-                      <select
+                      <ModernDropdown
+                        options={branches.map(b => ({ value: b, label: b }))}
                         value={branchFilter}
-                        onChange={(e) => setBranchFilter(e.target.value)}
-                        className="filter-select"
-                      >
-                        <option value="All Branch">All Branch</option>
-                        {branches.map(b => (
-                          <option key={b} value={b}>{b}</option>
-                        ))}
-                      </select>
+                        onChange={(val) => setBranchFilter(val)}
+                        placeholder="All Branches"
+                        multiple={true}
+                        searchable={true}
+                        minWidth="130px"
+                      />
                     </div>
 
                     <div className="filter">
-                      <select
+                      <ModernDropdown
+                        options={[
+                          { value: 'normal', label: 'Normal' },
+                          { value: 'low', label: 'Low Stock' },
+                          { value: 'out', label: 'Out of Stock' }
+                        ]}
                         value={statusFilter}
-                        onChange={(e) => setStatusFilter(e.target.value)}
-                        className="filter-select"
-                      >
-                        <option value="All Status">All Status</option>
-                        <option value="normal">Normal</option>
-                        <option value="low">Low Stock</option>
-                        <option value="out">Out of Stock</option>
-                      </select>
+                        onChange={(val) => setStatusFilter(val)}
+                        placeholder="All Statuses"
+                        multiple={true}
+                        minWidth="125px"
+                      />
                     </div>
 
                     <button
                       type="button"
                       className="filter-clear-btn"
                       onClick={handleClearFilters}
-                      disabled={!query && categoryFilter === 'All Categories' && branchFilter === 'All Branch' && statusFilter === 'All Status'}
+                      disabled={!query && categoryFilter.length === 0 && branchFilter.length === 0 && statusFilter.length === 0}
                     >
                       Clear
                     </button>
@@ -853,13 +911,12 @@ const Inventory = () => {
                       <table className="inventory-table" role="table" aria-label="Inventory list" style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0 }}>
                         <thead style={{ position: 'sticky', top: 0, zIndex: 2 }}>
                           <tr>
-                            <th style={{ width: '15%', left: 0, background: 'inherit' }}>Item ID</th>
-                            <th style={{ width: '22%' }}>Name</th>
-                            <th style={{ width: '18%' }}>Category</th>
-                            <th style={{ width: '11%', textAlign: 'center' }}>Quantity</th>
-                            <th style={{ width: '10%', textAlign: 'center' }}>Unit</th>
-                            <th style={{ width: '13%', textAlign: 'center' }}>Unit Size</th>
-                            <th style={{ width: '11%', textAlign: 'center' }}>Status</th>
+                            <th style={{ width: '16%', left: 0, background: 'inherit' }}>Item ID</th>
+                            <th style={{ width: '26%' }}>Name</th>
+                            <th style={{ width: '20%' }}>Category</th>
+                            <th style={{ width: '14%', textAlign: 'center' }}>Quantity</th>
+                            <th style={{ width: '12%', textAlign: 'center' }}>Unit</th>
+                            <th style={{ width: '12%', textAlign: 'center' }}>Status</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -868,6 +925,7 @@ const Inventory = () => {
                             if (typeof item.category === 'object' && item.category !== null) {
                               categoryDisplay = item.category.name || item.category.categoryName || 'N/A';
                             }
+
                             return (
                               <tr
                                 key={item.uniqueId || item._id || item.id}
@@ -875,13 +933,18 @@ const Inventory = () => {
                                 onClick={() => handleRowClick(item)}
                                 style={{ cursor: 'pointer' }}
                               >
-                                <td style={{ width: '15%', paddingLeft: '16px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={item.sku || item.itemId}>{item.sku || item.itemId || item._id}</td>
-                                <td style={{ width: '22%' }}>{item.name}</td>
-                                <td style={{ width: '18%' }}>{categoryDisplay}</td>
-                                <td style={{ width: '11%', textAlign: 'center', fontWeight: '600' }}>{getDisplayQuantity(item)}</td>
-                                <td style={{ width: '10%', textAlign: 'center' }}>{item.baseUnit || item.unit || '-'}</td>
-                                <td style={{ width: '13%', textAlign: 'center', fontWeight: '600', color: '#4338ca' }}>{item.unitSize || '-'}</td>
-                                <td style={{ width: '11%', textAlign: 'center' }}>
+                                <td style={{ width: '16%', paddingLeft: '16px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={item.sku || item.itemId}>
+                                  {item.sku || item.itemId || item._id}
+                                </td>
+                                <td style={{ width: '26%', fontWeight: '600' }}>{item.name}</td>
+                                <td style={{ width: '20%' }}>{categoryDisplay}</td>
+                                <td style={{ width: '14%', textAlign: 'center', fontWeight: '700', color: '#0f172a' }}>
+                                  {getDisplayQuantity(item)}
+                                </td>
+                                <td style={{ width: '12%', textAlign: 'center', fontWeight: '600', color: '#64748b' }}>
+                                  {item.baseUnit || item.unit || '-'}
+                                </td>
+                                <td style={{ width: '12%', textAlign: 'center' }}>
                                   <span className={`badge ${getStatusClass(item.status)}`}>
                                     {item.status === 'normal' ? '✅ Normal' : item.status === 'low' ? '⚠️ Low' : '❌ Out'}
                                   </span>
@@ -903,175 +966,220 @@ const Inventory = () => {
       {/* Add Item Modal */}
       {showModal && (
         <div className="modal-overlay-inventory" onClick={handleCloseModal}>
-          <div className="modal-content-inventory" onClick={(e) => e.stopPropagation()}>
+          <div className="modal-content-inventory add-item-modal" onClick={(e) => e.stopPropagation()}>
             {/* Modal Header */}
             <div className="modal-header-inventory">
               <div className="modal-title-section-inventory">
                 <h2 className="modal-title-inventory">Add New Item</h2>
-                <p className="modal-subtitle-inventory">Add a new item to your inventory</p>
+                <p className="modal-subtitle-inventory">Register a new product with barcode, pricing, and stock limits</p>
               </div>
-              <button className="modal-close-btn-inventory" onClick={handleCloseModal}>
+              <button className="modal-close-btn-inventory" onClick={handleCloseModal} title="Close">
                 <FaTimes />
               </button>
             </div>
 
             {/* Modal Body */}
             <div className="modal-body-inventory">
-              <form className="modal-form-inventory" onSubmit={requestAddItem}>
-                {/* Form Layout */}
-                <div className="form-layout-inventory">
-                  {/* Left Column */}
-                  <div className="form-left-inventory">
-                    {/* Item Name */}
-                    <div className="form-group-inventory">
-                      <label className="form-label-inventory">Item Name</label>
+              <form id="add-item-form" className="modal-form-inventory" onSubmit={requestAddItem}>
+                <div className="add-item-layout-grid">
+                  {/* Left Column: Product Photo & Barcode/SKU Card */}
+                  <div className="add-item-media-col">
+                    <div className="form-group-inventory" style={{ margin: 0 }}>
+                      <label className="form-label-inventory">Item Photo</label>
+                      {imagePreview ? (
+                        <div>
+                          <div className="image-preview-wrapper">
+                            <img src={imagePreview} alt="Item preview" />
+                          </div>
+                          <div className="image-preview-actions">
+                            <label htmlFor="add-item-image-input" className="image-action-btn">
+                              <FaUpload /> Change
+                            </label>
+                            <button
+                              type="button"
+                              className="image-action-btn danger"
+                              onClick={() => {
+                                setImagePreview(null);
+                                setFormData(prev => ({ ...prev, image: null }));
+                              }}
+                            >
+                              <FaTrash /> Remove
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <label
+                          htmlFor="add-item-image-input"
+                          className="image-dropzone-box"
+                        >
+                          <div className="image-dropzone-icon">
+                            <FaCloudUploadAlt />
+                          </div>
+                          <div className="image-dropzone-title">Upload Product Image</div>
+                          <div className="image-dropzone-sub">Click to browse or drop file here</div>
+                          <div style={{ marginTop: '8px', fontSize: '10.5px', color: '#94a3b8' }}>PNG, JPG or WebP</div>
+                        </label>
+                      )}
                       <input
-                        type="text"
-                        name="name"
-                        placeholder="Enter item name"
-                        value={formData.name}
-                        onChange={handleInputChange}
-                        className="form-input-inventory"
-                        required
+                        type="file"
+                        accept="image/*"
+                        onChange={handleImageUpload}
+                        style={{ display: 'none' }}
+                        id="add-item-image-input"
                       />
                     </div>
 
-                    {/* Category */}
-                    <div className="form-group-inventory">
-                      <label className="form-label-inventory">Category</label>
-                      <select
-                        name="category"
-                        value={formData.category}
-                        onChange={handleInputChange}
-                        className="form-input-inventory"
-                        required
-                      >
-                        <option value="">Select category</option>
-                        {categories.map(c => (
-                          <option key={c._id} value={c.name}>{c.name}</option>
-                        ))}
-                      </select>
-                    </div>
-
-                    {/* Unit */}
-                    <div className="form-group-inventory">
-                      <label className="form-label-inventory">Unit</label>
-                      <select
-                        name="unit"
-                        value={formData.unit}
-                        onChange={handleInputChange}
-                        className="form-input-inventory"
-                        required
-                      >
-                        <option value="">Select unit</option>
-                        <option value="kg">kg</option>
-                        <option value="ltr">ltr</option>
-                        <option value="pcs">pcs</option>
-                      </select>
-                    </div>
-
-                    {/* Unit Amount / Size */}
-                    <div className="form-group-inventory">
-                      <label className="form-label-inventory">Unit Size / Amount</label>
-                      <input
-                        type="number"
-                        name="unitValue"
-                        placeholder="e.g. 1, 2, 5"
-                        value={formData.unitValue || '1'}
-                        onChange={handleInputChange}
-                        className="form-input-inventory"
-                        min="1"
-                        required
-                      />
-                    </div>
-
-                    {/* Unit Price */}
-                    <div className="form-group-inventory">
-                      <label className="form-label-inventory">Unit Price (Rs)</label>
-                      <input
-                        type="number"
-                        name="unitPrice"
-                        placeholder="e.g. 2500"
-                        value={formData.unitPrice || ''}
-                        onChange={handleInputChange}
-                        className="form-input-inventory"
-                        min="0"
-                        step="0.01"
-                      />
-                    </div>
-
-                    {/* SKU - Read Only */}
-                    <div className="form-group-inventory">
-                      <label className="form-label-inventory">SKU</label>
-                      <div className="form-input-read-only-inventory">
-                        {formData.sku}
+                    {/* Barcode & SKU Card */}
+                    <div className="sku-info-card">
+                      <div className="sku-info-header">
+                        <span className="sku-info-label">
+                          <FaBarcode /> SKU / Barcode
+                        </span>
+                        <span className="sku-info-tag">Auto-Generated</span>
+                      </div>
+                      <div className={`sku-info-value ${!formData.sku ? 'empty' : ''}`}>
+                        {formData.sku || 'Select a category to generate SKU'}
                       </div>
                     </div>
                   </div>
 
-                  {/* Right Column */}
-                  <div className="form-right-inventory">
-                    {/* Image Upload */}
-                    <div className="form-group-inventory">
-                      <label className="form-label-inventory">Add image</label>
-                      <div className="image-upload-box-inventory">
-                        {imagePreview ? (
-                          <div className="image-preview-content-inventory">
-                            <img src={imagePreview} alt="Item preview" />
-                          </div>
-                        ) : (
-                          <div className="upload-placeholder-inventory">
-                            <span className="upload-icon-inventory">+</span>
-                            <span className="upload-text-inventory">Upload image</span>
-                          </div>
-                        )}
+                  {/* Right Column: Organized Form Fields */}
+                  <div className="add-item-fields-col">
+                    {/* Section 1: General Info */}
+                    <div className="form-section-group">
+                      <div className="form-section-title">
+                        <FaBoxOpen /> General Information
+                      </div>
+
+                      {/* Item Name */}
+                      <div className="form-group-inventory" style={{ margin: 0 }}>
+                        <label className="form-label-inventory">Item Name *</label>
                         <input
-                          type="file"
-                          accept="image/*"
-                          onChange={handleImageUpload}
-                          style={{ display: 'none' }}
-                          id="image-input"
+                          type="text"
+                          name="name"
+                          placeholder="e.g. Premium White Rice"
+                          value={formData.name}
+                          onChange={handleInputChange}
+                          className="form-input-inventory"
+                          required
                         />
-                        <label htmlFor="image-input" className="upload-label-inventory"></label>
+                      </div>
+
+                      {/* Category */}
+                      <div className="form-group-inventory" style={{ margin: 0 }}>
+                        <label className="form-label-inventory">Category *</label>
+                        <ModernDropdown
+                          value={formData.category}
+                          onChange={(val) => handleInputChange({ target: { name: 'category', value: val } })}
+                          placeholder="Select product category"
+                          searchable={true}
+                          options={[
+                            { value: "", label: "Select product category" },
+                            ...categories.map(c => ({ value: c.name, label: c.name }))
+                          ]}
+                        />
                       </div>
                     </div>
 
-                    {/* Minimum Stock */}
-                    <div className="form-group-inventory">
-                      <label className="form-label-inventory">Minimum Stock</label>
-                      <div className="input-with-spinner-inventory">
-                        <input
-                          type="number"
-                          name="minStock"
-                          placeholder="0"
-                          value={formData.minStock}
-                          onChange={handleInputChange}
-                          className="form-input-inventory"
-                          min="0"
-                        />
-                        <div className="spinner-controls-inventory">
-                          <button type="button" className="spinner-btn-inventory up" onClick={() => handleSpinner('minStock', 'up')}>▲</button>
-                          <button type="button" className="spinner-btn-inventory down" onClick={() => handleSpinner('minStock', 'down')}>▼</button>
+                    {/* Section 2: Unit & Pricing */}
+                    <div className="form-section-group">
+                      <div className="form-section-title">
+                        <FaLayerGroup /> Units & Pricing
+                      </div>
+
+                      <div className="form-grid-3">
+                        {/* Unit */}
+                        <div className="form-group-inventory" style={{ margin: 0 }}>
+                          <label className="form-label-inventory">Unit *</label>
+                          <ModernDropdown
+                            value={formData.unit}
+                            onChange={(val) => handleInputChange({ target: { name: 'unit', value: val } })}
+                            placeholder="Select Unit"
+                            options={[
+                              { value: "kg", label: "kg (Kilogram)" },
+                              { value: "ltr", label: "ltr (Liter)" },
+                              { value: "pcs", label: "pcs (Pieces)" }
+                            ]}
+                          />
+                        </div>
+
+                        {/* Unit Size */}
+                        <div className="form-group-inventory" style={{ margin: 0 }}>
+                          <label className="form-label-inventory">Unit Size / Amount *</label>
+                          <input
+                            type="number"
+                            name="unitValue"
+                            placeholder="e.g. 1"
+                            value={formData.unitValue || '1'}
+                            onChange={handleInputChange}
+                            className="form-input-inventory"
+                            min="1"
+                            required
+                          />
+                        </div>
+
+                        {/* Unit Price */}
+                        <div className="form-group-inventory" style={{ margin: 0 }}>
+                          <label className="form-label-inventory">Price (Rs)</label>
+                          <input
+                            type="number"
+                            name="unitPrice"
+                            placeholder="0.00"
+                            value={formData.unitPrice || ''}
+                            onChange={handleInputChange}
+                            className="form-input-inventory"
+                            min="0"
+                            step="0.01"
+                          />
                         </div>
                       </div>
                     </div>
 
-                    {/* Maximum Stock */}
-                    <div className="form-group-inventory">
-                      <label className="form-label-inventory">Maximum stock</label>
-                      <div className="input-with-spinner-inventory">
-                        <input
-                          type="number"
-                          name="maxStock"
-                          placeholder="0"
-                          value={formData.maxStock}
-                          onChange={handleInputChange}
-                          className="form-input-inventory"
-                          min="0"
-                        />
-                        <div className="spinner-controls-inventory">
-                          <button type="button" className="spinner-btn-inventory up" onClick={() => handleSpinner('maxStock', 'up')}>▲</button>
-                          <button type="button" className="spinner-btn-inventory down" onClick={() => handleSpinner('maxStock', 'down')}>▼</button>
+                    {/* Section 3: Stock Thresholds */}
+                    <div className="form-section-group">
+                      <div className="form-section-title">
+                        Stock Thresholds
+                      </div>
+
+                      <div className="form-grid-2">
+                        {/* Minimum Stock */}
+                        <div className="form-group-inventory" style={{ margin: 0 }}>
+                          <label className="form-label-inventory">Minimum Stock Alert</label>
+                          <div className="stepper-input-wrapper">
+                            <input
+                              type="number"
+                              name="minStock"
+                              placeholder="0"
+                              value={formData.minStock}
+                              onChange={handleInputChange}
+                              className="form-input-inventory"
+                              min="0"
+                            />
+                            <div className="stepper-btns">
+                              <button type="button" className="stepper-btn" onClick={() => handleSpinner('minStock', 'up')}>▲</button>
+                              <button type="button" className="stepper-btn" onClick={() => handleSpinner('minStock', 'down')}>▼</button>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Maximum Stock */}
+                        <div className="form-group-inventory" style={{ margin: 0 }}>
+                          <label className="form-label-inventory">Maximum Stock Capacity</label>
+                          <div className="stepper-input-wrapper">
+                            <input
+                              type="number"
+                              name="maxStock"
+                              placeholder="1000"
+                              value={formData.maxStock}
+                              onChange={handleInputChange}
+                              className="form-input-inventory"
+                              min="0"
+                            />
+                            <div className="stepper-btns">
+                              <button type="button" className="stepper-btn" onClick={() => handleSpinner('maxStock', 'up')}>▲</button>
+                              <button type="button" className="stepper-btn" onClick={() => handleSpinner('maxStock', 'down')}>▼</button>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -1085,8 +1193,13 @@ const Inventory = () => {
               <button type="button" className="modal-btn-inventory cancel" onClick={handleCloseModal}>
                 Cancel
               </button>
-              <button type="button" className="modal-btn-inventory submit" onClick={requestAddItem} disabled={submitLoading}>
-                {submitLoading ? 'Adding...' : 'Add Item'}
+              <button
+                type="submit"
+                form="add-item-form"
+                className="modal-btn-inventory save"
+                disabled={submitLoading}
+              >
+                {submitLoading ? 'Adding...' : '+ Add Item'}
               </button>
             </div>
           </div>
@@ -1188,14 +1301,14 @@ const Inventory = () => {
                       <button
                         type="button"
                         onClick={handleEditItem}
-                        style={{ padding: '7px 16px', fontSize: '13px', fontWeight: '600', background: '#4f46e5', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
+                        className="modal-btn-inventory edit"
                       >
                         <FaEdit /> Edit Item
                       </button>
                       <button
                         type="button"
                         onClick={requestDeleteItem}
-                        style={{ padding: '7px 16px', fontSize: '13px', fontWeight: '600', background: '#fee2e2', color: '#dc2626', border: 'none', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
+                        className="modal-btn-inventory delete"
                       >
                         <FaTrash /> Delete Item
                       </button>
@@ -1206,21 +1319,32 @@ const Inventory = () => {
 
               {/* Stock by Branch & Price Tier Section */}
               <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '18px 22px' }}>
-                <h3 style={{ margin: '0 0 14px 0', fontSize: '16px', fontWeight: '800', color: '#1e293b' }}>
-                  Stock by Branch & Price Tier
-                </h3>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+                  <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '800', color: '#1e293b' }}>
+                    Stock by Branch & Price Tier
+                  </h3>
+                  <span style={{ fontSize: '12px', color: '#64748b' }}>
+                    Tracking multiple purchase prices per branch
+                  </span>
+                </div>
 
                 <table className="item-detail-stock-table" style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid #e2e8f0', borderRadius: '8px', overflow: 'hidden' }}>
                   <thead>
                     <tr style={{ background: '#f1f5f9' }}>
                       <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '12px', fontWeight: '700', color: '#475569', borderBottom: '1px solid #e2e8f0' }}>Branch Name</th>
-                      <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '12px', fontWeight: '700', color: '#475569', borderBottom: '1px solid #e2e8f0' }}>Price Tier</th>
+                      <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '12px', fontWeight: '700', color: '#475569', borderBottom: '1px solid #e2e8f0' }}>Unit Price (LKR)</th>
                       <th style={{ padding: '12px 16px', textAlign: 'center', fontSize: '12px', fontWeight: '700', color: '#475569', borderBottom: '1px solid #e2e8f0' }}>Quantity</th>
                       <th style={{ padding: '12px 16px', textAlign: 'right', fontSize: '12px', fontWeight: '700', color: '#475569', borderBottom: '1px solid #e2e8f0' }}>Stock Value</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {stockData && stockData.length > 0 ? (
+                    {stockLoading ? (
+                      <tr>
+                        <td colSpan={4} style={{ padding: '30px', textAlign: 'center', color: '#64748b', fontSize: '14px' }}>
+                          <span style={{ display: 'inline-block', marginRight: '8px' }}>⏳</span> Loading stock and prices across branches...
+                        </td>
+                      </tr>
+                    ) : stockData && stockData.length > 0 ? (
                       stockData.map((stock, bIdx) => {
                         let branchName = stock.branchName || (stock.branch && (stock.branch.branchName || stock.branch.name)) || 'Unknown Branch';
                         const units = Array.isArray(stock.units) && stock.units.length > 0
@@ -1267,22 +1391,23 @@ const Inventory = () => {
                                   )}
                                   <td style={{ padding: '10px 16px' }}>
                                     <span style={{
-                                      background: '#eff6ff',
-                                      color: '#1d4ed8',
+                                      background: uIdx === 0 ? '#eff6ff' : '#f5f3ff',
+                                      color: uIdx === 0 ? '#1d4ed8' : '#6d28d9',
+                                      border: uIdx === 0 ? '1px solid #bfdbfe' : '1px solid #ddd6fe',
                                       padding: '3px 10px',
                                       borderRadius: '6px',
                                       fontSize: '12px',
-                                      fontWeight: '600',
+                                      fontWeight: '700',
                                       display: 'inline-block'
                                     }}>
-                                      Rs {tierPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                      Rs. {tierPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} / {cleanUnit(selectedItem.unit)}
                                     </span>
                                   </td>
                                   <td style={{ padding: '10px 16px', textAlign: 'center', fontWeight: '600', color: '#1e293b' }}>
                                     {tierQty} {cleanUnit(selectedItem.unit)}
                                   </td>
                                   <td style={{ padding: '10px 16px', textAlign: 'right', fontWeight: '700', color: '#059669' }}>
-                                    Rs {tierValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    Rs. {tierValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                   </td>
                                 </tr>
                               );
@@ -1296,7 +1421,7 @@ const Inventory = () => {
                           <td style={{ padding: '12px 16px', fontWeight: '600' }}>{branchName}</td>
                           <td style={{ padding: '12px 16px' }}>-</td>
                           <td style={{ padding: '12px 16px', textAlign: 'center' }}>0 {cleanUnit(selectedItem?.unit)}</td>
-                          <td style={{ padding: '12px 16px', textAlign: 'right' }}>Rs 0.00</td>
+                          <td style={{ padding: '12px 16px', textAlign: 'right' }}>Rs. 0.00</td>
                         </tr>
                       ))
                     )}
@@ -1327,371 +1452,308 @@ const Inventory = () => {
       )}
 
       {showEditItemModal && (
-        <div className="edit-item-overlay" onClick={handleCloseEditModal}>
-          <div className="edit-item-modal" onClick={(e) => e.stopPropagation()} style={{ display: 'flex', flexDirection: 'column', height: '90vh', maxHeight: '90vh' }}>
+        <div className="modal-overlay-inventory" onClick={handleCloseEditModal}>
+          <div className="modal-content-inventory edit-item-modal" onClick={(e) => e.stopPropagation()}>
             {/* Modal Header */}
-            <div className="edit-item-header" style={{ flexShrink: 0, borderBottom: '1px solid #e5e7eb' }}>
-              <div className="edit-item-header-content">
-                <h2 className="edit-item-title">Edit Item</h2>
-                <p className="edit-item-subtitle">Update inventory item details</p>
+            <div className="modal-header-inventory">
+              <div className="modal-title-section-inventory">
+                <h2 className="modal-title-inventory">Edit Item - {editFormData.name || selectedItem?.name}</h2>
+                <p className="modal-subtitle-inventory">Update item details, packaging, thresholds, and branch stock quantities</p>
               </div>
-              <button className="edit-item-close" onClick={handleCloseEditModal}>
+              <button className="modal-close-btn-inventory" onClick={handleCloseEditModal} title="Close">
                 <FaTimes />
               </button>
             </div>
 
-            {/* Modal Body - Full Scrollable Content */}
-            <div className="edit-item-body" style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
-              <form className="edit-item-form" onSubmit={handleEditSubmit} style={{ paddingRight: '12px' }}>
-                {/* Form Layout */}
-                <div className="edit-form-layout">
-                  {/* Left Column */}
-                  <div className="edit-form-left">
-                    {/* Item Name */}
-                    <div className="edit-form-group">
-                      <label className="edit-form-label">Item Name</label>
+            {/* Modal Body */}
+            <div className="modal-body-inventory">
+              <form id="edit-item-form" className="modal-form-inventory" onSubmit={handleEditSubmit}>
+                <div className="add-item-layout-grid">
+                  {/* Left Column: Product Photo & Barcode/SKU Card */}
+                  <div className="add-item-media-col">
+                    <div className="form-group-inventory" style={{ margin: 0 }}>
+                      <label className="form-label-inventory">Item Photo</label>
+                      {editImagePreview ? (
+                        <div>
+                          <div className="image-preview-wrapper">
+                            <img src={editImagePreview} alt="Item preview" />
+                          </div>
+                          <div className="image-preview-actions">
+                            <label htmlFor="edit-item-image-input" className="image-action-btn">
+                              <FaUpload /> Change
+                            </label>
+                            <button
+                              type="button"
+                              className="image-action-btn danger"
+                              onClick={() => {
+                                setEditImagePreview(null);
+                                setEditFormData(prev => ({ ...prev, image: null }));
+                              }}
+                            >
+                              <FaTrash /> Remove
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <label
+                          htmlFor="edit-item-image-input"
+                          className="image-dropzone-box"
+                        >
+                          <div className="image-dropzone-icon">
+                            <FaCloudUploadAlt />
+                          </div>
+                          <div className="image-dropzone-title">Upload Product Image</div>
+                          <div className="image-dropzone-sub">Click to browse or drop file here</div>
+                          <div style={{ marginTop: '8px', fontSize: '10.5px', color: '#94a3b8' }}>PNG, JPG or WebP</div>
+                        </label>
+                      )}
                       <input
-                        type="text"
-                        name="name"
-                        placeholder="Name"
-                        value={editFormData.name}
-                        onChange={handleEditInputChange}
-                        className="edit-form-input"
-                        required
+                        type="file"
+                        accept="image/*"
+                        onChange={handleEditImageUpload}
+                        style={{ display: 'none' }}
+                        id="edit-item-image-input"
                       />
                     </div>
 
-                    {/* Category */}
-                    <div className="edit-form-group">
-                      <label className="edit-form-label">Category</label>
-                      <select
-                        name="category"
-                        value={typeof editFormData.category === 'object'
-                          ? (editFormData.category?.name || editFormData.category?.categoryName || '')
-                          : (editFormData.category || '')
-                        }
-                        onChange={handleEditInputChange}
-                        className="edit-form-input"
-                        required
-                      >
-                        <option value="">Select Category</option>
-                        {categories.map((cat) => (
-                          <option key={cat._id} value={cat.name}>
-                            {cat.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    {/* Unit */}
-                    <div className="edit-form-group">
-                      <label className="edit-form-label">Unit</label>
-                      <select
-                        name="unit"
-                        value={editFormData.unit}
-                        onChange={handleEditInputChange}
-                        className="edit-form-input"
-                        required
-                      >
-                        <option value="">Select Unit</option>
-                        <option value="kg">kg</option>
-                        <option value="ltr">ltr</option>
-                        <option value="pcs">pcs</option>
-                      </select>
-                    </div>
-
-                    {/* Unit Value */}
-                    <div className="edit-form-group">
-                      <label className="edit-form-label">Unit Amount</label>
-                      <input
-                        type="number"
-                        name="unitValue"
-                        placeholder="e.g. 5, 10, 20"
-                        value={editFormData.unitValue || ''}
-                        onChange={handleEditInputChange}
-                        className="edit-form-input"
-                        min="1"
-                        required
-                      />
-                    </div>
-
-
-                    {/* SKU */}
-                    <div className="edit-form-group">
-                      <label className="edit-form-label">SKU</label>
-                      <input
-                        type="text"
-                        value={editFormData.sku || 'Auto-generated'}
-                        className="edit-form-input-readonly"
-                        readOnly
-                      />
-                    </div>
-
-                    {/* Total Quantity */}
-                    <div className="edit-form-group">
-                      <label className="edit-form-label">Total Quantity</label>
-                      <input
-                        type="number"
-                        name="quantity"
-                        placeholder="0"
-                        value={editFormData.quantity || 0}
-                        onChange={handleEditInputChange}
-                        className="edit-form-input"
-                        min="0"
-                      />
+                    {/* Barcode & SKU Card */}
+                    <div className="sku-info-card">
+                      <div className="sku-info-header">
+                        <span className="sku-info-label">
+                          <FaBarcode /> SKU / Barcode
+                        </span>
+                        <span className="sku-info-tag">Product Code</span>
+                      </div>
+                      <div className="sku-info-value">
+                        {editFormData.sku || selectedItem?.sku || selectedItem?.itemId || 'N/A'}
+                      </div>
                     </div>
                   </div>
 
-                  {/* Right Column */}
-                  <div className="edit-form-right">
-                    {/* Image Upload */}
-                    <div className="edit-form-group">
-                      <label className="edit-form-label">Image</label>
-                      <div className="edit-image-upload-box">
-                        {editImagePreview ? (
-                          <img src={editImagePreview} alt="Item preview" className="edit-image-preview" />
-                        ) : (
-                          <div className="edit-upload-placeholder">
-                            <span>+ Upload image</span>
-                          </div>
-                        )}
+                  {/* Right Column: Organized Form Fields */}
+                  <div className="add-item-fields-col">
+                    {/* Section 1: General Info */}
+                    <div className="form-section-group">
+                      <div className="form-section-title">
+                        <FaBoxOpen /> General Information
+                      </div>
+
+                      {/* Item Name */}
+                      <div className="form-group-inventory" style={{ margin: 0 }}>
+                        <label className="form-label-inventory">Item Name *</label>
                         <input
-                          type="file"
-                          accept="image/*"
-                          onChange={handleEditImageUpload}
-                          style={{ display: 'none' }}
-                          id="edit-image-input"
+                          type="text"
+                          name="name"
+                          placeholder="e.g. Premium White Rice"
+                          value={editFormData.name}
+                          onChange={handleEditInputChange}
+                          className="form-input-inventory"
+                          required
                         />
-                        <label htmlFor="edit-image-input" className="edit-upload-label"></label>
+                      </div>
+
+                      {/* Category */}
+                      <div className="form-group-inventory" style={{ margin: 0 }}>
+                        <label className="form-label-inventory">Category *</label>
+                        <ModernDropdown
+                          value={typeof editFormData.category === 'object'
+                            ? (editFormData.category?.name || editFormData.category?.categoryName || '')
+                            : (editFormData.category || '')
+                          }
+                          onChange={(val) => handleEditInputChange({ target: { name: 'category', value: val } })}
+                          placeholder="Select Category"
+                          searchable={true}
+                          options={[
+                            { value: "", label: "Select Category" },
+                            ...categories.map((cat) => ({
+                              value: cat.name,
+                              label: cat.name
+                            }))
+                          ]}
+                        />
                       </div>
                     </div>
 
-                    {/* Minimum Stock */}
-                    <div className="edit-form-group">
-                      <label className="edit-form-label">Minimum Stock</label>
-                      <div className="edit-input-with-spinner">
-                        <input
-                          type="number"
-                          name="minStock"
-                          placeholder="10"
-                          value={editFormData.minStock}
-                          onChange={handleEditInputChange}
-                          className="edit-form-input-spinner"
-                          min="0"
-                        />
-                        <div className="edit-spinner-controls">
-                          <button type="button" className="edit-spinner-btn up" onClick={() => handleEditSpinner('minStock', 'up')}>▲</button>
-                          <button type="button" className="edit-spinner-btn down" onClick={() => handleEditSpinner('minStock', 'down')}>▼</button>
+                    {/* Section 2: Unit Configuration */}
+                    <div className="form-section-group">
+                      <div className="form-section-title">
+                        <FaLayerGroup /> Unit Configuration
+                      </div>
+
+                      <div className="form-grid-2">
+                        {/* Unit */}
+                        <div className="form-group-inventory" style={{ margin: 0 }}>
+                          <label className="form-label-inventory">Unit *</label>
+                          <ModernDropdown
+                            value={editFormData.unit}
+                            onChange={(val) => handleEditInputChange({ target: { name: 'unit', value: val } })}
+                            placeholder="Select Unit"
+                            options={[
+                              { value: "kg", label: "kg (Kilogram)" },
+                              { value: "ltr", label: "ltr (Liter)" },
+                              { value: "pcs", label: "pcs (Pieces)" }
+                            ]}
+                          />
+                        </div>
+
+                        {/* Unit Size */}
+                        <div className="form-group-inventory" style={{ margin: 0 }}>
+                          <label className="form-label-inventory">Unit Size / Amount *</label>
+                          <input
+                            type="number"
+                            name="unitValue"
+                            placeholder="e.g. 1"
+                            value={editFormData.unitValue || '1'}
+                            onChange={handleEditInputChange}
+                            className="form-input-inventory"
+                            min="1"
+                            required
+                          />
                         </div>
                       </div>
                     </div>
 
-                    {/* Maximum Stock */}
-                    <div className="edit-form-group">
-                      <label className="edit-form-label">Maximum stock</label>
-                      <div className="edit-input-with-spinner">
-                        <input
-                          type="number"
-                          name="maxStock"
-                          placeholder="1000"
-                          value={editFormData.maxStock}
-                          onChange={handleEditInputChange}
-                          className="edit-form-input-spinner"
-                          min="0"
-                        />
-                        <div className="edit-spinner-controls">
-                          <button type="button" className="edit-spinner-btn up" onClick={() => handleEditSpinner('maxStock', 'up')}>▲</button>
-                          <button type="button" className="edit-spinner-btn down" onClick={() => handleEditSpinner('maxStock', 'down')}>▼</button>
+                    {/* Section 3: Stock Thresholds */}
+                    <div className="form-section-group">
+                      <div className="form-section-title">
+                        Stock Thresholds
+                      </div>
+
+                      <div className="form-grid-2">
+                        {/* Minimum Stock */}
+                        <div className="form-group-inventory" style={{ margin: 0 }}>
+                          <label className="form-label-inventory">Minimum Stock Alert</label>
+                          <div className="stepper-input-wrapper">
+                            <input
+                              type="number"
+                              name="minStock"
+                              placeholder="0"
+                              value={editFormData.minStock}
+                              onChange={handleEditInputChange}
+                              className="form-input-inventory"
+                              min="0"
+                            />
+                            <div className="stepper-btns">
+                              <button type="button" className="stepper-btn" onClick={() => handleEditSpinner('minStock', 'up')}>▲</button>
+                              <button type="button" className="stepper-btn" onClick={() => handleEditSpinner('minStock', 'down')}>▼</button>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Maximum Stock */}
+                        <div className="form-group-inventory" style={{ margin: 0 }}>
+                          <label className="form-label-inventory">Maximum Stock Capacity</label>
+                          <div className="stepper-input-wrapper">
+                            <input
+                              type="number"
+                              name="maxStock"
+                              placeholder="1000"
+                              value={editFormData.maxStock}
+                              onChange={handleEditInputChange}
+                              className="form-input-inventory"
+                              min="0"
+                            />
+                            <div className="stepper-btns">
+                              <button type="button" className="stepper-btn" onClick={() => handleEditSpinner('maxStock', 'up')}>▲</button>
+                              <button type="button" className="stepper-btn" onClick={() => handleEditSpinner('maxStock', 'down')}>▼</button>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </div>
                   </div>
                 </div>
 
-                {/* Editable Stock Section - Inside Form */}
-                <div style={{ marginTop: '24px', paddingTop: '20px', borderTop: '1px solid #e5e7eb' }}>
-                  <h3 style={{ marginBottom: '12px', fontSize: '14px', fontWeight: '700', color: '#12203a', textTransform: 'uppercase', letterSpacing: '0.3px' }}>Branch Stock Quantities</h3>
-                  <table style={{
-                    width: '100%',
-                    borderCollapse: 'collapse',
-                    border: '1px solid #d8bfd8',
-                    borderRadius: '6px',
-                    overflow: 'hidden'
-                  }}>
-                    <thead>
-                      <tr style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
-                        <th style={{
-                          padding: '12px',
-                          textAlign: 'left',
-                          fontWeight: '700',
-                          fontSize: '13px',
-                          color: 'white',
-                          textTransform: 'uppercase',
-                          letterSpacing: '0.3px',
-                          borderRight: '1px solid rgba(255, 255, 255, 0.2)',
-                          width: '40%'
-                        }}>Branch Name</th>
-                        <th style={{
-                          padding: '12px',
-                          textAlign: 'center',
-                          fontWeight: '700',
-                          fontSize: '13px',
-                          color: 'white',
-                          textTransform: 'uppercase',
-                          letterSpacing: '0.3px',
-                          borderRight: '1px solid rgba(255, 255, 255, 0.2)',
-                          width: '30%'
-                        }}>Current Qty</th>
-                        <th style={{
-                          padding: '12px',
-                          textAlign: 'center',
-                          fontWeight: '700',
-                          fontSize: '13px',
-                          color: 'white',
-                          textTransform: 'uppercase',
-                          letterSpacing: '0.3px',
-                          borderRight: 'none',
-                          width: '30%'
-                        }}>New Qty</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {editableStockData && editableStockData.length > 0 ? (
-                        <>
-                          {editableStockData.map((stock, index) => {
-                            let branchName = 'Unknown Branch';
-                            if (stock.branchName) {
-                              branchName = stock.branchName;
-                            } else if (stock.branch && typeof stock.branch === 'object') {
-                              branchName = stock.branch.branchName || stock.branch.branch_name || stock.branch.name || 'Unknown Branch';
-                            }
+                {/* Section 4: Branch Stock Distribution */}
+                {editableStockData && editableStockData.length > 0 && (
+                  <div style={{ marginTop: '24px', paddingTop: '20px', borderTop: '1px solid #e2e8f0' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+                      <div>
+                        <h3 style={{ margin: 0, fontSize: '15px', fontWeight: '700', color: '#1e293b' }}>
+                          Branch Stock Quantities
+                        </h3>
+                        <p style={{ margin: '3px 0 0 0', fontSize: '12px', color: '#64748b' }}>
+                          Update the inventory quantities stored at each branch
+                        </p>
+                      </div>
+                      <span style={{ fontSize: '12px', fontWeight: '600', color: '#475569', background: '#f1f5f9', padding: '4px 10px', borderRadius: '6px' }}>
+                        {editableStockData.length} Branches
+                      </span>
+                    </div>
 
-                            return (
-                              <tr key={stock._id || index} style={{
-                                transition: 'all 0.3s ease',
-                                backgroundColor: 'white',
-                                borderBottom: index === editableStockData.length - 1 ? 'none' : '1px solid #d8bfd8'
-                              }}
-                                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(102, 126, 234, 0.05)'}
-                                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'white'}
-                              >
-                                <td style={{
-                                  padding: '12px',
-                                  color: '#1a3a52',
-                                  fontWeight: '600',
-                                  fontSize: '13px',
-                                  borderRight: '1px solid #d8bfd8'
-                                }}>{branchName}</td>
-                                <td style={{
-                                  padding: '12px',
-                                  textAlign: 'center',
-                                  borderRight: '1px solid #d8bfd8',
-                                  color: '#1a3a52',
-                                  fontWeight: '600',
-                                  fontSize: '13px',
-                                  backgroundColor: '#f9fafb'
-                                }}>
-                                  {stock.quantity || 0}
-                                </td>
-                                <td style={{
-                                  padding: '12px',
-                                  textAlign: 'center',
-                                  borderRight: 'none'
-                                }}>
+                    <table className="edit-branch-stock-table">
+                      <thead>
+                        <tr>
+                          <th style={{ width: '45%' }}>Branch Name</th>
+                          <th style={{ width: '25%', textAlign: 'center' }}>Current Stock</th>
+                          <th style={{ width: '30%', textAlign: 'center' }}>New Quantity ({cleanUnit(editFormData.unit)})</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {editableStockData.map((stock, index) => {
+                          let branchName = stock.branchName || (stock.branch && (stock.branch.branchName || stock.branch.name)) || 'Unknown Branch';
+                          const originalQty = stock.originalQty !== undefined ? stock.originalQty : (stock.quantity || 0);
+
+                          return (
+                            <tr key={stock._id || stock.branchId || index}>
+                              <td style={{ fontWeight: '600', color: '#1e293b' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                  <span style={{ fontSize: '16px' }}>🏢</span>
+                                  <span>{branchName}</span>
+                                </div>
+                              </td>
+                              <td style={{ textAlign: 'center', fontWeight: '600', color: '#64748b' }}>
+                                <span style={{ background: '#f1f5f9', padding: '3px 8px', borderRadius: '6px', fontSize: '12.5px' }}>
+                                  {originalQty} {cleanUnit(editFormData.unit)}
+                                </span>
+                              </td>
+                              <td style={{ textAlign: 'center' }}>
+                                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
                                   <input
                                     type="number"
                                     min="0"
-                                    value={stock.quantity || 0}
+                                    value={stock.quantity ?? 0}
                                     onChange={(e) => handleEditStockQuantityChange(index, e.target.value)}
-                                    style={{
-                                      width: '100%',
-                                      padding: '8px 10px',
-                                      border: '1.5px solid #667eea',
-                                      borderRadius: '4px',
-                                      textAlign: 'center',
-                                      fontSize: '13px',
-                                      fontWeight: '600',
-                                      color: '#1a3a52',
-                                      outline: 'none',
-                                      transition: 'all 0.2s ease',
-                                      backgroundColor: '#ffffff'
-                                    }}
-                                    onFocus={(e) => {
-                                      e.target.style.boxShadow = '0 0 0 3px rgba(102, 126, 234, 0.1)';
-                                      e.target.style.borderColor = '#764ba2';
-                                    }}
-                                    onBlur={(e) => {
-                                      e.target.style.boxShadow = 'none';
-                                      e.target.style.borderColor = '#667eea';
-                                    }}
+                                    className="edit-stock-input"
                                   />
-                                </td>
-                              </tr>
-                            );
-                          })}
-                          {/* Total Row */}
-                          <tr style={{
-                            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                            fontWeight: '700'
-                          }}>
-                            <td style={{
-                              padding: '12px',
-                              color: 'white',
-                              fontWeight: '700',
-                              fontSize: '13px',
-                              borderRight: '1px solid rgba(255, 255, 255, 0.2)',
-                              textTransform: 'uppercase',
-                              letterSpacing: '0.3px',
-                              width: '40%'
-                            }}>Total Stock Across Branches</td>
-                            <td style={{
-                              padding: '12px',
-                              textAlign: 'center',
-                              borderRight: '1px solid rgba(255, 255, 255, 0.2)',
-                              color: 'white',
-                              fontSize: '13px',
-                              fontWeight: '700',
-                              width: '30%'
-                            }}>
-                              {editableStockData.reduce((total, stock) => total + (parseInt(stock.totalQuantity) || parseInt(stock.quantity) || 0), 0)} {cleanUnit(selectedItem?.unit)}
-                            </td>
-                            <td style={{
-                              padding: '12px',
-                              textAlign: 'center',
-                              borderRight: 'none',
-                              color: 'white',
-                              fontSize: '14px',
-                              fontWeight: '700',
-                              width: '30%'
-                            }}>
-                              {editableStockData.reduce((total, stock) => total + (parseInt(stock.quantity) || 0), 0)} {cleanUnit(selectedItem?.unit)}
-                            </td>
-                          </tr>
-                        </>
-                      ) : (
-                        <tr>
-                          <td colSpan="2" style={{
-                            padding: '20px',
-                            textAlign: 'center',
-                            color: '#9ca3af',
-                            fontStyle: 'italic',
-                            borderBottom: 'none'
-                          }}>No stock data available</td>
+                                  <span style={{ fontSize: '12px', color: '#64748b', fontWeight: '600' }}>
+                                    {cleanUnit(editFormData.unit)}
+                                  </span>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                      <tfoot>
+                        <tr style={{ background: '#f8fafc', fontWeight: '700', borderTop: '2px solid #e2e8f0' }}>
+                          <td style={{ padding: '12px 16px', color: '#334155' }}>Total Across Branches</td>
+                          <td style={{ padding: '12px 16px', textAlign: 'center', color: '#64748b', fontSize: '13px' }}>
+                            {editableStockData.reduce((sum, s) => sum + (Number(s.originalQty !== undefined ? s.originalQty : s.quantity) || 0), 0)} {cleanUnit(editFormData.unit)}
+                          </td>
+                          <td style={{ padding: '12px 16px', textAlign: 'center', color: '#2563eb', fontSize: '14px', fontWeight: '800' }}>
+                            {editableStockData.reduce((sum, s) => sum + (Number(s.quantity) || 0), 0)} {cleanUnit(editFormData.unit)}
+                          </td>
                         </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
+                      </tfoot>
+                    </table>
+                  </div>
+                )}
               </form>
             </div>
 
             {/* Modal Footer */}
-            <div className="edit-item-footer" style={{ flexShrink: 0, borderTop: '1px solid #e5e7eb', marginTop: 'auto' }}>
-              <button type="button" className="edit-btn-cancel" onClick={handleCloseEditModal}>
+            <div className="modal-footer-inventory">
+              <button type="button" className="modal-btn-inventory cancel" onClick={handleCloseEditModal}>
                 Cancel
               </button>
-              <button type="submit" className="edit-btn-submit" onClick={handleEditSubmit}>
-                Save Changes
+              <button
+                type="submit"
+                form="edit-item-form"
+                className="modal-btn-inventory save"
+                disabled={submitLoading}
+              >
+                {submitLoading ? 'Saving...' : '💾 Save Changes'}
               </button>
             </div>
           </div>
@@ -1703,6 +1765,19 @@ const Inventory = () => {
         isOpen={showFindByImageModal}
         onClose={handleCloseFindByImageModal}
         onAddAsNew={handleAddAsNewItemFromImage}
+        onUseExistingItem={(matchedItem) => {
+          const existing = items.find(i => 
+            (matchedItem.productId && (i._id === matchedItem.productId || i.id === matchedItem.productId)) ||
+            (matchedItem.sku && (i.sku === matchedItem.sku || i.itemId === matchedItem.sku)) ||
+            (matchedItem.name && i.name.toLowerCase() === matchedItem.name.toLowerCase())
+          );
+          if (existing) {
+            handleRowClick(existing);
+          } else {
+            setSelectedItem(matchedItem);
+            setShowItemDetailModal(true);
+          }
+        }}
       />
 
       <ConfirmDialog

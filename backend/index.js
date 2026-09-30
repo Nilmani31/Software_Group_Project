@@ -20,11 +20,13 @@ require('./models/issueNotes');
 require('./models/issueNoteItems');
 require('./models/purchaseOrder');
 require('./models/goodsReceived');
+require('./models/units');
 
 const Userrouter = require('./routes/users');
 const rolesRouter = require('./routes/roles');
 const itemsRouter = require('./routes/items');
 const categoriesRouter = require('./routes/categories');
+const unitsRouter = require('./routes/units');
 const BranchRouter = require('./routes/branches');
 const suppliersRouter = require('./routes/suppliers');
 const stockRouter = require('./routes/stock');
@@ -43,7 +45,7 @@ const PORT = process.env.PORT || 5005;
 // Middleware
 app.use(cors({
   origin: '*',
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-user-role', 'x-user-branch', 'x-allowed-branches']
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-user-role', 'x-user-branch', 'x-allowed-branches', 'x-user-branch-name', 'x-user-id', 'x-user-permissions']
 }));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
@@ -99,6 +101,7 @@ app.use('/api/users', Userrouter);
 app.use('/api/roles', rolesRouter);
 app.use('/api/items', itemsRouter);
 app.use('/api/categories', categoriesRouter);
+app.use('/api/units', unitsRouter);
 app.use('/api/branches', BranchRouter);
 app.use('/api/suppliers', suppliersRouter);
 app.use('/api/stock', stockRouter);

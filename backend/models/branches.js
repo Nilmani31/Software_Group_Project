@@ -4,10 +4,7 @@ const branchSchema = new mongoose.Schema({
   branchId: {
     type: String,
     required: true,
-    unique: true,
-    default: function() {
-      return 'BR' + Date.now() + Math.floor(Math.random() * 1000);
-    }
+    unique: true
   },
   branchName: {
     type: String,

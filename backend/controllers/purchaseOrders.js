@@ -1,10 +1,10 @@
 const PurchaseOrder = require('../models/purchaseOrder');
-const { getBranchFilter } = require('../utils/branchFilter');
+const { getPOBranchFilter } = require('../utils/branchFilter');
 
 // Get all purchase orders
 exports.getAllPOs = async (req, res) => {
   try {
-    const branchFilter = getBranchFilter(req);
+    const branchFilter = await getPOBranchFilter(req);
     const pos = await PurchaseOrder.find(branchFilter).sort({ createdAt: -1 });
     res.status(200).json({
       success: true,
@@ -43,7 +43,9 @@ exports.getPOById = async (req, res) => {
 // Create new purchase order
 exports.createPO = async (req, res) => {
   try {
-    const { poNumber, status, orderType, supplier, branch, orderDate, expectedDate, total, createdBy, createdByBranch, items, orderDetails } = req.body;
+    const finalCreatedByBranch = req.body.createdByBranch || req.headers['x-user-branch-name'] || 'Colombo Main Branch';
+    const { poNumber, status, orderType, supplier, branch, orderDate, expectedDate, total, createdBy, items, orderDetails } = req.body;
+    const createdByBranch = finalCreatedByBranch;
 
     // Better validation with specific field messages
     const missingFields = [];
@@ -179,7 +181,7 @@ exports.cancelPO = async (req, res) => {
 exports.searchPOs = async (req, res) => {
   try {
     const { query } = req.query;
-    const branchFilter = getBranchFilter(req);
+    const branchFilter = await getPOBranchFilter(req);
     
     const pos = await PurchaseOrder.find({
       $and: [
@@ -211,7 +213,7 @@ exports.searchPOs = async (req, res) => {
 exports.getPOsByStatus = async (req, res) => {
   try {
     const { status } = req.params;
-    const branchFilter = getBranchFilter(req);
+    const branchFilter = await getPOBranchFilter(req);
 
     const pos = await PurchaseOrder.find({ status, ...branchFilter }).sort({ createdAt: -1 });
 

@@ -11,24 +11,59 @@ import {
   FaUsers,
   FaChartBar
 } from "react-icons/fa";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 
 const Sidebar = () => {
+  const [isCollapsed, setIsCollapsed] = useState(() => {
+    return localStorage.getItem('cbbs_sidebar_collapsed') === 'true';
+  });
   const [hovered, setHovered] = useState(false);
 
-  const roleId = localStorage.getItem('roleId');
+  const toggleCollapse = () => {
+    setIsCollapsed(prev => {
+      const next = !prev;
+      localStorage.setItem('cbbs_sidebar_collapsed', String(next));
+      return next;
+    });
+  };
+
+  const roleId = localStorage.getItem('roleId') || '';
   const userRole = roleId ? roleId.replace('ROLE_', '') : '';
 
-  const pagePermissions = {
-    '/users': ['ADMIN', 'DIRECTOR', 'MANAGER', 'BRANCH_MANAGER'],
-    '/categories': ['ADMIN', 'DIRECTOR', 'MANAGER', 'BRANCH_MANAGER'],
-    '/branches': ['ADMIN', 'DIRECTOR', 'MANAGER'],
-    '/dashboard': ['ADMIN', 'DIRECTOR', 'MANAGER', 'BRANCH_MANAGER', 'STAFF'],
-    '/inventory': ['ADMIN', 'DIRECTOR', 'MANAGER', 'BRANCH_MANAGER', 'STAFF'],
-    '/good-received': ['ADMIN', 'DIRECTOR', 'MANAGER', 'BRANCH_MANAGER', 'STAFF'],
-    '/purchase-order': ['ADMIN', 'DIRECTOR', 'MANAGER', 'BRANCH_MANAGER', 'STAFF'],
-    '/issue-note': ['ADMIN', 'DIRECTOR', 'MANAGER', 'BRANCH_MANAGER'],
-    '/lowstock': ['ADMIN', 'DIRECTOR', 'MANAGER', 'BRANCH_MANAGER', 'STAFF'],
-    '/reports': ['ADMIN', 'DIRECTOR', 'MANAGER', 'BRANCH_MANAGER']
+  let userPermissions = [];
+  try {
+    const raw = localStorage.getItem('permissions');
+    if (raw) userPermissions = JSON.parse(raw);
+  } catch (e) {}
+
+  const hasFullAccess = userRole === 'ADMIN' || userPermissions.includes('ALL');
+
+  const checkPageAccess = (path) => {
+    if (hasFullAccess) return true;
+    switch (path) {
+      case '/dashboard':
+        return true;
+      case '/users':
+        return userRole === 'ADMIN' || userRole === 'DIRECTOR' || userPermissions.includes('USERS');
+      case '/inventory':
+      case '/lowstock':
+        return userPermissions.includes('INVENTORY') || ['ADMIN', 'DIRECTOR', 'MANAGER', 'BRANCH_MANAGER', 'STAFF'].includes(userRole);
+      case '/purchase-order':
+        return userPermissions.includes('PURCHASE_ORDERS') || ['ADMIN', 'DIRECTOR', 'MANAGER', 'BRANCH_MANAGER'].includes(userRole);
+      case '/good-received':
+        return userPermissions.includes('GOODS_RECEIVED') || ['ADMIN', 'DIRECTOR', 'MANAGER', 'BRANCH_MANAGER', 'STAFF'].includes(userRole);
+      case '/issue-note':
+        return userPermissions.includes('ISSUE_NOTES') || ['ADMIN', 'DIRECTOR', 'MANAGER', 'BRANCH_MANAGER'].includes(userRole);
+      case '/branches':
+        return userPermissions.includes('BRANCHES') || ['ADMIN', 'DIRECTOR'].includes(userRole);
+      case '/categories':
+      case '/units':
+        return userPermissions.includes('CATEGORIES') || ['ADMIN', 'DIRECTOR', 'MANAGER', 'BRANCH_MANAGER'].includes(userRole);
+      case '/reports':
+        return userPermissions.includes('REPORTS') || ['ADMIN', 'DIRECTOR', 'MANAGER', 'BRANCH_MANAGER'].includes(userRole);
+      default:
+        return true;
+    }
   };
 
   const navItems = [
@@ -45,35 +80,74 @@ const Sidebar = () => {
   ];
 
   // Filter items based on permissions
-  const filteredNavItems = navItems.filter(item => {
-    // If no permission array defined, default to show. Otherwise, check role.
-    const allowedRoles = pagePermissions[item.to];
-    return !allowedRoles || allowedRoles.includes(userRole);
-  });
+  const filteredNavItems = navItems.filter(item => checkPageAccess(item.to));
+
+  const effectiveCollapsed = isCollapsed && !hovered;
 
   return (
-    <div
-      className={`sidebar ${!hovered ? "collapsed" : ""}`}
+    <aside
+      className={`sidebar ${effectiveCollapsed ? "collapsed" : ""}`}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
+      aria-label="Main Navigation"
     >
-      {/* Logo */}
+      {/* Brand Header */}
       <div className="sidebar-header">
-        <div className={`sidebar-logo ${!hovered ? "collapsed-logo" : ""}`}>
+        <div
+          className={`sidebar-logo ${effectiveCollapsed ? "collapsed-logo" : ""}`}
+          onClick={effectiveCollapsed ? toggleCollapse : undefined}
+          style={{ cursor: effectiveCollapsed ? 'pointer' : 'default' }}
+          title={effectiveCollapsed ? "Click to expand navigation" : undefined}
+          role={effectiveCollapsed ? "button" : undefined}
+          tabIndex={effectiveCollapsed ? 0 : undefined}
+        >
           <img src="/logo.jpg" alt="CBBS Logo" className="logo-image" />
         </div>
+        {!effectiveCollapsed && (
+          <div className="sidebar-brand-info">
+            <span className="sidebar-brand-title">CBBS</span>
+            <span className="sidebar-brand-subtitle">Inventory System</span>
+          </div>
+        )}
+        <button
+          type="button"
+          className="sidebar-toggle-btn"
+          onClick={toggleCollapse}
+          title={effectiveCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+          aria-label={effectiveCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+        >
+          {effectiveCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
+        </button>
       </div>
 
       {/* Navigation Items */}
-      <nav className="sidebar-nav">
+      <nav className="sidebar-nav" role="navigation">
+        <div className="sidebar-nav-group-label">
+          {!effectiveCollapsed ? "Main Navigation" : "•••"}
+        </div>
         {filteredNavItems.map((item) => (
-          <NavLink key={item.to} to={item.to} className="nav-item">
-            {item.icon}
+          <NavLink 
+            key={item.to} 
+            to={item.to} 
+            className={({ isActive }) => `nav-item ${isActive ? "active" : ""}`}
+            title={effectiveCollapsed ? item.label : undefined}
+          >
+            <span className="nav-item-icon-wrap">{item.icon}</span>
             <span className="nav-item-text">{item.label}</span>
           </NavLink>
         ))}
       </nav>
-    </div>
+
+      {/* User Role Tag at bottom */}
+      {!effectiveCollapsed && userRole && (
+        <div className="sidebar-bottom-info">
+          <div className="sidebar-role-indicator">
+            <span className="role-dot"></span>
+            <span className="role-text">Role: {userRole}</span>
+          </div>
+        </div>
+      )}
+    </aside>
   );
 };
 

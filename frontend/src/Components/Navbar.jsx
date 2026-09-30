@@ -1,11 +1,14 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
+import { User, LogOut, X, Shield, Building, ChevronDown } from "lucide-react";
 
 const Navbar = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [showUserPopup, setShowUserPopup] = useState(false);
   const [username, setUsername] = useState("");
+  const [userRole, setUserRole] = useState("");
+  const [userBranch, setUserBranch] = useState("");
   const popupRef = useRef(null);
 
   // Function to get page title based on current route
@@ -15,23 +18,23 @@ const Navbar = () => {
       case '/dashboard':
         return 'Dashboard';
       case '/inventory':
-        return 'Inventory';
+        return 'Inventory Management';
       case '/purchase-order':
-        return 'Purchase Order';
+        return 'Purchase Orders';
       case '/good-received':
-        return 'Good Received';
+        return 'Goods Received Notes';
       case '/issue-note':
-        return 'Issue Note';
+        return 'Issue Notes & Requests';
       case '/lowstock':
-        return 'Low Stock';
+        return 'Low Stock Alerts';
       case '/branches':
-        return 'Branches';
+        return 'Branch Locations';
       case '/categories':
-        return 'Categories';
+        return 'Categories & Roles';
       case '/users':
-        return 'Users';
+        return 'User Management';
       case '/reports':
-        return 'Reports';
+        return 'Analytics & Reports';
       default:
         return 'Dashboard';
     }
@@ -45,7 +48,12 @@ const Navbar = () => {
   useEffect(() => {
     // Get username from localStorage
     const storedUsername = localStorage.getItem('username') || 'admin';
+    const roleId = localStorage.getItem('roleId') || '';
+    const cleanRole = roleId ? roleId.replace('ROLE_', '') : 'STAFF';
+    const storedBranchName = localStorage.getItem('branchName') || (cleanRole === 'ADMIN' || cleanRole === 'DIRECTOR' ? 'All Branches' : 'Main Branch');
     setUsername(storedUsername);
+    setUserRole(cleanRole);
+    setUserBranch(storedBranchName);
   }, []);
 
   useEffect(() => {
@@ -77,45 +85,117 @@ const Navbar = () => {
     setShowUserPopup(!showUserPopup);
   };
 
+  const userInitial = username ? username.charAt(0).toUpperCase() : 'U';
+
   return (
-    <div className="navbar">
-      <span className="navbar-title">{getPageTitle()}</span>
+    <header className="navbar" role="banner">
+      <div className="navbar-left">
+        <div className="navbar-context">
+          <span className="navbar-breadcrumb">CBBS Portal</span>
+          <span className="navbar-breadcrumb-separator">/</span>
+          <h1 className="navbar-title">{getPageTitle()}</h1>
+        </div>
+      </div>
+
       <div className="user-section">
-        <span className="welcome-text">
-          {shouldShowWelcome() ? `Welcome ${username}` : username}
-        </span>
+        <div className="user-status-pill" title={`Active Branch: ${userBranch}`}>
+          <span className="status-indicator-dot"></span>
+          <Building size={13} style={{ marginRight: 5, opacity: 0.7 }} />
+          <span className="status-indicator-text">{userBranch}</span>
+        </div>
+
         <div className="user-popup-container" ref={popupRef}>
-          <button className="user-icon" onClick={toggleUserPopup}>👤</button>
+          <button 
+            className="user-profile-btn" 
+            onClick={toggleUserPopup}
+            aria-expanded={showUserPopup}
+            aria-label="User menu"
+            type="button"
+          >
+            <div className="user-avatar-circle">
+              <span>{userInitial}</span>
+            </div>
+            <div className="user-profile-details">
+              <span className="user-display-name">
+                {shouldShowWelcome() ? `Welcome, ${username}` : username}
+              </span>
+              <span className="user-role-badge">{userRole}</span>
+            </div>
+            <ChevronDown size={14} className={`dropdown-chevron ${showUserPopup ? 'rotated' : ''}`} />
+          </button>
+
           {showUserPopup && (
-            <div className="user-popup">
+            <div className="user-popup" role="dialog" aria-label="User account menu">
               <div className="popup-header">
-                <h4>User Information</h4>
+                <div className="popup-header-user">
+                  <div className="popup-avatar">{userInitial}</div>
+                  <div>
+                    <h4>{username}</h4>
+                    <span className="popup-role-pill">{userRole}</span>
+                  </div>
+                </div>
                 <button 
                   className="close-popup" 
                   onClick={() => setShowUserPopup(false)}
+                  aria-label="Close menu"
+                  type="button"
                 >
-                  ×
+                  <X size={16} />
                 </button>
               </div>
+
               <div className="popup-content">
                 <div className="user-info">
                   <div className="info-item">
-                    <label>Username:</label>
-                    <span>{username}</span>
+                    <span className="info-icon-wrap"><User size={14} /></span>
+                    <div className="info-text-group">
+                      <label>Username</label>
+                      <span>{username}</span>
+                    </div>
                   </div>
                   <div className="info-item">
-                    <label>Password:</label>
-                    <span>admin123</span>
+                    <span className="info-icon-wrap"><Shield size={14} /></span>
+                    <div className="info-text-group">
+                      <label>Permission Level</label>
+                      <span>{userRole}</span>
+                    </div>
                   </div>
+                  <div className="info-item">
+                    <span className="info-icon-wrap"><Building size={14} /></span>
+                    <div className="info-text-group">
+                      <label>Assigned Branch</label>
+                      <span>{userBranch}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="popup-actions">
+                  <button 
+                    className="popup-logout-btn" 
+                    onClick={handleLogout}
+                    type="button"
+                  >
+                    <LogOut size={15} />
+                    <span>Sign Out</span>
+                  </button>
                 </div>
               </div>
             </div>
           )}
         </div>
-        <button className="logout-icon" onClick={handleLogout}>⎋</button>
+
+        <button 
+          className="logout-icon" 
+          onClick={handleLogout} 
+          title="Sign out of system"
+          aria-label="Sign out"
+          type="button"
+        >
+          <LogOut size={16} />
+        </button>
       </div>
-    </div>
+    </header>
   );
 };
 
-export default Navbar;
+export default Navbar;
