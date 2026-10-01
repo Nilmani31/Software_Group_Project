@@ -2,9 +2,6 @@ name: Test Web System
 
 on:
   push:
-    branches:
-      - main
-      - develop
   pull_request:
 
 permissions:
