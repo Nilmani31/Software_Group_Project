@@ -10,7 +10,6 @@ import {
   Key, 
   UserCheck, 
   AlertCircle,
-  Users as UsersIcon,
   Search,
   Plus
 } from 'lucide-react';
@@ -19,28 +18,9 @@ import ChatAssistant from '../Components/ChatAssistant';
 import ConfirmDialog from '../Components/ConfirmDialog';
 import ModernDropdown from '../Components/ModernDropdown';
 import { getAuthHeaders } from '../utils/authHeaders';
+import { AVAILABLE_PERMISSIONS, ROLE_DEFAULT_PERMISSIONS as DEFAULT_ROLE_PERMS } from '../utils/permissionUtils';
 
 const DEFAULT_PASSWORD_LENGTH = 12;
-
-// Standard system permission definitions
-const AVAILABLE_PERMISSIONS = [
-  { id: 'USERS', label: 'User Management (Add & Edit Users)', description: 'Can view, create, edit and delete system users and assign roles', badge: 'Admin Access' },
-  { id: 'INVENTORY', label: 'Inventory & Stock Management', description: 'Can view catalog, stock levels, batches and adjustments', badge: 'Core' },
-  { id: 'PURCHASE_ORDERS', label: 'Purchase Orders', description: 'Can view, draft, issue and track purchase orders', badge: 'Core' },
-  { id: 'GOODS_RECEIVED', label: 'Goods Received Notes (GRN)', description: 'Can inspect and receive goods from suppliers into stock', badge: 'Core' },
-  { id: 'ISSUE_NOTES', label: 'Issue Notes & Branch Requests', description: 'Can create and approve inter-branch stock transfers and issues', badge: 'Core' },
-  { id: 'REPORTS', label: 'Analytics & Reports Studio', description: 'Can generate stock valuation, movements and audit reports', badge: 'Reports' },
-  { id: 'BRANCHES', label: 'Branch Management', description: 'Can manage company branch locations and contact info', badge: 'Admin' },
-  { id: 'CATEGORIES', label: 'Categories & Units', description: 'Can manage inventory categories and unit measurements', badge: 'Admin' }
-];
-
-const DEFAULT_ROLE_PERMS = {
-  ROLE_ADMIN: ['ALL', 'USERS', 'INVENTORY', 'PURCHASE_ORDERS', 'GOODS_RECEIVED', 'ISSUE_NOTES', 'REPORTS', 'BRANCHES', 'CATEGORIES'],
-  ROLE_DIRECTOR: ['USERS', 'INVENTORY', 'PURCHASE_ORDERS', 'GOODS_RECEIVED', 'ISSUE_NOTES', 'REPORTS', 'BRANCHES', 'CATEGORIES'],
-  ROLE_MANAGER: ['INVENTORY', 'PURCHASE_ORDERS', 'GOODS_RECEIVED', 'ISSUE_NOTES', 'REPORTS'],
-  ROLE_BRANCH_MANAGER: ['INVENTORY', 'PURCHASE_ORDERS', 'GOODS_RECEIVED', 'ISSUE_NOTES'],
-  ROLE_STAFF: ['INVENTORY', 'GOODS_RECEIVED']
-};
 
 export default function Users() {
   const [list, setList] = useState([]);
@@ -89,10 +69,10 @@ export default function Users() {
   } catch (e) {}
 
   const canManageUsers = 
+    currentUserPerms.includes('ALL') || 
+    currentUserPerms.includes('USERS') ||
     currentUserRole === 'ADMIN' || 
-    currentUserRole === 'DIRECTOR' || 
-    currentUserPerms.includes('USERS') || 
-    currentUserPerms.includes('ALL');
+    currentUserRole === 'DIRECTOR';
 
   // Fetch initial data
   useEffect(() => {
@@ -107,18 +87,7 @@ export default function Users() {
       const response = await fetch('http://localhost:5005/api/roles');
       const data = await response.json();
       if (data.success && data.data) {
-        let filteredRoles = data.data;
-
-        // Apply role hierarchy filtering if needed
-        if (currentUserRole === 'DIRECTOR') {
-          filteredRoles = data.data.filter(r => !r.roleId.includes('ADMIN'));
-        } else if (currentUserRole === 'MANAGER') {
-          filteredRoles = data.data.filter(r => r.roleId.includes('BRANCH_MANAGER') || r.roleId.includes('STAFF'));
-        } else if (currentUserRole === 'BRANCH_MANAGER') {
-          filteredRoles = data.data.filter(r => r.roleId.includes('STAFF'));
-        }
-
-        setRoles(filteredRoles);
+        setRoles(data.data);
       }
     } catch (err) {
       console.error('Error fetching roles:', err);
@@ -217,16 +186,42 @@ export default function Users() {
   const togglePermission = (formType, permId) => {
     if (formType === 'add') {
       const current = addForm.permissions || [];
-      const updated = current.includes(permId)
-        ? current.filter(p => p !== permId)
-        : [...current, permId];
+      let updated;
+      if (permId === 'ALL') {
+        updated = current.includes('ALL') ? [] : AVAILABLE_PERMISSIONS.map(p => p.id);
+      } else {
+        if (current.includes(permId)) {
+          updated = current.filter(p => p !== permId && p !== 'ALL');
+        } else {
+          updated = [...current, permId];
+        }
+      }
       setAddForm(prev => ({ ...prev, permissions: updated }));
     } else {
       const current = editForm.permissions || [];
-      const updated = current.includes(permId)
-        ? current.filter(p => p !== permId)
-        : [...current, permId];
+      let updated;
+      if (permId === 'ALL') {
+        updated = current.includes('ALL') ? [] : AVAILABLE_PERMISSIONS.map(p => p.id);
+      } else {
+        if (current.includes(permId)) {
+          updated = current.filter(p => p !== permId && p !== 'ALL');
+        } else {
+          updated = [...current, permId];
+        }
+      }
       setEditForm(prev => ({ ...prev, permissions: updated }));
+    }
+  };
+
+  // Toggle all permissions at once
+  const toggleAllPermissions = (formType) => {
+    const allPermIds = AVAILABLE_PERMISSIONS.map(p => p.id);
+    if (formType === 'add') {
+      const allSelected = allPermIds.every(id => (addForm.permissions || []).includes(id));
+      setAddForm(prev => ({ ...prev, permissions: allSelected ? [] : allPermIds }));
+    } else {
+      const allSelected = allPermIds.every(id => (editForm.permissions || []).includes(id));
+      setEditForm(prev => ({ ...prev, permissions: allSelected ? [] : allPermIds }));
     }
   };
 
@@ -274,7 +269,7 @@ export default function Users() {
         roleId: addForm.roleId,
         branchId: isGlobalRole ? 'MAIN_BRANCH' : (addForm.branchId || (branches[0] ? branches[0]._id : 'MAIN_BRANCH')),
         allowedBranches: isManager ? addForm.allowedBranches : (isGlobalRole ? branches.map(b => b._id) : []),
-        permissions: isGlobalRole ? ['ALL', ...addForm.permissions] : addForm.permissions,
+        permissions: addForm.permissions || [],
         createdBy: localStorage.getItem('username') || 'System'
       };
 
@@ -333,7 +328,7 @@ export default function Users() {
       roleId: user.role,
       branchId: user.branch || (branches[0] ? branches[0]._id : ''),
       allowedBranches: user.allowedBranches || [],
-      permissions: user.permissions || (DEFAULT_ROLE_PERMS[user.role] || ['INVENTORY'])
+      permissions: Array.isArray(user.permissions) ? user.permissions : (DEFAULT_ROLE_PERMS[user.role] || ['INVENTORY'])
     });
     setEditing(user);
     setOpenEdit(true);
@@ -354,7 +349,7 @@ export default function Users() {
         roleId: editForm.roleId,
         branchId: isGlobalRole ? 'MAIN_BRANCH' : editForm.branchId,
         allowedBranches: isManager ? editForm.allowedBranches : (isGlobalRole ? branches.map(b => b._id) : []),
-        permissions: isGlobalRole ? ['ALL', ...editForm.permissions] : editForm.permissions
+        permissions: editForm.permissions || []
       };
 
       if (editForm.password && editForm.password.trim() !== '') {
@@ -514,7 +509,7 @@ export default function Users() {
                         <tbody>
                           {filteredUsers.map(u => {
                             const isGlobal = u.role === 'ROLE_ADMIN' || u.role === 'ROLE_DIRECTOR';
-                            const hasUserAddingAccess = u.permissions.includes('USERS') || isGlobal;
+                            const hasUserAddingAccess = u.permissions.includes('USERS') || u.permissions.includes('ALL');
                             const isManager = u.role === 'ROLE_MANAGER';
                             const allowedCount = u.allowedBranches ? u.allowedBranches.length : 0;
 
@@ -597,16 +592,17 @@ export default function Users() {
 
                                 <td>
                                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, maxWidth: '280px' }}>
-                                    {u.permissions.includes('ALL') || isGlobal ? (
+                                    {u.permissions.includes('ALL') ? (
                                       <span style={{ 
                                         fontSize: '11px', 
-                                        backgroundColor: '#f1f5f9', 
-                                        color: '#475569', 
+                                        backgroundColor: '#eff6ff', 
+                                        color: '#1d4ed8', 
                                         padding: '2px 8px', 
                                         borderRadius: '4px',
-                                        fontWeight: 500 
+                                        fontWeight: 600,
+                                        border: '1px solid #bfdbfe'
                                       }}>
-                                        Full Access (All Modules)
+                                        Super Admin (Full Access)
                                       </span>
                                     ) : (
                                       u.permissions.slice(0, 3).map(p => (
@@ -622,7 +618,7 @@ export default function Users() {
                                         </span>
                                       ))
                                     )}
-                                    {(!u.permissions.includes('ALL') && !isGlobal && u.permissions.length > 3) && (
+                                    {(!u.permissions.includes('ALL') && u.permissions.length > 3) && (
                                       <span style={{ fontSize: '11px', color: '#64748b', alignSelf: 'center' }}>
                                         +{u.permissions.length - 3} more
                                       </span>
@@ -867,51 +863,33 @@ export default function Users() {
           <div className="form-section-group" style={{ marginTop: '14px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
               <div className="form-section-title" style={{ margin: 0 }}>
-                <ShieldCheck size={14} style={{ marginRight: 6 }} /> Feature Permissions & User Adding Access
+                <ShieldCheck size={14} style={{ marginRight: 6 }} /> Feature Permissions & Access Control
               </div>
-              <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                Role defaults pre-selected
-              </span>
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                <button
+                  type="button"
+                  onClick={() => toggleAllPermissions('add')}
+                  style={{
+                    fontSize: '11px',
+                    padding: '3px 10px',
+                    borderRadius: '4px',
+                    border: '1px solid var(--border-default, #cbd5e1)',
+                    backgroundColor: '#ffffff',
+                    color: '#334155',
+                    cursor: 'pointer',
+                    fontWeight: 500
+                  }}
+                >
+                  {AVAILABLE_PERMISSIONS.every(p => (addForm.permissions || []).includes(p.id)) ? 'Clear All' : 'Select All'}
+                </button>
+              </div>
             </div>
 
-            {/* Highlighted User Management & Adding Access Checkbox */}
-            <div style={{ 
-              backgroundColor: addForm.permissions.includes('USERS') ? '#eff6ff' : 'var(--bg-subtle, #f8fafc)',
-              border: `1.5px solid ${addForm.permissions.includes('USERS') ? '#93c5fd' : 'var(--border-default, #e2e8f0)'}`,
-              borderRadius: '8px',
-              padding: '10px 14px',
-              marginBottom: 10,
-              cursor: 'pointer',
-              transition: 'all 0.15s ease'
-            }}
-            onClick={() => togglePermission('add', 'USERS')}
-            >
-              <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer' }}>
-                <input 
-                  type="checkbox" 
-                  checked={addForm.permissions.includes('USERS')} 
-                  onChange={() => {}} 
-                  style={{ marginTop: 3 }}
-                />
-                <div>
-                  <div style={{ fontSize: '13px', fontWeight: 600, color: '#1e3a8a', display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <UsersIcon size={14} className="text-blue-600" />
-                    <span>User Management & User Adding Access</span>
-                    <span style={{ fontSize: '10px', backgroundColor: '#dbeafe', color: '#1d4ed8', padding: '1px 6px', borderRadius: '4px', fontWeight: 600 }}>
-                      Key Permission
-                    </span>
-                  </div>
-                  <div style={{ fontSize: '11px', color: '#475569', marginTop: 2 }}>
-                    Grants access to the User Management directory. Users with this access can add, view, and assign roles to other staff members.
-                  </div>
-                </div>
-              </label>
-            </div>
-
-            {/* Other System Permissions Grid */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, maxHeight: 180, overflowY: 'auto', paddingRight: 4 }}>
-              {AVAILABLE_PERMISSIONS.filter(p => p.id !== 'USERS').map(p => {
-                const isChecked = addForm.permissions.includes(p.id) || addForm.permissions.includes('ALL');
+            {/* Permissions Grid */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, maxHeight: 220, overflowY: 'auto', paddingRight: 4 }}>
+              {AVAILABLE_PERMISSIONS.map(p => {
+                const isChecked = (addForm.permissions || []).includes(p.id) || (p.id !== 'ALL' && (addForm.permissions || []).includes('ALL'));
+                const isSuper = p.id === 'ALL';
                 return (
                   <label 
                     key={p.id} 
@@ -921,20 +899,28 @@ export default function Users() {
                       gap: 8, 
                       padding: '8px 10px', 
                       borderRadius: '6px',
-                      border: '1px solid var(--border-default, #f1f5f9)',
-                      backgroundColor: isChecked ? '#f8fafc' : '#ffffff',
-                      cursor: 'pointer'
+                      border: `1px solid ${isChecked ? (isSuper ? '#93c5fd' : '#cbd5e1') : 'var(--border-default, #f1f5f9)'}`,
+                      backgroundColor: isChecked ? (isSuper ? '#eff6ff' : '#f8fafc') : '#ffffff',
+                      cursor: 'pointer',
+                      gridColumn: isSuper ? '1 / -1' : 'auto'
                     }}
                   >
                     <input 
                       type="checkbox" 
                       checked={isChecked} 
                       onChange={() => togglePermission('add', p.id)} 
-                      style={{ marginTop: 2 }}
+                      style={{ marginTop: 3 }}
                     />
                     <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: '12px', fontWeight: 600, color: '#334155' }}>{p.label}</div>
-                      <div style={{ fontSize: '10px', color: '#64748b' }}>{p.description}</div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: '12px', fontWeight: 600, color: isSuper ? '#1d4ed8' : '#334155' }}>
+                          {p.label}
+                        </span>
+                        <span style={{ fontSize: '9px', padding: '1px 5px', borderRadius: '3px', backgroundColor: isSuper ? '#dbeafe' : '#f1f5f9', color: isSuper ? '#1e40af' : '#64748b', fontWeight: 600 }}>
+                          {p.badge}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: '10px', color: '#64748b', marginTop: 2 }}>{p.description}</div>
                     </div>
                   </label>
                 );
@@ -1141,51 +1127,37 @@ export default function Users() {
               )}
             </div>
 
-            {/* Section 3: Permissions & User Adding Access */}
+            {/* Section 3: Feature Permissions */}
             <div className="form-section-group" style={{ marginTop: '14px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                 <div className="form-section-title" style={{ margin: 0 }}>
-                  <ShieldCheck size={14} style={{ marginRight: 6 }} /> Feature Permissions & Access
+                  <ShieldCheck size={14} style={{ marginRight: 6 }} /> Feature Permissions & Access Control
+                </div>
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                  <button
+                    type="button"
+                    onClick={() => toggleAllPermissions('edit')}
+                    style={{
+                      fontSize: '11px',
+                      padding: '3px 10px',
+                      borderRadius: '4px',
+                      border: '1px solid var(--border-default, #cbd5e1)',
+                      backgroundColor: '#ffffff',
+                      color: '#334155',
+                      cursor: 'pointer',
+                      fontWeight: 500
+                    }}
+                  >
+                    {AVAILABLE_PERMISSIONS.every(p => (editForm.permissions || []).includes(p.id)) ? 'Clear All' : 'Select All'}
+                  </button>
                 </div>
               </div>
 
-              {/* Highlighted User Management & Adding Access Checkbox */}
-              <div style={{ 
-                backgroundColor: editForm.permissions.includes('USERS') ? '#eff6ff' : 'var(--bg-subtle, #f8fafc)',
-                border: `1.5px solid ${editForm.permissions.includes('USERS') ? '#93c5fd' : 'var(--border-default, #e2e8f0)'}`,
-                borderRadius: '8px',
-                padding: '10px 14px',
-                marginBottom: 10,
-                cursor: 'pointer'
-              }}
-              onClick={() => togglePermission('edit', 'USERS')}
-              >
-                <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer' }}>
-                  <input 
-                    type="checkbox" 
-                    checked={editForm.permissions.includes('USERS')} 
-                    onChange={() => {}} 
-                    style={{ marginTop: 3 }}
-                  />
-                  <div>
-                    <div style={{ fontSize: '13px', fontWeight: 600, color: '#1e3a8a', display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <UsersIcon size={14} className="text-blue-600" />
-                      <span>User Management & User Adding Access</span>
-                      <span style={{ fontSize: '10px', backgroundColor: '#dbeafe', color: '#1d4ed8', padding: '1px 6px', borderRadius: '4px', fontWeight: 600 }}>
-                        Key Permission
-                      </span>
-                    </div>
-                    <div style={{ fontSize: '11px', color: '#475569', marginTop: 2 }}>
-                      Grants access to the User Management directory. Users with this access can add, view, and assign roles to other staff members.
-                    </div>
-                  </div>
-                </label>
-              </div>
-
-              {/* Other System Permissions Grid */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, maxHeight: 180, overflowY: 'auto', paddingRight: 4 }}>
-                {AVAILABLE_PERMISSIONS.filter(p => p.id !== 'USERS').map(p => {
-                  const isChecked = editForm.permissions.includes(p.id) || editForm.permissions.includes('ALL');
+              {/* Permissions Grid */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, maxHeight: 220, overflowY: 'auto', paddingRight: 4 }}>
+                {AVAILABLE_PERMISSIONS.map(p => {
+                  const isChecked = (editForm.permissions || []).includes(p.id) || (p.id !== 'ALL' && (editForm.permissions || []).includes('ALL'));
+                  const isSuper = p.id === 'ALL';
                   return (
                     <label 
                       key={p.id} 
@@ -1195,20 +1167,28 @@ export default function Users() {
                         gap: 8, 
                         padding: '8px 10px', 
                         borderRadius: '6px',
-                        border: '1px solid var(--border-default, #f1f5f9)',
-                        backgroundColor: isChecked ? '#f8fafc' : '#ffffff',
-                        cursor: 'pointer'
+                        border: `1px solid ${isChecked ? (isSuper ? '#93c5fd' : '#cbd5e1') : 'var(--border-default, #f1f5f9)'}`,
+                        backgroundColor: isChecked ? (isSuper ? '#eff6ff' : '#f8fafc') : '#ffffff',
+                        cursor: 'pointer',
+                        gridColumn: isSuper ? '1 / -1' : 'auto'
                       }}
                     >
                       <input 
                         type="checkbox" 
                         checked={isChecked} 
                         onChange={() => togglePermission('edit', p.id)} 
-                        style={{ marginTop: 2 }}
+                        style={{ marginTop: 3 }}
                       />
                       <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: '12px', fontWeight: 600, color: '#334155' }}>{p.label}</div>
-                        <div style={{ fontSize: '10px', color: '#64748b' }}>{p.description}</div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ fontSize: '12px', fontWeight: 600, color: isSuper ? '#1d4ed8' : '#334155' }}>
+                            {p.label}
+                          </span>
+                          <span style={{ fontSize: '9px', padding: '1px 5px', borderRadius: '3px', backgroundColor: isSuper ? '#dbeafe' : '#f1f5f9', color: isSuper ? '#1e40af' : '#64748b', fontWeight: 600 }}>
+                            {p.badge}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: '10px', color: '#64748b', marginTop: 2 }}>{p.description}</div>
                       </div>
                     </label>
                   );

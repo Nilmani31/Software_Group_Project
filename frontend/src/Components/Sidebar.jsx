@@ -36,31 +36,32 @@ const Sidebar = () => {
     if (raw) userPermissions = JSON.parse(raw);
   } catch (e) {}
 
-  const hasFullAccess = userRole === 'ADMIN' || userPermissions.includes('ALL');
+  const hasFullAccess = userPermissions.includes('ALL');
 
   const checkPageAccess = (path) => {
     if (hasFullAccess) return true;
     switch (path) {
       case '/dashboard':
-        return true;
+        return userPermissions.includes('DASHBOARD') || userPermissions.length > 0;
       case '/users':
-        return userRole === 'ADMIN' || userRole === 'DIRECTOR' || userPermissions.includes('USERS');
+        return userPermissions.includes('USERS');
       case '/inventory':
+        return userPermissions.includes('INVENTORY');
       case '/lowstock':
-        return userPermissions.includes('INVENTORY') || ['ADMIN', 'DIRECTOR', 'MANAGER', 'BRANCH_MANAGER', 'STAFF'].includes(userRole);
+        return userPermissions.includes('LOW_STOCK') || userPermissions.includes('INVENTORY');
       case '/purchase-order':
-        return userPermissions.includes('PURCHASE_ORDERS') || ['ADMIN', 'DIRECTOR', 'MANAGER', 'BRANCH_MANAGER'].includes(userRole);
+        return userPermissions.includes('PURCHASE_ORDERS');
       case '/good-received':
-        return userPermissions.includes('GOODS_RECEIVED') || ['ADMIN', 'DIRECTOR', 'MANAGER', 'BRANCH_MANAGER', 'STAFF'].includes(userRole);
+        return userPermissions.includes('GOODS_RECEIVED');
       case '/issue-note':
-        return userPermissions.includes('ISSUE_NOTES') || ['ADMIN', 'DIRECTOR', 'MANAGER', 'BRANCH_MANAGER'].includes(userRole);
+        return userPermissions.includes('ISSUE_NOTES');
       case '/branches':
-        return userPermissions.includes('BRANCHES') || ['ADMIN', 'DIRECTOR'].includes(userRole);
+        return userPermissions.includes('BRANCHES');
       case '/categories':
       case '/units':
-        return userPermissions.includes('CATEGORIES') || ['ADMIN', 'DIRECTOR', 'MANAGER', 'BRANCH_MANAGER'].includes(userRole);
+        return userPermissions.includes('CATEGORIES');
       case '/reports':
-        return userPermissions.includes('REPORTS') || ['ADMIN', 'DIRECTOR', 'MANAGER', 'BRANCH_MANAGER'].includes(userRole);
+        return userPermissions.includes('REPORTS');
       default:
         return true;
     }

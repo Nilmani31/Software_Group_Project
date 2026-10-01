@@ -43,7 +43,11 @@ export default function GoodReceived() {
   // Role check
   const roleId = localStorage.getItem('roleId') || '';
   const userRole = roleId.replace('ROLE_', '');
-  const canEdit = ['ADMIN', 'DIRECTOR', 'MANAGER', 'BRANCH_MANAGER'].includes(userRole);
+  let userPerms = [];
+  try {
+    userPerms = JSON.parse(localStorage.getItem('permissions') || '[]');
+  } catch (e) {}
+  const canEdit = userPerms.includes('ALL') || userPerms.includes('GOODS_RECEIVED');
 
   const { register, handleSubmit, control, reset, watch, setValue } = useForm({
     defaultValues: {

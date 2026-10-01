@@ -175,10 +175,14 @@ const Inventory = () => {
   const [stockData, setStockData] = useState([]);
   const [pendingAction, setPendingAction] = useState(null);
 
-  // Role check
+  // Role & permission check
   const roleId = localStorage.getItem('roleId') || '';
   const userRole = roleId.replace('ROLE_', '');
-  const canEdit = ['ADMIN', 'DIRECTOR', 'MANAGER', 'BRANCH_MANAGER'].includes(userRole);
+  let userPerms = [];
+  try {
+    userPerms = JSON.parse(localStorage.getItem('permissions') || '[]');
+  } catch (e) {}
+  const canEdit = userPerms.includes('ALL') || userPerms.includes('INVENTORY');
 
   // Fetch items and related data from server
   useEffect(() => {

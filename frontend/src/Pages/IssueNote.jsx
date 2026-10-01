@@ -25,7 +25,11 @@ const IssueNote = () => {
   const roleId = localStorage.getItem('roleId') || '';
   const defaultBranchId = localStorage.getItem('branchId') || '';
   const userRole = roleId.replace('ROLE_', '');
-  const canEdit = ['ADMIN', 'DIRECTOR', 'MANAGER', 'BRANCH_MANAGER'].includes(userRole);
+  let userPerms = [];
+  try {
+    userPerms = JSON.parse(localStorage.getItem('permissions') || '[]');
+  } catch (e) {}
+  const canEdit = userPerms.includes('ALL') || userPerms.includes('ISSUE_NOTES');
   const [viewType, setViewType] = useState("list");
   const [activeTab, setActiveTab] = useState("issueNotes");
   const [expandedId, setExpandedId] = useState(null);

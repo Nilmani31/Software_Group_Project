@@ -1,22 +1,25 @@
 import React from 'react';
 import { Navigate } from 'react-router-dom';
+import { hasPermission, getUserPermissions } from '../utils/permissionUtils';
 
-// Define which roles can access which pages
-const pagePermissions = {
-  '/users': ['ADMIN', 'DIRECTOR', 'MANAGER', 'BRANCH_MANAGER'],
-  '/categories': ['ADMIN', 'DIRECTOR', 'MANAGER', 'BRANCH_MANAGER'],
-  '/branches': ['ADMIN', 'DIRECTOR', 'MANAGER'],
-  '/dashboard': ['ADMIN', 'DIRECTOR', 'MANAGER', 'BRANCH_MANAGER', 'STAFF'],
-  '/inventory': ['ADMIN', 'DIRECTOR', 'MANAGER', 'BRANCH_MANAGER', 'STAFF'],
-  '/good-received': ['ADMIN', 'DIRECTOR', 'MANAGER', 'BRANCH_MANAGER', 'STAFF'],
-  '/purchase-order': ['ADMIN', 'DIRECTOR', 'MANAGER', 'BRANCH_MANAGER', 'STAFF'],
-  '/issue-note': ['ADMIN', 'DIRECTOR', 'MANAGER', 'BRANCH_MANAGER'],
-  '/low-stock': ['ADMIN', 'DIRECTOR', 'MANAGER', 'BRANCH_MANAGER', 'STAFF'],
-  '/report': ['ADMIN', 'DIRECTOR', 'MANAGER', 'BRANCH_MANAGER']
+// Route path to required permission mapping
+const ROUTE_PERMISSION_MAP = {
+  '/dashboard': 'DASHBOARD',
+  '/inventory': 'INVENTORY',
+  '/purchase-order': 'PURCHASE_ORDERS',
+  '/good-received': 'GOODS_RECEIVED',
+  '/issue-note': 'ISSUE_NOTES',
+  '/low-stock': 'LOW_STOCK',
+  '/lowstock': 'LOW_STOCK',
+  '/branches': 'BRANCHES',
+  '/categories': 'CATEGORIES',
+  '/units': 'CATEGORIES',
+  '/users': 'USERS',
+  '/report': 'REPORTS',
+  '/reports': 'REPORTS'
 };
 
 export default function ProtectedRoute({ children, path }) {
-  const roleId = localStorage.getItem('roleId');
   const isLoggedIn = localStorage.getItem('isLoggedIn');
 
   // If not logged in, redirect to login
@@ -24,15 +27,28 @@ export default function ProtectedRoute({ children, path }) {
     return <Navigate to="/login" replace />;
   }
 
-  // Extract the role name (e.g., 'ROLE_ADMIN' -> 'ADMIN')
-  const userRole = roleId ? roleId.replace('ROLE_', '') : '';
+  const userPerms = getUserPermissions();
 
-  // Get allowed roles for this page
-  const allowedRoles = pagePermissions[path] || [];
+  // 'ALL' permission grants master access
+  if (userPerms.includes('ALL')) {
+    return children;
+  }
 
-  // If user role is not in allowed roles, redirect
-  if (!allowedRoles.includes(userRole)) {
-    // Prevent infinite redirect loop if they don't even have dashboard access
+  const requiredPerm = ROUTE_PERMISSION_MAP[path];
+
+  let isAllowed = false;
+  if (!requiredPerm) {
+    isAllowed = true;
+  } else if (requiredPerm === 'LOW_STOCK') {
+    isAllowed = hasPermission('LOW_STOCK') || hasPermission('INVENTORY');
+  } else if (requiredPerm === 'DASHBOARD') {
+    isAllowed = hasPermission('DASHBOARD') || userPerms.length > 0;
+  } else {
+    isAllowed = hasPermission(requiredPerm);
+  }
+
+  if (!isAllowed) {
+    // If user lacks dashboard permission, redirect to login, else redirect to dashboard
     if (path === '/dashboard') {
       return <Navigate to="/login" replace />;
     }

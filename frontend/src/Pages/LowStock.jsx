@@ -25,10 +25,14 @@ const LowStock = () => {
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState([]);
   const [targetBranch, setTargetBranch] = useState(null);
 
-  // Role check
+  // Role & permission check
   const roleId = localStorage.getItem('roleId') || '';
   const userRole = roleId.replace('ROLE_', '');
-  const canEdit = ['ADMIN', 'DIRECTOR', 'MANAGER', 'BRANCH_MANAGER'].includes(userRole);
+  let userPerms = [];
+  try {
+    userPerms = JSON.parse(localStorage.getItem('permissions') || '[]');
+  } catch (e) {}
+  const canEdit = userPerms.includes('ALL') || userPerms.includes('LOW_STOCK') || userPerms.includes('INVENTORY');
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);

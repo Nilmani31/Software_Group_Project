@@ -21,7 +21,7 @@ exports.getAllUsers = async (req, res) => {
     const enrichedUsers = await Promise.all(
       users.map(async (u) => {
         const branchName = await resolveBranchName(u.branchId);
-        const permissions = (u.permissions && u.permissions.length > 0)
+        const permissions = Array.isArray(u.permissions)
           ? u.permissions
           : (DEFAULT_ROLE_PERMISSIONS[u.roleId] || ['DASHBOARD', 'INVENTORY']);
         return {
@@ -85,10 +85,9 @@ exports.createUser = async (req, res) => {
     const roleValue = roleId.startsWith('ROLE_') ? roleId.substring(5) : roleId;
     
     // Resolve permissions: custom permissions or fallback to role defaults
-    let finalPermissions = permissions;
-    if (!finalPermissions || !Array.isArray(finalPermissions) || finalPermissions.length === 0) {
-      finalPermissions = DEFAULT_ROLE_PERMISSIONS[roleId] || ['DASHBOARD', 'INVENTORY'];
-    }
+    let finalPermissions = Array.isArray(permissions)
+      ? permissions
+      : (DEFAULT_ROLE_PERMISSIONS[roleId] || ['DASHBOARD', 'INVENTORY']);
 
     const newUser = await User.create({
       username,
@@ -231,7 +230,7 @@ exports.login = async (req, res) => {
 
     // Resolve branch name and permissions
     const branchName = await resolveBranchName(user.branchId);
-    const permissions = (user.permissions && user.permissions.length > 0)
+    const permissions = Array.isArray(user.permissions)
       ? user.permissions
       : (DEFAULT_ROLE_PERMISSIONS[user.roleId] || ['DASHBOARD', 'INVENTORY']);
 
