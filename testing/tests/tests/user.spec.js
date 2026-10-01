@@ -1,0 +1,34 @@
+import { test, expect } from '@playwright/test';
+
+test('test', async ({ page }) => {
+  await page.goto('http://localhost:3000/');
+  await page.getByRole('textbox', { name: 'Username' }).click();
+  await page.getByRole('textbox', { name: 'Username' }).fill('admin');
+  await page.getByRole('textbox', { name: 'Password' }).click();
+  await page.getByRole('textbox', { name: 'Password' }).press('CapsLock');
+  await page.getByRole('textbox', { name: 'Password' }).fill('A');
+  await page.getByRole('textbox', { name: 'Password' }).press('CapsLock');
+  await page.getByRole('textbox', { name: 'Password' }).fill('Admin@123');
+  await page.getByRole('button', { name: 'Sign In to Portal' }).click();
+  await page.getByRole('link', { name: 'Users' }).click();
+  await page.getByRole('button', { name: 'Add new User' }).click();
+  await page.getByRole('textbox', { name: 'e.g. j_smith' }).click();
+  await page.getByRole('textbox', { name: 'e.g. j_smith' }).press('CapsLock');
+  await page.getByRole('textbox', { name: 'e.g. j_smith' }).fill('K');
+  await page.getByRole('textbox', { name: 'e.g. j_smith' }).press('CapsLock');
+  await page.getByRole('textbox', { name: 'e.g. j_smith' }).fill('Kaveesha');
+  await page.getByRole('textbox', { name: 'e.g. john@company.com' }).click();
+  await page.getByRole('textbox', { name: 'e.g. john@company.com' }).fill('kave@cbbs');
+  await page.getByRole('textbox', { name: 'e.g. john@company.com' }).click();
+  await page.getByRole('textbox', { name: 'e.g. john@company.com' }).press('ControlOrMeta+x');
+  await page.getByRole('textbox', { name: 'e.g. john@company.com' }).fill('kave@');
+  await page.getByRole('textbox', { name: 'e.g. john@company.com' }).click();
+  await page.getByRole('textbox', { name: 'e.g. john@company.com' }).fill('kavecbbs@');
+  await page.getByRole('textbox', { name: 'e.g. john@company.com' }).click();
+  await page.getByRole('textbox', { name: 'e.g. john@company.com' }).fill('kavecbbs@gmail.com');
+  await page.getByRole('textbox', { name: 'e.g. 0712345678' }).click();
+  await page.getByRole('textbox', { name: 'e.g. 0712345678' }).fill('0718215427');
+  await page.getByRole('button', { name: 'Gen' }).click();
+  await page.getByRole('button', { name: 'Create User Account' }).click();
+  await page.getByRole('button', { name: 'Create User', exact: true }).click();
+});

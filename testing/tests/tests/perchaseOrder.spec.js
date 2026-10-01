@@ -1,0 +1,44 @@
+import { test, expect } from '@playwright/test';
+
+test('test', async ({ page }, testInfo) => {
+  const poNumber = `PO-TEST-${Date.now()}-${testInfo.workerIndex}`;
+
+  await page.goto('http://localhost:3000/');
+  await page.getByRole('textbox', { name: 'Username' }).click();
+  await page.getByRole('textbox', { name: 'Username' }).press('CapsLock');
+  await page.getByRole('textbox', { name: 'Username' }).fill('A');
+  await page.getByRole('textbox', { name: 'Username' }).press('CapsLock');
+  await page.getByRole('textbox', { name: 'Username' }).fill('Admin');
+  await page.getByRole('textbox', { name: 'Username' }).click();
+  await page.getByRole('textbox', { name: 'Username' }).press('ArrowLeft');
+  await page.getByRole('textbox', { name: 'Username' }).fill('admin');
+  await page.getByRole('textbox', { name: 'Password' }).click();
+  await page.getByRole('textbox', { name: 'Password' }).press('CapsLock');
+  await page.getByRole('textbox', { name: 'Password' }).fill('A');
+  await page.getByRole('textbox', { name: 'Password' }).press('CapsLock');
+  await page.getByRole('textbox', { name: 'Password' }).fill('Admin@123');
+  await page.getByRole('textbox', { name: 'Password' }).press('Enter');
+  await page.getByRole('link', { name: 'Purchase Order' }).click();
+  await page.getByRole('button', { name: '+ New Purchase Order' }).click();
+  await page.getByRole('textbox', { name: 'PO-2025-XXX' }).fill(poNumber);
+  await page.getByRole('textbox', { name: 'Enter supplier name' }).click();
+  await page.getByRole('textbox', { name: 'Enter supplier name' }).fill('chamsha');
+  await page.getByRole('textbox', { name: 'e.g. 077 123' }).click();
+  await page.getByRole('textbox', { name: 'e.g. 077 123' }).fill('0714558427');
+  await page.getByRole('textbox', { name: 'Select Order Date' }).click();
+  await page.locator('.react-datepicker__day[aria-disabled="false"]').first().click();
+  await page.getByRole('textbox', { name: 'Select Expected Delivery Date' }).click();
+  await page.locator('.react-datepicker__day[aria-disabled="false"]').first().click();
+  await page.getByRole('button', { name: '-- Select Category --' }).click();
+  await page.locator('div').filter({ hasText: /^Equipment$/ }).nth(1).click();
+  await page.getByRole('button', { name: '-- Choose Item to Add --' }).click();
+  await page.getByRole('option', { name: /^Coffee Grinder \(Rs\d+\) Unit: pcs$/ }).first().click();
+  await page.getByRole('spinbutton', { name: 'Qty' }).click();
+  await page.getByRole('spinbutton', { name: 'Qty' }).click();
+  await page.getByRole('spinbutton', { name: 'Qty' }).fill('1');
+  await page.getByRole('button', { name: 'Add' }).click();
+  await page.getByRole('button', { name: 'Create Purchase Order' }).click();
+  await page.getByRole('button', { name: 'Create', exact: true }).click();
+  await expect(page.locator('.create-po-modal')).toHaveCount(0);
+  await page.getByRole('link', { name: 'Good Received' }).click({ force: true });
+});
