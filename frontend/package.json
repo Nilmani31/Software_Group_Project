@@ -28,8 +28,8 @@
     "watch:css": "node node_modules/@tailwindcss/cli/dist/index.mjs -i src/tailwind.input.css -o src/index.css --watch",
     "prestart": "npm run build:css",
     "prebuild": "npm run build:css",
-    "start": "node --max-old-space-size=4096 node_modules/react-scripts/bin/react-scripts.js start",
-    "build": "node --max-old-space-size=4096 node_modules/react-scripts/bin/react-scripts.js build",
+    "start": "node --max-old-space-size=4096 node_modules/react-app-rewired/scripts/start.js",
+    "build": "node --max-old-space-size=4096 node_modules/react-app-rewired/scripts/build.js",
     "test": "react-scripts test",
     "eject": "react-scripts eject"
   },
@@ -52,6 +52,7 @@
   },
   "devDependencies": {
     "@tailwindcss/cli": "^4.3.3",
+    "react-app-rewired": "^2.2.1",
     "tailwindcss": "^4.3.3"
   }
 }
