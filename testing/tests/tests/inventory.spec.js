@@ -9,7 +9,7 @@ test('test', async ({ page }) => {
   await page.getByRole('textbox', { name: 'Password' }).fill('A');
   await page.getByRole('textbox', { name: 'Password' }).press('CapsLock');
   await page.getByRole('textbox', { name: 'Password' }).fill('Admin@123');
-  await page.getByRole('button', { name: 'Login' }).click();
+  await page.getByRole('button', { name: 'Sign In to Portal' }).click();
   
   await page.locator('a[href="/inventory"]').click();
   await page.getByRole('button', { name: '+ Add new Item' }).click();
