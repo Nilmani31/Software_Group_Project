@@ -13,15 +13,12 @@ test('test', async ({ page }) => {
   
   await page.locator('a[href="/inventory"]').click();
   await page.getByRole('button', { name: '+ Add new Item' }).click();
-  await page.getByRole('textbox', { name: 'Enter item name' }).click();
-  await page.getByRole('textbox', { name: 'Enter item name' }).press('CapsLock');
-  await page.getByRole('textbox', { name: 'Enter item name' }).fill('G');
-  await page.getByRole('textbox', { name: 'Enter item name' }).press('CapsLock');
-  await page.getByRole('textbox', { name: 'Enter item name' }).fill('Glass');
-  await page.locator('select[name="category"]').selectOption('Equipment');
-  await page.locator('select[name="unit"]').selectOption('pcs');
-  await page.getByRole('spinbutton', { name: 'e.g. 2500' }).click();
-  await page.getByRole('spinbutton', { name: 'e.g. 2500' }).fill('2500');
+  await page.locator('input[name="name"]').fill('Glass');
+  await page.getByText('Select product category', { exact: true }).click();
+  await page.getByRole('option', { name: 'Equipment', exact: true }).click();
+  await page.getByRole('button', { name: 'kg (Kilogram)' }).click();
+  await page.getByRole('option', { name: 'pcs (Pieces)', exact: true }).click();
+  await page.locator('input[name="unitPrice"]').fill('2500');
   await page.locator('input[name="minStock"]').fill('1');
   await page.locator('input[name="maxStock"]').fill('17');
   await page.getByRole('button', { name: 'Add Item' }).click();

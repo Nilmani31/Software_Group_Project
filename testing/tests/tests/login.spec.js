@@ -7,5 +7,5 @@ test('test', async ({ page }) => {
   await page.getByRole('textbox', { name: 'Password' }).click();
   await page.getByRole('textbox', { name: 'Password' }).fill('Admin@123');
   await page.getByRole('button', { name: 'Sign In to Portal' }).click();
-  await page.getByRole('button', { name: '⎋' }).click();
+  await page.getByRole('button', { name: 'Sign out' }).click();
 });
