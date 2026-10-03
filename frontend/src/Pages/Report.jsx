@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo, useCallback } from "react";
 import {
   PieChart,
   Pie,
@@ -25,7 +25,6 @@ import {
   FileSpreadsheet,
   Download,
   Search,
-  Filter,
   BarChart3,
   Calendar,
   Building2,
@@ -105,7 +104,7 @@ export default function Report() {
   }, [branches]);
 
   // Date Range Checker
-  const checkDateMatch = (dateStr) => {
+  const checkDateMatch = useCallback((dateStr) => {
     if (!dateStr || dateFilter === "all") return true;
     const itemDate = new Date(dateStr);
     if (isNaN(itemDate.getTime())) return true;
@@ -127,7 +126,7 @@ export default function Report() {
       return true;
     }
     return true;
-  };
+  }, [dateFilter, customStartDate, customEndDate]);
 
   // 1. Filtered Stock
   const filteredStock = useMemo(() => {
@@ -190,7 +189,7 @@ export default function Report() {
       const matchesDate = checkDateMatch(po.orderDate);
       return matchesSearch && matchesBranch && matchesDate;
     });
-  }, [purchaseOrders, searchTerm, selectedBranch, dateFilter, customStartDate, customEndDate]);
+  }, [purchaseOrders, searchTerm, selectedBranch, checkDateMatch]);
 
   // 4. Filtered GRNs
   const filteredGRNs = useMemo(() => {
@@ -208,7 +207,7 @@ export default function Report() {
       const matchesDate = checkDateMatch(grn.receivedDate);
       return matchesSearch && matchesBranch && matchesDate;
     });
-  }, [goodsReceived, searchTerm, selectedBranch, dateFilter, customStartDate, customEndDate]);
+  }, [goodsReceived, searchTerm, selectedBranch, checkDateMatch]);
 
   // 5. Filtered Transfers (Issue Notes)
   const filteredTransfers = useMemo(() => {
@@ -227,7 +226,7 @@ export default function Report() {
       const matchesDate = checkDateMatch(note.issueDate);
       return matchesSearch && matchesBranch && matchesDate;
     });
-  }, [issueNotes, searchTerm, selectedBranch, dateFilter, customStartDate, customEndDate]);
+  }, [issueNotes, searchTerm, selectedBranch, checkDateMatch]);
 
   // 6. Overall Metrics
   const totalStockUnits = useMemo(() => filteredStock.reduce((sum, i) => sum + i.quantity, 0), [filteredStock]);

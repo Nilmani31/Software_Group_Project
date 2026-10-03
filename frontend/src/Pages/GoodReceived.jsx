@@ -33,11 +33,10 @@ export default function GoodReceived() {
   const [filterStatus, setFilterStatus] = useState([]);
   const [filterBranch, setFilterBranch] = useState([]);
   const [branches, setBranches] = useState([]);
-  const [imagePreview, setImagePreview] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [pendingCreate, setPendingCreate] = useState(null);
-  const [page, setPage] = useState(1);
+  const page = 1;
   const [inventoryItems, setInventoryItems] = useState([]);
 
   // Role check
@@ -119,16 +118,6 @@ export default function GoodReceived() {
 
     fetchPOs();
   }, []);
-
-  const handleFileChange = (e) => {
-    const f = e.target.files && e.target.files[0];
-    if (f) {
-      const url = URL.createObjectURL(f);
-      setImagePreview(url);
-    } else {
-      setImagePreview(null);
-    }
-  };
 
   const handlePOSelect = (poNumber) => {
     const selectedPO = poList.find(po => (po.poNumber || po.id) === poNumber);
@@ -248,7 +237,6 @@ export default function GoodReceived() {
         // Add new GRN to the list
         setList(prevList => [response.data, ...prevList]);
         reset();
-        setImagePreview(null);
         setOpenCreate(false);
         setCurrentPOType('Supplier');
         setError('');
@@ -398,18 +386,6 @@ export default function GoodReceived() {
     });
   }, [list, query, filterStatus, filterBranch]);
 
-  const getItemStatusClass = (status) => {
-    if (status === 'Incomplete') return 'badge-blue-light';
-    if (status === 'Complete') return 'badge-blue-dark';
-    return 'badge-blue-outline';
-  };
-
-  const statusOptions = [
-    { value: 'Not Received', label: 'Not Received' },
-    { value: 'Incomplete', label: 'Incomplete' },
-    { value: 'Complete', label: 'Complete' }
-  ];
-
   return (
     <div className="app-wrapper">
       <Navbar />
@@ -480,7 +456,6 @@ export default function GoodReceived() {
                           className="btn-add"
                           onClick={() => {
                             reset({ items: [{ itemId: '', itemName: '', unit: '', unitPrice: '', quantityOrdered: '', quantityReceived: '' }] });
-                            setImagePreview(null);
                             setOpenCreate(true);
                           }}
                           disabled={loading}

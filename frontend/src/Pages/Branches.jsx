@@ -5,7 +5,7 @@ import ChatAssistant from "../Components/ChatAssistant";
 import ConfirmDialog from "../Components/ConfirmDialog";
 
 
-import { FaTimes, FaEdit, FaTrash, FaPlus, FaBuilding, FaPhoneAlt, FaMapMarkerAlt, FaUserTie } from "react-icons/fa";
+import { FaTimes, FaPlus, FaBuilding, FaPhoneAlt, FaMapMarkerAlt } from "react-icons/fa";
 
 export default function Branches() {
     const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || "http://localhost:5005";
@@ -63,14 +63,6 @@ export default function Branches() {
         setEditing(b);
         setIsEditMode(false);
         setForm({ name: b.name, location: b.location, contact_person: b.contact_person, phone: b.phone });
-        setErrors({});
-    }
-
-    function openEdit(b) {
-        setForm({ name: b.name, location: b.location, contact_person: b.contact_person, phone: b.phone });
-        setEditing(b);
-        setSelectedBranch(b);
-        setIsEditMode(true);
         setErrors({});
     }
 

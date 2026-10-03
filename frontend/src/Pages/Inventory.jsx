@@ -6,7 +6,7 @@ import FindItemByImageModal from '../Components/FindItemByImageModal';
 import ConfirmDialog from '../Components/ConfirmDialog';
 import ModernDropdown from '../Components/ModernDropdown';
 
-import { FaTimes, FaEdit, FaTrash, FaImage, FaPlus, FaUpload, FaCloudUploadAlt, FaBarcode, FaBoxOpen, FaLayerGroup } from 'react-icons/fa';
+import { FaTimes, FaEdit, FaTrash, FaImage, FaUpload, FaCloudUploadAlt, FaBarcode, FaBoxOpen, FaLayerGroup } from 'react-icons/fa';
 import { getAuthHeaders } from '../utils/authHeaders';
 
 // Helper function to generate SKU with first 3 letters of category name
@@ -106,39 +106,12 @@ const getPriceRangeText = (prices = []) => {
   return `${formatPrice(minPrice)} - ${formatPrice(maxPrice)}`;
 };
 
-const getBranchPriceBreakdown = (item) => {
-  const branchMap = new Map();
-  const variations = Array.isArray(item.variations) && item.variations.length > 0 ? item.variations : [item];
-
-  variations.forEach(variation => {
-    const price = Number(variation.unitPrice) || 0;
-    const stocks = Array.isArray(variation.branchStocks) ? variation.branchStocks : [];
-
-    stocks.forEach(s => {
-      const bName = s.branchName || (s.branch && (s.branch.branchName || s.branch.name)) || 'Unknown Branch';
-      if (!branchMap.has(bName)) {
-        branchMap.set(bName, { branchName: bName, prices: [], totalQty: 0, totalVal: 0 });
-      }
-      const bData = branchMap.get(bName);
-      const qty = Number(s.quantity) || 0;
-      const val = qty * price;
-      bData.prices.push({ price, quantity: qty, value: val });
-      bData.totalQty += qty;
-      bData.totalVal += val;
-    });
-  });
-
-  return Array.from(branchMap.values());
-};
-
 const Inventory = () => {
   const [items, setItems] = useState([]);
   const [categories, setCategories] = useState([]); // Store full category objects
   const [categoryMap, setCategoryMap] = useState({}); // Map category name to ID
   const [branches, setBranches] = useState([]);
   const [branchMap, setBranchMap] = useState({}); // Map branch name to ID
-  const [loading, setLoading] = useState(true);
-  const [expandedItemId, setExpandedItemId] = useState(null);
   const [stockLoading, setStockLoading] = useState(false);
   const [query, setQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState([]);
@@ -195,10 +168,8 @@ const Inventory = () => {
       });
       const data = await response.json();
       setItems(Array.isArray(data) ? data : []);
-      setLoading(false);
     } catch (err) {
       console.error('Error fetching items:', err);
-      setLoading(false);
     }
   };
 
@@ -462,8 +433,6 @@ const Inventory = () => {
       return matchesQuery && matchesCategory && matchesBranch && matchesStatus;
     });
   }, [groupedItems, query, categoryFilter, branchFilter, statusFilter]);
-
-  const filteredTotalValue = filtered.reduce((total, item) => total + getDisplayTotalValue(item), 0);
 
   const handleOpenModal = () => {
     setFormData(prev => ({
@@ -746,14 +715,6 @@ const Inventory = () => {
       updated[index] = { ...updated[index], quantity: Math.max(0, parseInt(value) || 0) };
       return updated;
     });
-  };
-
-  const handleEditTotalQuantityChange = (value) => {
-    const totalValue = Math.max(0, parseInt(value) || 0);
-    setEditFormData(prev => ({
-      ...prev,
-      maxStock: String(totalValue)
-    }));
   };
 
   const handleEditSubmit = async (e) => {

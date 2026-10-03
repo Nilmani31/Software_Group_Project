@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import Navbar from '../Components/Navbar';
 import Sidebar from '../Components/Sidebar';
 import { 
@@ -99,6 +99,8 @@ export default function Users() {
     fetchRoles();
     fetchBranches();
     fetchUsers();
+    // These helpers intentionally run once when the page loads.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Fetch roles from database
@@ -410,21 +412,21 @@ export default function Users() {
   };
 
   // Helper to resolve branch display name
-  const getBranchDisplayName = (user) => {
+  const getBranchDisplayName = useCallback((user) => {
     if (user.role === 'ROLE_ADMIN' || user.role === 'ROLE_DIRECTOR') {
       return 'All Branches';
     }
     if (user.branchName) return user.branchName;
     const branch = branches.find(b => b._id === user.branch || b.branchId === user.branch || b.id === user.branch);
     return branch ? (branch.branchName || branch.name) : user.branch;
-  };
+  }, [branches]);
 
   // Helper to format role name for display
-  const getRoleDisplayName = (roleId) => {
+  const getRoleDisplayName = useCallback((roleId) => {
     const found = roles.find(r => r.roleId === roleId);
     if (found) return found.roleName;
     return roleId.replace('ROLE_', '').replace(/_/g, ' ');
-  };
+  }, [roles]);
 
   // Filtered users list for search
   const filteredUsers = useMemo(() => {
@@ -441,7 +443,7 @@ export default function Users() {
         roleStr.includes(q)
       );
     });
-  }, [list, query, branches, roles]);
+  }, [list, query, getBranchDisplayName, getRoleDisplayName]);
 
   return (
     <div className="app-wrapper">

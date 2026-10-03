@@ -6,11 +6,10 @@ import ConfirmDialog from "../Components/ConfirmDialog";
 import ModernDropdown from "../Components/ModernDropdown";
 import { getAuthHeaders } from "../utils/authHeaders";
 import {
-  FileText, CheckCircle2, Clock, XCircle, Plus, Search, Building2, Calendar,
-  Printer, Edit3, Trash2, Layers, Boxes, ArrowRight, Send, AlertCircle,
-  X, Check, Ban, Eye, RotateCcw, PackageCheck, Truck, ArrowRightLeft, User, DollarSign, Filter
+  FileText, CheckCircle2, Clock, XCircle, Plus, Search, Building2,
+  Printer, Edit3, AlertCircle, X, RotateCcw, User
 } from "lucide-react";
-import { FaPrint, FaSave, FaTimes, FaPlus, FaTrash, FaBoxOpen, FaTruck, FaFileInvoice, FaCheckCircle, FaClock, FaTimesCircle } from "react-icons/fa";
+import { FaSave } from "react-icons/fa";
 
 const IssueNote = () => {
   const [issueNotes, setIssueNotes] = useState([]); // Initialize as empty array
@@ -23,12 +22,9 @@ const IssueNote = () => {
 
   // Role check
   const roleId = localStorage.getItem('roleId') || '';
-  const defaultBranchId = localStorage.getItem('branchId') || '';
   const userRole = roleId.replace('ROLE_', '');
   const canEdit = ['ADMIN', 'DIRECTOR', 'MANAGER', 'BRANCH_MANAGER'].includes(userRole);
-  const [viewType, setViewType] = useState("list");
   const [activeTab, setActiveTab] = useState("branchRequests");
-  const [expandedId, setExpandedId] = useState(null);
   const [selectedItem, setSelectedItem] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -356,28 +352,8 @@ const IssueNote = () => {
     }
   };
 
-  const getTypeColor = (type) => {
-    switch (type) {
-      case "Branch Transfer":
-      case "Stock Request":
-        return "branch";
-      case "Training Transfer":
-      case "Equipment Request":
-        return "training";
-      case "Stock Transfer":
-        return "stock";
-      default:
-        return "branch";
-    }
-  };
-
   const handleTabChange = (tab) => {
     setActiveTab(tab);
-    setExpandedId(null);
-  };
-
-  const toggleExpand = (id) => {
-    setExpandedId(expandedId === id ? null : id);
   };
 
   const openModal = (item) => {

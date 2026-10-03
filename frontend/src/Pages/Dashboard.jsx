@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import React, { useState, useEffect, useCallback } from "react";
+import { Link } from "react-router-dom";
 import ModernDropdown from "../Components/ModernDropdown";
 import {
   PieChart,
@@ -21,21 +21,14 @@ import {
   Inbox,
   TrendingUp,
   Layers,
-  ArrowUpRight,
   Boxes,
   DollarSign,
   Building2,
   RefreshCw,
-  PlusCircle,
-  FileText,
-  Truck,
   CheckCircle2,
-  Filter,
   ArrowRight,
   ShieldCheck,
   ChevronRight,
-  Calendar,
-  Warehouse,
   PieChart as PieChartIcon
 } from "lucide-react";
 import { getAuthHeaders } from "../utils/authHeaders";
@@ -46,7 +39,6 @@ const DONUT_PALETTE = ['#3b82f6', '#6366f1', '#8b5cf6', '#10b981', '#f59e0b', '#
 const CATEGORY_COLORS = ['#3b82f6', '#6366f1', '#8b5cf6', '#ec4899', '#f97316', '#10b981', '#06b6d4'];
 
 const Dashboard = () => {
-  const navigate = useNavigate();
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -55,7 +47,7 @@ const Dashboard = () => {
   const [donutView, setDonutView] = useState('branch'); // 'branch' | 'category'
   const [activeTab, setActiveTab] = useState('topProducts'); // 'topProducts' | 'recentPOs' | 'recentIssues'
 
-  const fetchStats = async (branchId = selectedBranch, isManual = false) => {
+  const fetchStats = useCallback(async (branchId = selectedBranch, isManual = false) => {
     if (isManual) setRefreshing(true);
     try {
       const url = branchId && branchId !== 'all'
@@ -80,7 +72,7 @@ const Dashboard = () => {
         setTimeout(() => setRefreshing(false), 500);
       }
     }
-  };
+  }, [selectedBranch]);
 
   useEffect(() => {
     fetchStats(selectedBranch);
@@ -89,13 +81,7 @@ const Dashboard = () => {
       fetchStats(selectedBranch);
     }, 15000);
     return () => clearInterval(interval);
-  }, [selectedBranch]);
-
-  const handleBranchChange = (e) => {
-    const val = e.target.value;
-    setSelectedBranch(val);
-    fetchStats(val, true);
-  };
+  }, [fetchStats, selectedBranch]);
 
   const formatCurrency = (value) => {
     return new Intl.NumberFormat('en-LK', {
