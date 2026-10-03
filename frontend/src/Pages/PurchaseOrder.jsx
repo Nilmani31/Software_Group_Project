@@ -110,7 +110,7 @@ export default function PurchaseOrder() {
     branchName: '',
     reason: ''
   })
-  const [cancelErrors, setCancelErrors] = useState({})
+  const [cancelErrors] = useState({})
   const [pendingCreate, setPendingCreate] = useState(false)
   const updateCancelForm = (key, val) => setCancelForm(prev => ({ ...prev, [key]: val }))
 
@@ -213,7 +213,7 @@ export default function PurchaseOrder() {
   const generatePONumber = () => {
     const year = new Date().getFullYear()
     const existingIds = new Set(pos.map(p => p.poNumber || p.id))
-    const pattern = new RegExp(`^PO-${year}-\\d{3}$`)
+   // const pattern = new RegExp(`^PO-${year}-\\d{3}$`)
 
     const takenNumbers = pos
       .map(p => {
