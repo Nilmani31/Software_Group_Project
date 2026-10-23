@@ -7,6 +7,7 @@ import Modal from '../Components/Modal';
 import ConfirmDialog from '../Components/ConfirmDialog';
 import ChatAssistant from '../Components/ChatAssistant';
 import ModernDropdown from '../Components/ModernDropdown';
+import { getAuthHeaders } from '../utils/authHeaders';
 
 const UNIT_TYPES = [
   { value: 'Count', label: 'Count / Pieces (pcs, dozen)' },
@@ -92,7 +93,9 @@ export default function Categories({ defaultTab }) {
   // Fetch categories from database
   const fetchCategories = async () => {
     try {
-      const response = await fetch('http://localhost:5005/api/categories');
+      const response = await fetch('http://localhost:5005/api/categories', {
+        headers: getAuthHeaders()
+      });
       const data = await response.json();
       if (Array.isArray(data)) {
         const formattedData = data.map(item => ({
@@ -162,7 +165,7 @@ export default function Categories({ defaultTab }) {
     try {
       const response = await fetch('http://localhost:5005/api/categories', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           name: catAddForm.name,
           description: catAddForm.desc
@@ -205,7 +208,7 @@ export default function Categories({ defaultTab }) {
     try {
       const response = await fetch(`http://localhost:5005/api/categories/${editing.id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           name: catEditForm.name,
           description: catEditForm.desc
@@ -232,7 +235,8 @@ export default function Categories({ defaultTab }) {
   const handleDeleteCategory = async (id) => {
     try {
       const response = await fetch(`http://localhost:5005/api/categories/${id}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        headers: getAuthHeaders()
       });
       if (response.ok) {
         fetchCategories();

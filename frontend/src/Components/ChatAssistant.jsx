@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { getAuthHeaders } from '../utils/authHeaders';
 import {
   Bot,
   Sparkles,
@@ -123,7 +124,7 @@ const ChatAssistant = () => {
     try {
       const response = await fetch('http://localhost:5005/api/chat/send-message', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({ userMessage: inputMessage })
       });
 

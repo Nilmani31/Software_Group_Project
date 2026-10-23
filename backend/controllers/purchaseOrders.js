@@ -1,5 +1,5 @@
 const PurchaseOrder = require('../models/purchaseOrder');
-const { getPOBranchFilter } = require('../utils/branchFilter');
+const { getPOBranchFilter, resolveBranchName } = require('../utils/branchFilter');
 
 // Get all purchase orders
 exports.getAllPOs = async (req, res) => {
@@ -43,7 +43,10 @@ exports.getPOById = async (req, res) => {
 // Create new purchase order
 exports.createPO = async (req, res) => {
   try {
-    const finalCreatedByBranch = req.body.createdByBranch || req.headers['x-user-branch-name'] || 'Colombo Main Branch';
+    const userBranchName = req.user && req.user.branchId
+      ? await resolveBranchName(req.user.branchId)
+      : 'Colombo Main Branch';
+    const finalCreatedByBranch = req.body.createdByBranch || userBranchName;
     const { poNumber, status, orderType, supplier, branch, orderDate, expectedDate, total, createdBy, items, orderDetails } = req.body;
     const createdByBranch = finalCreatedByBranch;
 

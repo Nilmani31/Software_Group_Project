@@ -75,8 +75,16 @@ const Navbar = () => {
 
   const handleLogout = () => {
     // Clear login data from localStorage
+    localStorage.removeItem('accessToken');
     localStorage.removeItem('isLoggedIn');
     localStorage.removeItem('username');
+    localStorage.removeItem('userId');
+    localStorage.removeItem('roleId');
+    localStorage.removeItem('branchId');
+    localStorage.removeItem('branchName');
+    localStorage.removeItem('email');
+    localStorage.removeItem('allowedBranches');
+    localStorage.removeItem('permissions');
     // Navigate to login page
     navigate('/');
   };

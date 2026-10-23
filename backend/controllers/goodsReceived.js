@@ -3,7 +3,7 @@ const PurchaseOrder = require('../models/purchaseOrder');
 const Item = require('../models/items');
 const Stock = require('../models/stock');
 const User = require('../models/users');
-const { getGRNBranchFilter } = require('../utils/branchFilter');
+const { getGRNBranchFilter, resolveBranchName } = require('../utils/branchFilter');
 
 // Get all GRNs with pagination
 exports.getAllGRNs = async (req, res) => {
@@ -97,7 +97,9 @@ exports.createGRN = async (req, res) => {
         }
       }
       if (!targetBranch) {
-        targetBranch = req.headers['x-user-branch-name'] || 'Colombo Main Branch';
+        targetBranch = req.user && req.user.branchId
+          ? await resolveBranchName(req.user.branchId)
+          : 'Colombo Main Branch';
       }
     }
 

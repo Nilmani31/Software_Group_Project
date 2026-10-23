@@ -18,9 +18,22 @@ const pagePermissions = {
 export default function ProtectedRoute({ children, path }) {
   const roleId = localStorage.getItem('roleId');
   const isLoggedIn = localStorage.getItem('isLoggedIn');
+  const accessToken = localStorage.getItem('accessToken');
 
-  // If not logged in, redirect to login
-  if (!isLoggedIn) {
+  let tokenIsValid = false;
+  if (accessToken) {
+    try {
+      const payload = JSON.parse(window.atob(accessToken.split('.')[1]));
+      tokenIsValid = typeof payload.exp === 'number' && payload.exp * 1000 > Date.now();
+    } catch {
+      tokenIsValid = false;
+    }
+  }
+
+  // Do not render protected pages for missing, malformed, or expired sessions.
+  if (isLoggedIn !== 'true' || !tokenIsValid) {
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('isLoggedIn');
     return <Navigate to="/login" replace />;
   }
 

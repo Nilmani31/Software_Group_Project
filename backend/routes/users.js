@@ -2,12 +2,15 @@
 const express = require('express');
 const router = express.Router();
 const authController = require('../controllers/users');    
+const authenticate = require('../middleware/authenticate');
 
-// User Management Routes
-router.get('/', authController.getAllUsers);                // Get all users
-router.post('/create', authController.createUser);      // Create new user
-router.put('/:id', authController.updateUser);          // Update user
-router.delete('/:id', authController.deleteUser);       // Delete user
-router.post('/login', authController.login);             // Login user
+router.post('/login', authController.login);
+
+// User management routes require authentication. Login remains public.
+router.use(authenticate);
+router.get('/', authController.getAllUsers);
+router.post('/create', authController.createUser);
+router.put('/:id', authController.updateUser);
+router.delete('/:id', authController.deleteUser);
 
 module.exports = router;

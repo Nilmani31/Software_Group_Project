@@ -1,6 +1,14 @@
 const axios = require("axios");
 const FormData = require("form-data");
 
+const getMlAuthHeaders = () => {
+	const key = process.env.ML_SERVICE_KEY;
+	if (!key) {
+		throw new Error("ML service authentication key is not configured.");
+	}
+	return { "X-ML-Service-Key": key };
+};
+
 const searchByImage = async (file) => {
 	const mlServiceUrl = process.env.ML_SERVICE_URL;
 	
@@ -52,6 +60,7 @@ const searchByImage = async (file) => {
 			{
 				headers: {
 					...formData.getHeaders(),
+					...getMlAuthHeaders(),
 				},
 				timeout: 120000,
 				maxContentLength: Infinity,

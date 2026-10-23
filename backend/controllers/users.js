@@ -1,5 +1,6 @@
 const User = require("../models/users");
 const bcrypt = require("bcrypt");
+const jwt = require("jsonwebtoken");
 const { generatePasswordByRole } = require("../utils/passwordGenerator");
 const { sendWelcomeMessage } = require("../services/messageService");
 const { resolveBranchName } = require("../utils/branchFilter");
@@ -251,9 +252,16 @@ exports.login = async (req, res) => {
       lastLoginAt: user.lastLoginAt
     };
 
+    const token = jwt.sign(
+      { sub: user._id.toString() },
+      process.env.JWT_SECRET,
+      { expiresIn: process.env.JWT_EXPIRES_IN || '15m' }
+    );
+
     res.json({
       success: true,
       message: 'Login successful',
+      token,
       user: userResponse
     });
 

@@ -1,8 +1,20 @@
 import { test, expect } from '@playwright/test';
 
-test('test', async ({ page }) => {
-  const poNumber = `PO-TEST-${Date.now()}`;
+test('test', async ({ page }, testInfo) => {
+  const poNumber = `PO-TEST-${Date.now()}-${testInfo.workerIndex}`;
+  const loginResponse = await page.request.post('http://localhost:5005/api/users/login', {
+    data: {
+      username: 'admin',
+      password: 'Admin@123'
+    }
+  });
+  expect(loginResponse.ok()).toBeTruthy();
+  const loginData = await loginResponse.json();
+
   const purchaseOrderResponse = await page.request.post('http://localhost:5005/api/purchase-orders', {
+    headers: {
+      Authorization: `Bearer ${loginData.token}`
+    },
     data: {
       poNumber,
       status: 'Pending',
@@ -13,7 +25,10 @@ test('test', async ({ page }) => {
       items: ['Test Item - unit x 1']
     }
   });
-  expect(purchaseOrderResponse.ok()).toBeTruthy();
+  expect(
+    purchaseOrderResponse.ok(),
+    await purchaseOrderResponse.text()
+  ).toBeTruthy();
 
   await page.goto('http://localhost:3000/');
   await page.getByRole('textbox', { name: 'Username' }).click();
