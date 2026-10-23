@@ -58,7 +58,7 @@ jobs:
 
       - name: Install Playwright browsers
         working-directory: testing/tests
-        run: npx playwright install --with-deps
+        run: npx playwright install --with-deps chromium
 
       - name: Start backend
         env:
