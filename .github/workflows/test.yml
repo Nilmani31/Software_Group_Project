@@ -67,7 +67,7 @@ jobs:
       - name: Start backend
         env:
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
-          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET || 'ci-test-jwt-secret' }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
           if [ -z "$MONGODB_URI" ]; then
