@@ -36,6 +36,7 @@ const chatRoutes = require('./routes/chat');
 const goodsReceivedRouter = require('./routes/goodsReceived');
 const imageSearchRouter = require('./routes/imageSearch');
 const dashboardRouter = require('./routes/dashboard');
+const authenticate = require('./middleware/authenticate');
 
 
 
@@ -98,19 +99,19 @@ app.get('/api/health', (req, res) => {
 
 // Routes - Register BEFORE app.listen()
 app.use('/api/users', Userrouter);
-app.use('/api/roles', rolesRouter);
-app.use('/api/items', itemsRouter);
-app.use('/api/categories', categoriesRouter);
-app.use('/api/units', unitsRouter);
-app.use('/api/branches', BranchRouter);
-app.use('/api/suppliers', suppliersRouter);
-app.use('/api/stock', stockRouter);
-app.use('/api/purchase-orders', purchaseOrdersRouter);
-app.use('/api/issue-notes', issueNotesRouter);
-app.use('/api/goods-received', goodsReceivedRouter);
-app.use('/api/chat', chatRoutes);
-app.use('/api/image-search', imageSearchRouter);
-app.use('/api/dashboard', dashboardRouter);
+app.use('/api/roles', authenticate, rolesRouter);
+app.use('/api/items', authenticate, itemsRouter);
+app.use('/api/categories', authenticate, categoriesRouter);
+app.use('/api/units', authenticate, unitsRouter);
+app.use('/api/branches', authenticate, BranchRouter);
+app.use('/api/suppliers', authenticate, suppliersRouter);
+app.use('/api/stock', authenticate, stockRouter);
+app.use('/api/purchase-orders', authenticate, purchaseOrdersRouter);
+app.use('/api/issue-notes', authenticate, issueNotesRouter);
+app.use('/api/goods-received', authenticate, goodsReceivedRouter);
+app.use('/api/chat', authenticate, chatRoutes);
+app.use('/api/image-search', authenticate, imageSearchRouter);
+app.use('/api/dashboard', authenticate, dashboardRouter);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
