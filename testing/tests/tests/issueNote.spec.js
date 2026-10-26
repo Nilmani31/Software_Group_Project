@@ -31,7 +31,7 @@ test('test', async ({ page }) => {
   await page.getByRole('link', { name: 'Issue Note' }).click();
   await expect(page.getByText('Loading records...')).toBeHidden({ timeout: 15000 });
   await page.getByRole('button', { name: 'Issue Notes' }).click();
-  await page.getByRole('button', { name: 'Create Issue Note' }).click();
+    await page.getByRole('button', { name: 'Create Issue Note' }).first().click();
   const createModal = page.locator('.modal-content-inventory').filter({ hasText: 'Create Issue Note' });
   const modalSelects = createModal.locator('select');
   const firstAvailableOption = async (selectIndex) => modalSelects.nth(selectIndex)
