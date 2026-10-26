@@ -1,19 +1,6 @@
 import React from 'react';
 import { Navigate } from 'react-router-dom';
-
-// Define which roles can access which pages
-const pagePermissions = {
-  '/users': ['ADMIN', 'DIRECTOR', 'MANAGER', 'BRANCH_MANAGER'],
-  '/categories': ['ADMIN', 'DIRECTOR', 'MANAGER', 'BRANCH_MANAGER'],
-  '/branches': ['ADMIN', 'DIRECTOR', 'MANAGER'],
-  '/dashboard': ['ADMIN', 'DIRECTOR', 'MANAGER', 'BRANCH_MANAGER', 'STAFF'],
-  '/inventory': ['ADMIN', 'DIRECTOR', 'MANAGER', 'BRANCH_MANAGER', 'STAFF'],
-  '/good-received': ['ADMIN', 'DIRECTOR', 'MANAGER', 'BRANCH_MANAGER', 'STAFF'],
-  '/purchase-order': ['ADMIN', 'DIRECTOR', 'MANAGER', 'BRANCH_MANAGER', 'STAFF'],
-  '/issue-note': ['ADMIN', 'DIRECTOR', 'MANAGER', 'BRANCH_MANAGER'],
-  '/low-stock': ['ADMIN', 'DIRECTOR', 'MANAGER', 'BRANCH_MANAGER', 'STAFF'],
-  '/report': ['ADMIN', 'DIRECTOR', 'MANAGER', 'BRANCH_MANAGER']
-};
+import { PAGE_PERMISSIONS } from '../utils/rolePermissions';
 
 export default function ProtectedRoute({ children, path }) {
   const roleId = localStorage.getItem('roleId');
@@ -38,13 +25,19 @@ export default function ProtectedRoute({ children, path }) {
   }
 
   // Extract the role name (e.g., 'ROLE_ADMIN' -> 'ADMIN')
-  const userRole = roleId ? roleId.replace('ROLE_', '') : '';
+  let userPermissions = [];
+  try {
+    userPermissions = JSON.parse(localStorage.getItem('permissions') || '[]');
+  } catch {
+    userPermissions = [];
+  }
 
-  // Get allowed roles for this page
-  const allowedRoles = pagePermissions[path] || [];
+  const requiredPermission = PAGE_PERMISSIONS[path];
+  const hasAccess = !requiredPermission ||
+    userPermissions.includes('ALL') ||
+    userPermissions.includes(requiredPermission);
 
-  // If user role is not in allowed roles, redirect
-  if (!allowedRoles.includes(userRole)) {
+  if (!hasAccess) {
     // Prevent infinite redirect loop if they don't even have dashboard access
     if (path === '/dashboard') {
       return <Navigate to="/login" replace />;
