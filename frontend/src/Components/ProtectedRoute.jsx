@@ -3,7 +3,7 @@ import { Navigate } from 'react-router-dom';
 import { PAGE_PERMISSIONS } from '../utils/rolePermissions';
 
 export default function ProtectedRoute({ children, path }) {
-  const roleId = localStorage.getItem('roleId');
+  //const roleId = localStorage.getItem('roleId');
   const isLoggedIn = localStorage.getItem('isLoggedIn');
   const accessToken = localStorage.getItem('accessToken');
 
