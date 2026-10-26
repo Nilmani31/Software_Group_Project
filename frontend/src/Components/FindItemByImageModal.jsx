@@ -10,6 +10,7 @@ import {
   FaPlus,
   FaExternalLinkAlt
 } from 'react-icons/fa';
+import { getAuthHeaders } from '../utils/authHeaders';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5005/api';
 
@@ -91,6 +92,9 @@ const FindItemByImageModal = ({ isOpen, onClose, onAddAsNew, onUseExistingItem }
       const endpoint = `${API_BASE_URL}/image-search/zero-shot`;
       const response = await fetch(endpoint, {
         method: 'POST',
+        headers: {
+          Authorization: getAuthHeaders().Authorization
+        },
         body: formData,
         signal: controller.signal,
       });

@@ -1,5 +1,6 @@
 const User = require("../models/users");
 const bcrypt = require("bcrypt");
+const jwt = require("jsonwebtoken");
 const { generatePasswordByRole } = require("../utils/passwordGenerator");
 const { sendWelcomeMessage } = require("../services/messageService");
 const { resolveBranchName } = require("../utils/branchFilter");
@@ -7,23 +8,62 @@ const { resolveBranchName } = require("../utils/branchFilter");
 const DEFAULT_ROLE_PERMISSIONS = {
   ROLE_ADMIN: ['ALL'],
   ROLE_DIRECTOR: ['DASHBOARD', 'REPORTS', 'INVENTORY', 'PURCHASE_ORDERS', 'GOODS_RECEIVED', 'ISSUE_NOTES', 'USERS', 'BRANCHES', 'CATEGORIES'],
-  ROLE_MANAGER: ['DASHBOARD', 'INVENTORY', 'PURCHASE_ORDERS', 'GOODS_RECEIVED', 'ISSUE_NOTES', 'REPORTS'],
-  ROLE_BRANCH_MANAGER: ['DASHBOARD', 'INVENTORY', 'PURCHASE_ORDERS', 'GOODS_RECEIVED', 'ISSUE_NOTES'],
-  ROLE_STAFF: ['DASHBOARD', 'INVENTORY', 'GOODS_RECEIVED']
+  ROLE_MANAGER: ['DASHBOARD', 'USERS', 'INVENTORY', 'PURCHASE_ORDERS', 'GOODS_RECEIVED', 'ISSUE_NOTES', 'REPORTS', 'BRANCHES', 'CATEGORIES'],
+  ROLE_BRANCH_MANAGER: ['DASHBOARD', 'USERS', 'INVENTORY', 'PURCHASE_ORDERS', 'GOODS_RECEIVED', 'ISSUE_NOTES', 'REPORTS', 'CATEGORIES'],
+  ROLE_STAFF: ['DASHBOARD', 'INVENTORY', 'GOODS_RECEIVED', 'PURCHASE_ORDERS']
 };
+
+const CREATABLE_ROLES = {
+  ROLE_ADMIN: ['ROLE_ADMIN', 'ROLE_DIRECTOR', 'ROLE_MANAGER', 'ROLE_BRANCH_MANAGER', 'ROLE_STAFF'],
+  ROLE_DIRECTOR: ['ROLE_MANAGER', 'ROLE_BRANCH_MANAGER', 'ROLE_STAFF'],
+  ROLE_MANAGER: ['ROLE_BRANCH_MANAGER', 'ROLE_STAFF'],
+  ROLE_BRANCH_MANAGER: ['ROLE_STAFF'],
+  ROLE_STAFF: []
+};
+
+const VISIBLE_ROLES = {
+  ROLE_ADMIN: ['ROLE_ADMIN', 'ROLE_DIRECTOR', 'ROLE_MANAGER', 'ROLE_BRANCH_MANAGER', 'ROLE_STAFF'],
+  ROLE_DIRECTOR: ['ROLE_MANAGER', 'ROLE_BRANCH_MANAGER', 'ROLE_STAFF'],
+  ROLE_MANAGER: ['ROLE_BRANCH_MANAGER', 'ROLE_STAFF'],
+  ROLE_BRANCH_MANAGER: ['ROLE_STAFF'],
+  ROLE_STAFF: []
+};
+
+const getRolePermissions = (roleId) =>
+  DEFAULT_ROLE_PERMISSIONS[roleId] || ['DASHBOARD', 'INVENTORY'];
+
+const getEffectivePermissions = (user) =>
+  Array.isArray(user.permissions) && user.permissions.length > 0
+    ? user.permissions
+    : getRolePermissions(user.roleId);
 
 // GET ALL USERS
 exports.getAllUsers = async (req, res) => {
   try {
-    const users = await User.find().select('-password').lean();
+    const requesterRole = req.user?.roleId;
+    const isGlobalUser = requesterRole === 'ROLE_ADMIN' || requesterRole === 'ROLE_DIRECTOR';
+    const branchScope = [
+      req.user?.branchId,
+      ...(req.user?.allowedBranches || [])
+    ].filter(Boolean).map(String);
+    const userQuery = {
+      _id: { $ne: req.user?._id },
+      roleId: { $in: VISIBLE_ROLES[requesterRole] || [] },
+      ...(isGlobalUser ? {} : {
+        $or: [
+          { branchId: { $in: branchScope } },
+          { allowedBranches: { $in: branchScope } }
+        ]
+      })
+    };
+
+    const users = await User.find(userQuery).select('-password').lean();
     
     // Attach resolved branchName and effective permissions
     const enrichedUsers = await Promise.all(
       users.map(async (u) => {
         const branchName = await resolveBranchName(u.branchId);
-        const permissions = (u.permissions && u.permissions.length > 0)
-          ? u.permissions
-          : (DEFAULT_ROLE_PERMISSIONS[u.roleId] || ['DASHBOARD', 'INVENTORY']);
+        const permissions = getEffectivePermissions(u);
         return {
           ...u,
           branchName,
@@ -49,6 +89,30 @@ exports.getAllUsers = async (req, res) => {
 exports.createUser = async (req, res) => {
   try {
     const { username, roleId, branchId, phoneNumber, email, password, createdBy, permissions } = req.body;
+
+    const requesterRole = req.user?.roleId;
+    if (!CREATABLE_ROLES[requesterRole]?.includes(roleId)) {
+      return res.status(403).json({
+        success: false,
+        error: 'You are not allowed to create a user with this role'
+      });
+    }
+
+    const branchScope = [
+      req.user?.branchId,
+      ...(req.user?.allowedBranches || [])
+    ].filter(Boolean).map(String);
+    const requestedBranches = [
+      branchId,
+      ...(Array.isArray(req.body.allowedBranches) ? req.body.allowedBranches : [])
+    ].filter(Boolean).map(String);
+    const isGlobalUser = requesterRole === 'ROLE_ADMIN' || requesterRole === 'ROLE_DIRECTOR';
+    if (!isGlobalUser && requestedBranches.some(id => !branchScope.includes(id))) {
+      return res.status(403).json({
+        success: false,
+        error: 'User branches must be within your assigned branch scope'
+      });
+    }
 
     if (!username || !roleId || !branchId || !phoneNumber || !email) {
       return res.status(400).json({
@@ -84,11 +148,14 @@ exports.createUser = async (req, res) => {
     // Map roleId to role (remove ROLE_ prefix if present)
     const roleValue = roleId.startsWith('ROLE_') ? roleId.substring(5) : roleId;
     
-    // Resolve permissions: custom permissions or fallback to role defaults
-    let finalPermissions = permissions;
-    if (!finalPermissions || !Array.isArray(finalPermissions) || finalPermissions.length === 0) {
-      finalPermissions = DEFAULT_ROLE_PERMISSIONS[roleId] || ['DASHBOARD', 'INVENTORY'];
-    }
+    const canAssignPermissions =
+      req.user?.roleId === 'ROLE_ADMIN' ||
+      req.user?.roleId === 'ROLE_DIRECTOR' ||
+      req.user?.permissions?.includes('USERS') ||
+      req.user?.permissions?.includes('ALL');
+    const finalPermissions = canAssignPermissions && Array.isArray(permissions)
+      ? permissions
+      : getRolePermissions(roleId);
 
     const newUser = await User.create({
       username,
@@ -157,6 +224,17 @@ exports.updateUser = async (req, res) => {
 
     if (data.roleId) {
       data.role = data.roleId.startsWith('ROLE_') ? data.roleId.substring(5) : data.roleId;
+    }
+
+    const canAssignPermissions =
+      req.user?.roleId === 'ROLE_ADMIN' ||
+      req.user?.roleId === 'ROLE_DIRECTOR' ||
+      req.user?.permissions?.includes('USERS') ||
+      req.user?.permissions?.includes('ALL');
+    if (canAssignPermissions && Array.isArray(data.permissions)) {
+      data.permissions = data.permissions;
+    } else if (data.roleId) {
+      data.permissions = getRolePermissions(data.roleId);
     }
 
     const updated = await User.findByIdAndUpdate(req.params.id, data, { new: true }).select('-password');
@@ -231,9 +309,7 @@ exports.login = async (req, res) => {
 
     // Resolve branch name and permissions
     const branchName = await resolveBranchName(user.branchId);
-    const permissions = (user.permissions && user.permissions.length > 0)
-      ? user.permissions
-      : (DEFAULT_ROLE_PERMISSIONS[user.roleId] || ['DASHBOARD', 'INVENTORY']);
+    const permissions = getEffectivePermissions(user);
 
     // Return user data (exclude password)
     const userResponse = {
@@ -251,9 +327,16 @@ exports.login = async (req, res) => {
       lastLoginAt: user.lastLoginAt
     };
 
+    const token = jwt.sign(
+      { sub: user._id.toString() },
+      process.env.JWT_SECRET,
+      { expiresIn: process.env.JWT_EXPIRES_IN || '15m' }
+    );
+
     res.json({
       success: true,
       message: 'Login successful',
+      token,
       user: userResponse
     });
 

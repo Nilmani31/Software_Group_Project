@@ -3,6 +3,11 @@ export const getAuthHeaders = () => {
     'Content-Type': 'application/json',
   };
 
+  const accessToken = localStorage.getItem('accessToken');
+  if (accessToken) {
+    headers.Authorization = ['Bearer', accessToken].join(' ');
+  }
+
   const roleId = localStorage.getItem('roleId');
   const branchId = localStorage.getItem('branchId');
   const allowedBranches = localStorage.getItem('allowedBranches');

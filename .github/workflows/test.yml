@@ -28,6 +28,10 @@ jobs:
         working-directory: backend
         run: npm ci
 
+      - name: Install backend runtime dependency
+        working-directory: backend
+        run: npm install --no-save --package-lock=false jsonwebtoken@9.0.3
+
       - name: Validate backend JavaScript
         working-directory: backend
         shell: bash
@@ -63,11 +67,14 @@ jobs:
       - name: Start backend
         env:
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET || 'ci-test-jwt-secret' }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
           if [ -z "$MONGODB_URI" ]; then
             echo "MONGODB_URI GitHub Actions secret is required for integration tests."
             exit 1
           fi
+          npm --prefix backend run seed:initial
           nohup npm --prefix backend start > backend.log 2>&1 &
           echo $! > backend.pid
 

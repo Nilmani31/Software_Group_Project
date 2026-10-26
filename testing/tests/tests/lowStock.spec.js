@@ -16,6 +16,7 @@ test('test', async ({ page }) => {
   await page.getByRole('option', { name: 'Transfer from Internal Branch Surplus' }).click();
   await page.getByRole('button', { name: 'Transfer from Internal Branch' }).click();
   await page.getByRole('option', { name: 'Procure from External Supplier' }).click();
-  await expect(page.getByText('No active suppliers found in')).toBeVisible();
+  await expect(page.getByText('Supplier / Vendor Name *')).toBeVisible();
+  await expect(page.getByText('Reorder Qty')).toBeVisible();
   await page.getByRole('button', { name: 'Close modal' }).click();
 });

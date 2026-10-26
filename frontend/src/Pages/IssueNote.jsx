@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import Sidebar from "../Components/Sidebar";
 import Navbar from "../Components/Navbar";
 import ChatAssistant from "../Components/ChatAssistant";
@@ -14,6 +14,7 @@ import { FaSave } from "react-icons/fa";
 const IssueNote = () => {
   const [issueNotes, setIssueNotes] = useState([]); // Initialize as empty array
   const [branches, setBranches] = useState([]);
+  const [allocatedBranches, setAllocatedBranches] = useState([]);
   const [items, setItems] = useState([]);
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -48,30 +49,6 @@ const IssueNote = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedBranchFilter, setSelectedBranchFilter] = useState("all");
   const [selectedStatusFilter, setSelectedStatusFilter] = useState("all");
-
-  // Fetch data from API on component mount
-  useEffect(() => {
-    const loadData = async () => {
-      await Promise.all([
-        fetchIssueNotes(),
-        fetchBranches(),
-        fetchItems(),
-        fetchUsers(),
-        fetchCategories()
-      ]);
-
-      // Get current user from localStorage (stored as individual fields in Login.jsx)
-      const user = {
-        _id: localStorage.getItem('userId') || 'temp-user-id',
-        name: localStorage.getItem('username') || 'Current User'
-      };
-      setCurrentUser(user);
-
-      setLoading(false);
-    };
-
-    loadData();
-  }, []);
 
   // Fetch issue notes from API
   const fetchIssueNotes = async () => {
@@ -133,23 +110,67 @@ const IssueNote = () => {
   };
 
   // Fetch branches from API
-  const fetchBranches = async () => {
+  const fetchBranches = useCallback(async () => {
     try {
-      const response = await fetch('http://localhost:5005/api/branches');
+      const response = await fetch('http://localhost:5005/api/branches', {
+        headers: getAuthHeaders()
+      });
       const data = await response.json();
 
       console.log('Branches API response:', data);
 
       // Handle both response formats: { success: true, data: [...] } or direct array
       const branchesArray = data.success && data.data ? data.data : (Array.isArray(data) ? data : []);
+      const isGlobalRole = ['ADMIN', 'DIRECTOR'].includes(userRole);
+      let allowedBranchIds = [];
+      try {
+        allowedBranchIds = [
+          localStorage.getItem('branchId'),
+          ...JSON.parse(localStorage.getItem('allowedBranches') || '[]')
+        ].filter(Boolean).map(String);
+      } catch {
+        allowedBranchIds = [localStorage.getItem('branchId')].filter(Boolean).map(String);
+      }
+
+      const userBranches = isGlobalRole
+        ? branchesArray
+        : branchesArray.filter(branch => {
+            const branchId = String(branch._id || branch.id || branch.branchId || '');
+            return allowedBranchIds.includes(branchId);
+          });
 
       console.log('Fetched branches:', branchesArray.length, branchesArray);
+      console.log('Fetched allocated source branches:', userBranches.length, userBranches);
       setBranches(branchesArray);
+      setAllocatedBranches(userBranches);
     } catch (err) {
       console.error('Error fetching branches:', err);
       setBranches([]);
     }
-  };
+  }, [userRole]);
+
+  // Fetch data from API on component mount
+  useEffect(() => {
+    const loadData = async () => {
+      await Promise.all([
+        fetchIssueNotes(),
+        fetchBranches(),
+        fetchItems(),
+        fetchUsers(),
+        fetchCategories()
+      ]);
+
+      const user = {
+        _id: localStorage.getItem('userId') || 'temp-user-id',
+        name: localStorage.getItem('username') || 'Current User'
+      };
+      setCurrentUser(user);
+
+      setLoading(false);
+    };
+
+    loadData();
+  }, [fetchBranches]);
 
   // Fetch items from API
   const fetchItems = async () => {
@@ -1815,7 +1836,7 @@ const IssueNote = () => {
                     className="form-input-inventory"
                   >
                     <option value="">Select a Source Branch...</option>
-                    {branches.map(branch => {
+                    {allocatedBranches.map(branch => {
                       const branchName = branch.branchName || branch.branch_name || branch.name || 'Unknown';
                       const branchCode = branch.branchCode || branch.branch_code || '';
                       const branchId = branch._id || branch.id;

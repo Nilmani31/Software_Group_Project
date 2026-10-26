@@ -19,6 +19,7 @@ import ChatAssistant from '../Components/ChatAssistant';
 import ConfirmDialog from '../Components/ConfirmDialog';
 import ModernDropdown from '../Components/ModernDropdown';
 import { getAuthHeaders } from '../utils/authHeaders';
+import { ROLE_PERMISSIONS } from '../utils/rolePermissions';
 
 const DEFAULT_PASSWORD_LENGTH = 12;
 
@@ -33,14 +34,6 @@ const AVAILABLE_PERMISSIONS = [
   { id: 'BRANCHES', label: 'Branch Management', description: 'Can manage company branch locations and contact info', badge: 'Admin' },
   { id: 'CATEGORIES', label: 'Categories & Units', description: 'Can manage inventory categories and unit measurements', badge: 'Admin' }
 ];
-
-const DEFAULT_ROLE_PERMS = {
-  ROLE_ADMIN: ['ALL', 'USERS', 'INVENTORY', 'PURCHASE_ORDERS', 'GOODS_RECEIVED', 'ISSUE_NOTES', 'REPORTS', 'BRANCHES', 'CATEGORIES'],
-  ROLE_DIRECTOR: ['USERS', 'INVENTORY', 'PURCHASE_ORDERS', 'GOODS_RECEIVED', 'ISSUE_NOTES', 'REPORTS', 'BRANCHES', 'CATEGORIES'],
-  ROLE_MANAGER: ['INVENTORY', 'PURCHASE_ORDERS', 'GOODS_RECEIVED', 'ISSUE_NOTES', 'REPORTS'],
-  ROLE_BRANCH_MANAGER: ['INVENTORY', 'PURCHASE_ORDERS', 'GOODS_RECEIVED', 'ISSUE_NOTES'],
-  ROLE_STAFF: ['INVENTORY', 'GOODS_RECEIVED']
-};
 
 export default function Users() {
   const [list, setList] = useState([]);
@@ -91,6 +84,8 @@ export default function Users() {
   const canManageUsers = 
     currentUserRole === 'ADMIN' || 
     currentUserRole === 'DIRECTOR' || 
+    currentUserRole === 'MANAGER' ||
+    currentUserRole === 'BRANCH_MANAGER' ||
     currentUserPerms.includes('USERS') || 
     currentUserPerms.includes('ALL');
 
@@ -106,7 +101,9 @@ export default function Users() {
   // Fetch roles from database
   const fetchRoles = async () => {
     try {
-      const response = await fetch('http://localhost:5005/api/roles');
+      const response = await fetch('http://localhost:5005/api/roles', {
+        headers: getAuthHeaders()
+      });
       const data = await response.json();
       if (data.success && data.data) {
         let filteredRoles = data.data;
@@ -130,9 +127,26 @@ export default function Users() {
   // Fetch branches from database
   const fetchBranches = async () => {
     try {
-      const response = await fetch('http://localhost:5005/api/branches');
+      const response = await fetch('http://localhost:5005/api/branches', {
+        headers: getAuthHeaders()
+      });
       const data = await response.json();
-      const branchesArray = Array.isArray(data) ? data : (data.data ? data.data : []);
+      const allBranches = Array.isArray(data) ? data : (data.data ? data.data : []);
+      let allowedBranchIds = [];
+      try {
+        allowedBranchIds = [
+          localStorage.getItem('branchId'),
+          ...JSON.parse(localStorage.getItem('allowedBranches') || '[]')
+        ].filter(Boolean);
+      } catch (e) {
+        allowedBranchIds = [localStorage.getItem('branchId')].filter(Boolean);
+      }
+      const branchesArray = ['ADMIN', 'DIRECTOR'].includes(currentUserRole)
+        ? allBranches
+        : allBranches.filter(branch =>
+            allowedBranchIds.includes(branch._id) ||
+            allowedBranchIds.includes(branch.branchId)
+          );
       if (Array.isArray(branchesArray)) {
         setBranches(branchesArray);
         if (branchesArray.length > 0) {
@@ -156,7 +170,16 @@ export default function Users() {
       });
       const data = await response.json();
       if (data.success && data.data) {
-        const formattedUsers = data.data.map(user => ({
+        const visibleRoles = {
+          ADMIN: ['ROLE_ADMIN', 'ROLE_DIRECTOR', 'ROLE_MANAGER', 'ROLE_BRANCH_MANAGER', 'ROLE_STAFF'],
+          DIRECTOR: ['ROLE_MANAGER', 'ROLE_BRANCH_MANAGER', 'ROLE_STAFF'],
+          MANAGER: ['ROLE_BRANCH_MANAGER', 'ROLE_STAFF'],
+          BRANCH_MANAGER: ['ROLE_STAFF'],
+          STAFF: []
+        }[currentUserRole] || [];
+        const formattedUsers = data.data
+          .filter(user => visibleRoles.includes(user.roleId))
+          .map(user => ({
           id: user._id,
           userId: user.userId,
           name: user.username,
@@ -195,7 +218,7 @@ export default function Users() {
 
   // When Add Role changes, auto-set default permissions and branch
   const handleAddRoleChange = (roleId) => {
-    const defaultPerms = DEFAULT_ROLE_PERMS[roleId] || ['INVENTORY'];
+    const defaultPerms = ROLE_PERMISSIONS[roleId] || ['INVENTORY'];
     setAddForm(prev => ({
       ...prev,
       roleId,
@@ -206,7 +229,7 @@ export default function Users() {
 
   // When Edit Role changes, auto-set default permissions
   const handleEditRoleChange = (roleId) => {
-    const defaultPerms = DEFAULT_ROLE_PERMS[roleId] || ['INVENTORY'];
+    const defaultPerms = ROLE_PERMISSIONS[roleId] || ['INVENTORY'];
     setEditForm(prev => ({
       ...prev,
       roleId,
@@ -335,7 +358,9 @@ export default function Users() {
       roleId: user.role,
       branchId: user.branch || (branches[0] ? branches[0]._id : ''),
       allowedBranches: user.allowedBranches || [],
-      permissions: user.permissions || (DEFAULT_ROLE_PERMS[user.role] || ['INVENTORY'])
+      permissions: Array.isArray(user.permissions)
+        ? user.permissions.filter(permission => permission !== 'ALL')
+        : (ROLE_PERMISSIONS[user.role] || ['INVENTORY'])
     });
     setEditing(user);
     setOpenEdit(true);
@@ -892,7 +917,7 @@ export default function Users() {
                 <input 
                   type="checkbox" 
                   checked={addForm.permissions.includes('USERS')} 
-                  onChange={() => {}} 
+                  onChange={() => togglePermission('add', 'USERS')} 
                   style={{ marginTop: 3 }}
                 />
                 <div>
@@ -1166,7 +1191,7 @@ export default function Users() {
                   <input 
                     type="checkbox" 
                     checked={editForm.permissions.includes('USERS')} 
-                    onChange={() => {}} 
+                    onChange={() => togglePermission('edit', 'USERS')} 
                     style={{ marginTop: 3 }}
                   />
                   <div>

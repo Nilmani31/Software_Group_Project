@@ -71,6 +71,7 @@ QDRANT_COLLECTION=inventory_items
 QDRANT_TOP_K=5
 QDRANT_API_KEY=
 ROBOFLOW_API_KEY=your_roboflow_api_key_here
+ML_SERVICE_KEY=replace-with-a-long-random-secret
 ```
 
 Get your Roboflow API key:
@@ -244,8 +245,14 @@ Monin products appear on both barista and bartender inventory sheets. No public 
 ### Health check
 ```
 GET /health
+X-ML-Service-Key: <ML_SERVICE_KEY>
 → {"status": "ok"}
 ```
+
+All ML service endpoints require the `X-ML-Service-Key` header. Set the same
+long random value as `ML_SERVICE_KEY` in both `ml-service/.env` and
+`backend/.env`. The Node.js backend adds this header when it calls the ML
+service; the frontend does not call the ML service directly.
 
 ### Image search
 ```

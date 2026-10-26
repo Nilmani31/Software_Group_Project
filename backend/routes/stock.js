@@ -29,6 +29,49 @@ router.get('/:id', async (req, res) => {
   }
 });
 
+// BATCH UPDATE stock quantities for multiple price tiers / branches
+router.put('/batch/update', async (req, res) => {
+  try {
+    const { updates, itemId } = req.body;
+    if (!Array.isArray(updates)) {
+      return res.status(400).json({ error: 'updates array is required' });
+    }
+
+    const Item = require('../models/items');
+    for (const u of updates) {
+      const qty = Math.max(0, parseInt(u.quantity) || 0);
+      if (u.stockId) {
+        await Stock.findByIdAndUpdate(u.stockId, {
+          quantity: qty,
+          status: qty === 0 ? 'out-of-stock' : 'in-stock'
+        });
+      } else if (u.branchId && (u.itemUnitId || u.unitId)) {
+        await Stock.findOneAndUpdate(
+          { itemId: u.itemId || itemId, branchId: u.branchId, itemUnitId: u.itemUnitId || u.unitId },
+          { quantity: qty, status: qty === 0 ? 'out-of-stock' : 'in-stock' },
+          { upsert: true }
+        );
+      }
+    }
+
+    // Recalculate total item quantity if itemId provided
+    if (itemId) {
+      const allStocks = await Stock.find({ itemId });
+      const totalStockQty = allStocks.reduce((sum, s) => sum + (Number(s.quantity) || 0), 0);
+      const item = await Item.findById(itemId);
+      if (item) {
+        item.quantity = totalStockQty;
+        item.status = totalStockQty === 0 ? 'out' : (totalStockQty <= (item.minStock || 0) ? 'low' : 'normal');
+        await item.save();
+      }
+    }
+
+    res.json({ success: true, message: 'Stock tiers updated successfully' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // UPDATE stock quantity
 router.put('/:id', async (req, res) => {
   try {

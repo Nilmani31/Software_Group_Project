@@ -7,6 +7,7 @@ import ModernDropdown from '../Components/ModernDropdown';
 import { useForm, useFieldArray } from 'react-hook-form';
 import * as grnService from '../services/grnService';
 import * as poService from '../services/poService';
+import { getAuthHeaders } from '../utils/authHeaders';
 import {
   FaTimes,
   FaPlus,
@@ -72,13 +73,16 @@ export default function GoodReceived() {
     fetchGRNs();
   }, [page]);
 
-  // Fetch Inventory Items
+  // Fetch Inventory Items with auth headers
   useEffect(() => {
     const fetchInventoryItems = async () => {
       try {
-        const response = await fetch('http://localhost:5005/api/items');
+        const response = await fetch('http://localhost:5005/api/items', {
+          headers: getAuthHeaders()
+        });
         const data = await response.json();
-        setInventoryItems(Array.isArray(data) ? data : []);
+        const list = Array.isArray(data) ? data : (data?.data || []);
+        setInventoryItems(list);
       } catch (err) {
         console.error('Error fetching inventory items:', err);
       }
@@ -86,13 +90,15 @@ export default function GoodReceived() {
     fetchInventoryItems();
   }, []);
 
-  // Fetch Branches
+  // Fetch Branches with auth headers
   useEffect(() => {
     const fetchBranches = async () => {
       try {
-        const response = await fetch('http://localhost:5005/api/branches');
+        const response = await fetch('http://localhost:5005/api/branches', {
+          headers: getAuthHeaders()
+        });
         const data = await response.json();
-        const branchList = Array.isArray(data) ? data : (data.data || []);
+        const branchList = Array.isArray(data) ? data : (data?.data || []);
         setBranches(branchList);
       } catch (err) {
         console.error('Error fetching branches:', err);
@@ -101,13 +107,13 @@ export default function GoodReceived() {
     fetchBranches();
   }, []);
 
-  // Fetch POs from API when create modal opens
+  // Fetch POs from API when create modal opens or on mount
   useEffect(() => {
     const fetchPOs = async () => {
       try {
         const response = await poService.getAllPOs();
-        if (response.success) {
-          setPoList(response.data);
+        if (response && response.success) {
+          setPoList(response.data || []);
         } else if (Array.isArray(response)) {
           setPoList(response);
         }
@@ -117,7 +123,7 @@ export default function GoodReceived() {
     };
 
     fetchPOs();
-  }, []);
+  }, [openCreate]);
 
   const handlePOSelect = (poNumber) => {
     const selectedPO = poList.find(po => (po.poNumber || po.id) === poNumber);
@@ -132,10 +138,8 @@ export default function GoodReceived() {
       let supplierNameValue = '';
 
       if (orderType === 'Branch') {
-        // Fill with branch name for branch-type orders
         supplierNameValue = selectedPO.branch || selectedPO.branchName || '';
       } else {
-        // Fill with supplier name for supplier-type orders
         supplierNameValue = selectedPO.supplier || selectedPO.supplierName || '';
       }
 
@@ -147,34 +151,64 @@ export default function GoodReceived() {
       let poItems = [];
 
       if (selectedPO.items && Array.isArray(selectedPO.items)) {
-        // Handle array of items with individual properties
         poItems = selectedPO.items.map(item => {
-          // If item is a string like "Item Name - unit x Quantity", parse it
+          let pureName = '';
+          let pureUnit = '';
+          let qtyOrdered = '';
+          let unitPrice = '';
+          let itemId = '';
+
           if (typeof item === 'string') {
             const parts = item.split(' x ');
-            const fullName = parts[0] || '';
-            // Extract pure name and unit if they are separated by ' - '
-            const nameParts = fullName.split(' - ');
-            const pureName = nameParts.length > 1 ? nameParts.slice(0, -1).join(' - ') : fullName;
-            const pureUnit = nameParts.length > 1 ? nameParts[nameParts.length - 1] : '';
+            const left = (parts[0] || '').trim();
+            const right = (parts[1] || '').trim();
 
-            return {
-              itemId: '',
-              itemName: pureName.trim(),
-              unit: pureUnit.trim(),
-              unitPrice: '',
-              quantityOrdered: parts[1] ? parseInt(parts[1]) : '',
-              quantityReceived: ''
-            };
+            if (left.includes(' - ')) {
+              const segs = left.split(' - ');
+              pureName = segs.slice(0, -1).join(' - ').trim();
+              pureUnit = segs[segs.length - 1].trim();
+            } else {
+              pureName = left;
+            }
+
+            if (right) {
+              const m = right.match(/^(\d+(?:\.\d+)?)\s*(.*)$/);
+              if (m) {
+                qtyOrdered = parseFloat(m[1]);
+                if (!pureUnit && m[2]) pureUnit = m[2].trim();
+              } else {
+                qtyOrdered = parseFloat(right) || parseInt(right, 10) || '';
+              }
+            }
+          } else if (typeof item === 'object' && item !== null) {
+            pureName = item.itemName || item.name || '';
+            pureUnit = item.unit || item.unitType || '';
+            qtyOrdered = item.quantityOrdered || item.quantity || '';
+            unitPrice = item.unitPrice || item.price || '';
+            itemId = item.itemId || item._id || item.id || '';
           }
-          // If item is an object
+
+          // Match with inventoryItems to get unitPrice, unit, itemId
+          if (inventoryItems && inventoryItems.length > 0 && pureName) {
+            const matched = inventoryItems.find(inv =>
+              inv.name?.toLowerCase().trim() === pureName.toLowerCase().trim() ||
+              inv.name?.toLowerCase().includes(pureName.toLowerCase()) ||
+              pureName.toLowerCase().includes(inv.name?.toLowerCase())
+            );
+            if (matched) {
+              if (!itemId) itemId = matched.originalId || matched._id || '';
+              if (!pureUnit) pureUnit = matched.unit || matched.baseUnit || '';
+              if (!unitPrice) unitPrice = matched.unitPrice || '';
+            }
+          }
+
           return {
-            itemId: item._id || item.id || '',
-            itemName: item.itemName || item.name || '',
-            unit: item.unit || item.unitType || '',
-            unitPrice: item.unitPrice || item.price || '',
-            quantityOrdered: item.quantityOrdered || item.quantity || '',
-            quantityReceived: ''
+            itemId: itemId || '',
+            itemName: pureName.trim(),
+            unit: pureUnit.trim(),
+            unitPrice: unitPrice || '',
+            quantityOrdered: qtyOrdered !== '' ? qtyOrdered : '',
+            quantityReceived: qtyOrdered !== '' ? qtyOrdered : ''
           };
         });
       }
@@ -210,7 +244,7 @@ export default function GoodReceived() {
         return;
       }
 
-      const selectedPO = poList.find(p => p.poNumber === data.po);
+      const selectedPO = poList.find(p => p.poNumber === data.po || p.id === data.po || String(p._id) === String(data.po));
       const branchName = selectedPO?.createdByBranch || selectedPO?.branch || localStorage.getItem('branchName') || 'Colombo Main Branch';
 
       const grnData = {
@@ -655,7 +689,7 @@ export default function GoodReceived() {
                         options={[
                           { value: '', label: '-- Select Purchase Order --' },
                           ...(poList && poList.length > 0 ? poList
-                            .filter(po => po.status === 'Pending')
+                            .filter(po => !po.status || po.status.toLowerCase() === 'pending')
                             .map(po => {
                               const orderType = po.orderType || po.orderBy || 'Supplier';
                               const displayName = orderType === 'Branch'
@@ -735,34 +769,47 @@ export default function GoodReceived() {
                         {fields.map((field, index) => (
                           <tr key={field.id}>
                             <td>
-                              <select
-                                {...register(`items.${index}.itemName`)}
-                                className="form-input-inventory"
-                                style={{
-                                  fontSize: '13px',
-                                  height: '34px',
-                                  backgroundColor: watch('po') ? '#f8fafc' : 'white',
-                                  pointerEvents: watch('po') ? 'none' : 'auto'
-                                }}
-                                readOnly={!!watch('po')}
-                                onChange={(e) => {
-                                  const val = e.target.value;
-                                  setValue(`items.${index}.itemName`, val);
-                                  const selectedItem = inventoryItems.find(i => i.name === val);
-                                  if (selectedItem) {
-                                    setValue(`items.${index}.itemId`, selectedItem.originalId || selectedItem._id);
-                                    setValue(`items.${index}.unit`, selectedItem.unit || 'kg');
-                                    setValue(`items.${index}.unitPrice`, selectedItem.unitPrice || 0);
-                                  }
-                                }}
-                              >
-                                <option value="">Select Item</option>
-                                {inventoryItems.map((invItem) => (
-                                  <option key={invItem.uniqueId || invItem._id} value={invItem.name}>
-                                    {invItem.name} ({invItem.unit})
-                                  </option>
-                                ))}
-                              </select>
+                              {watch('po') ? (
+                                <input
+                                  {...register(`items.${index}.itemName`)}
+                                  className="form-input-inventory"
+                                  style={{
+                                    fontSize: '13px',
+                                    height: '34px',
+                                    backgroundColor: '#f8fafc',
+                                    fontWeight: 600,
+                                    color: 'var(--text-primary)'
+                                  }}
+                                  readOnly
+                                />
+                              ) : (
+                                <select
+                                  {...register(`items.${index}.itemName`)}
+                                  className="form-input-inventory"
+                                  style={{
+                                    fontSize: '13px',
+                                    height: '34px',
+                                    backgroundColor: 'white'
+                                  }}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    setValue(`items.${index}.itemName`, val);
+                                    const selectedItem = inventoryItems.find(i => i.name === val);
+                                    if (selectedItem) {
+                                      setValue(`items.${index}.itemId`, selectedItem.originalId || selectedItem._id);
+                                      setValue(`items.${index}.unit`, selectedItem.unit || 'kg');
+                                      setValue(`items.${index}.unitPrice`, selectedItem.unitPrice || 0);
+                                    }
+                                  }}
+                                >
+                                  <option value="">Select Item</option>
+                                  {inventoryItems.map((invItem) => (
+                                    <option key={invItem.uniqueId || invItem._id} value={invItem.name}>
+                                      {invItem.name} {invItem.unit ? `(${invItem.unit})` : ''}
+                                    </option>
+                                  ))}
+                                </select>
+                              )}
                             </td>
                             <td>
                               <input

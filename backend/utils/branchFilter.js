@@ -26,24 +26,21 @@ const getBranches = async () => {
 };
 
 /**
- * Resolve user branches from request headers against DB branches
+ * Resolve user branches from the authenticated user against DB branches
  * @param {Object} req - Express request
  * @returns {Promise<Object>} { isAdminOrDirector, objectIds, idStrings, branchNames, primaryBranchName }
  */
 const resolveUserBranches = async (req) => {
-  const roleId = req.headers['x-user-role'] || '';
-  const branchHeader = req.headers['x-user-branch'] || '';
-  const branchNameHeader = req.headers['x-user-branch-name'] || '';
-
-  let allowedBranches = [];
-  try {
-    const rawAllowed = req.headers['x-allowed-branches'];
-    if (rawAllowed) {
-      allowedBranches = typeof rawAllowed === 'string' ? JSON.parse(rawAllowed) : rawAllowed;
-    }
-  } catch (e) {
-    console.warn('Failed to parse x-allowed-branches:', e.message);
+  if (!req.user) {
+    throw new Error('Authenticated user is required');
   }
+
+  const roleId = req.user.roleId || '';
+  const branchHeader = req.user.branchId || '';
+  const branchNameHeader = '';
+  const allowedBranches = Array.isArray(req.user.allowedBranches)
+    ? req.user.allowedBranches
+    : [];
 
   // Admin and Director have unrestricted access to all branches
   if (

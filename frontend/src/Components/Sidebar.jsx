@@ -12,6 +12,7 @@ import {
   FaChartBar
 } from "react-icons/fa";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { PAGE_PERMISSIONS } from "../utils/rolePermissions";
 
 const Sidebar = () => {
   const [isCollapsed, setIsCollapsed] = useState(() => {
@@ -40,30 +41,10 @@ const Sidebar = () => {
 
   const checkPageAccess = (path) => {
     if (hasFullAccess) return true;
-    switch (path) {
-      case '/dashboard':
-        return true;
-      case '/users':
-        return userRole === 'ADMIN' || userRole === 'DIRECTOR' || userPermissions.includes('USERS');
-      case '/inventory':
-      case '/lowstock':
-        return userPermissions.includes('INVENTORY') || ['ADMIN', 'DIRECTOR', 'MANAGER', 'BRANCH_MANAGER', 'STAFF'].includes(userRole);
-      case '/purchase-order':
-        return userPermissions.includes('PURCHASE_ORDERS') || ['ADMIN', 'DIRECTOR', 'MANAGER', 'BRANCH_MANAGER'].includes(userRole);
-      case '/good-received':
-        return userPermissions.includes('GOODS_RECEIVED') || ['ADMIN', 'DIRECTOR', 'MANAGER', 'BRANCH_MANAGER', 'STAFF'].includes(userRole);
-      case '/issue-note':
-        return userPermissions.includes('ISSUE_NOTES') || ['ADMIN', 'DIRECTOR', 'MANAGER', 'BRANCH_MANAGER'].includes(userRole);
-      case '/branches':
-        return userPermissions.includes('BRANCHES') || ['ADMIN', 'DIRECTOR'].includes(userRole);
-      case '/categories':
-      case '/units':
-        return userPermissions.includes('CATEGORIES') || ['ADMIN', 'DIRECTOR', 'MANAGER', 'BRANCH_MANAGER'].includes(userRole);
-      case '/reports':
-        return userPermissions.includes('REPORTS') || ['ADMIN', 'DIRECTOR', 'MANAGER', 'BRANCH_MANAGER'].includes(userRole);
-      default:
-        return true;
-    }
+    const requiredPermission = PAGE_PERMISSIONS[path];
+    return !requiredPermission ||
+      userPermissions.includes('ALL') ||
+      userPermissions.includes(requiredPermission);
   };
 
   const navItems = [

@@ -3,6 +3,7 @@ import Navbar from "../Components/Navbar";
 import Sidebar from "../Components/Sidebar";
 import ChatAssistant from "../Components/ChatAssistant";
 import ConfirmDialog from "../Components/ConfirmDialog";
+import { getAuthHeaders } from "../utils/authHeaders";
 
 
 import { FaTimes, FaPlus, FaBuilding, FaPhoneAlt, FaMapMarkerAlt } from "react-icons/fa";
@@ -22,7 +23,9 @@ export default function Branches() {
     useEffect(() => {
         async function fetchBranches() {
             try {
-                const res = await fetch(`${API_BASE_URL}/api/branches`);
+                const res = await fetch(`${API_BASE_URL}/api/branches`, {
+                    headers: getAuthHeaders()
+                });
                 const body = await res.json();
 
                 if (!res.ok || body.success === false) {
@@ -108,7 +111,7 @@ export default function Branches() {
         try {
             const res = await fetch(requestUrl, {
                 method,
-                headers: { "Content-Type": "application/json" },
+                headers: getAuthHeaders(),
                 body: JSON.stringify(payload),
             });
 
@@ -159,6 +162,7 @@ export default function Branches() {
         try {
             const res = await fetch(`${API_BASE_URL}/api/branches/${id}`, {
                 method: "DELETE",
+                headers: getAuthHeaders(),
             });
             const body = await res.json().catch(() => ({}));
 

@@ -47,8 +47,8 @@ exports.getDashboardStats = async (req, res) => {
         }
       }
     } else {
-      const roleId = req.headers['x-user-role'];
-      const branchHeader = req.headers['x-user-branch'];
+      const roleId = req.user && req.user.roleId;
+      const branchHeader = req.user && req.user.branchId;
 
       // If no credentials supplied or admin/director, show company-wide overview
       if (!roleId && !branchHeader) {
@@ -370,4 +370,3 @@ exports.getDashboardStats = async (req, res) => {
     });
   }
 };
-

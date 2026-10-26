@@ -1,6 +1,14 @@
 const axios = require("axios");
 const FormData = require("form-data");
 
+const getMlAuthHeaders = () => {
+	const key = process.env.ML_SERVICE_KEY;
+	if (!key) {
+		throw new Error("ML service authentication key is not configured.");
+	}
+	return { "X-ML-Service-Key": key };
+};
+
 /**
  * Talks to the ML service to keep Qdrant in sync with the real photos
  * saved on inventory items.
@@ -43,7 +51,7 @@ const addReferenceImage = async (file, meta) => {
 	formData.append("sku", meta.sku || "");
 
 	const response = await axios.post(`${getMlBaseUrl()}/add-reference`, formData, {
-		headers: { ...formData.getHeaders() },
+		headers: { ...formData.getHeaders(), ...getMlAuthHeaders() },
 		timeout: 60000,
 		maxContentLength: Infinity,
 		maxBodyLength: Infinity,
@@ -57,7 +65,7 @@ const deleteReferenceImage = async (productId) => {
 
 	const response = await axios.delete(
 		`${getMlBaseUrl()}/reference/${encodeURIComponent(String(productId))}`,
-		{ timeout: 15000 }
+		{ headers: getMlAuthHeaders(), timeout: 15000 }
 	);
 
 	return response.data;
