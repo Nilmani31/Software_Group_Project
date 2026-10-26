@@ -106,7 +106,9 @@ export default function Users() {
   // Fetch roles from database
   const fetchRoles = async () => {
     try {
-      const response = await fetch('http://localhost:5005/api/roles');
+      const response = await fetch('http://localhost:5005/api/roles', {
+        headers: getAuthHeaders()
+      });
       const data = await response.json();
       if (data.success && data.data) {
         let filteredRoles = data.data;
@@ -130,7 +132,9 @@ export default function Users() {
   // Fetch branches from database
   const fetchBranches = async () => {
     try {
-      const response = await fetch('http://localhost:5005/api/branches');
+      const response = await fetch('http://localhost:5005/api/branches', {
+        headers: getAuthHeaders()
+      });
       const data = await response.json();
       const branchesArray = Array.isArray(data) ? data : (data.data ? data.data : []);
       if (Array.isArray(branchesArray)) {

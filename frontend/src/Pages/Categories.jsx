@@ -114,7 +114,9 @@ export default function Categories({ defaultTab }) {
   // Fetch units from database
   const fetchUnits = async () => {
     try {
-      const response = await fetch('http://localhost:5005/api/units');
+      const response = await fetch('http://localhost:5005/api/units', {
+        headers: getAuthHeaders()
+      });
       const data = await response.json();
       const rawList = data.data || (Array.isArray(data) ? data : []);
       const formatted = rawList.map(u => ({
@@ -137,7 +139,9 @@ export default function Categories({ defaultTab }) {
   // Fetch roles from database
   const fetchRoles = async () => {
     try {
-      const response = await fetch('http://localhost:5005/api/roles');
+      const response = await fetch('http://localhost:5005/api/roles', {
+        headers: getAuthHeaders()
+      });
       const data = await response.json();
       if (data.success && data.data) {
         const formattedRoles = data.data.map(role => ({
@@ -261,7 +265,7 @@ export default function Categories({ defaultTab }) {
     try {
       const response = await fetch('http://localhost:5005/api/units', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           name: unitAddForm.name,
           symbol: unitAddForm.symbol,
@@ -307,7 +311,7 @@ export default function Categories({ defaultTab }) {
     try {
       const response = await fetch(`http://localhost:5005/api/units/${editing.id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           name: unitEditForm.name,
           symbol: unitEditForm.symbol,
@@ -337,7 +341,8 @@ export default function Categories({ defaultTab }) {
   const handleDeleteUnit = async (id) => {
     try {
       const response = await fetch(`http://localhost:5005/api/units/${id}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        headers: getAuthHeaders()
       });
       const data = await response.json();
       if (data.success || response.ok) {
@@ -362,7 +367,7 @@ export default function Categories({ defaultTab }) {
     try {
       const response = await fetch('http://localhost:5005/api/roles', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           roleId: addForm.name.toUpperCase(),
           roleName: addForm.name,
@@ -405,7 +410,7 @@ export default function Categories({ defaultTab }) {
     try {
       const response = await fetch(`http://localhost:5005/api/roles/${editing.id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           roleName: editForm.name,
           description: editForm.desc
@@ -431,7 +436,8 @@ export default function Categories({ defaultTab }) {
   const handleDeleteRole = async (id) => {
     try {
       const response = await fetch(`http://localhost:5005/api/roles/${id}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        headers: getAuthHeaders()
       });
       const data = await response.json();
       if (data.success) {
