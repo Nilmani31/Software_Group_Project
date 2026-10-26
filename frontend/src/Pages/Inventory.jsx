@@ -39,6 +39,7 @@ const generateSKU = (categoryName, existingSkus = []) => {
 };
 
 // Helper function to get status class
+// Helper function to get status class
 const getStatusClass = (status) => {
   switch (status) {
     case 'normal':
@@ -47,9 +48,28 @@ const getStatusClass = (status) => {
       return 'badge-low';
     case 'out':
       return 'badge-out';
+    case 'over':
+      return 'badge-normal'; // base look; colour comes from overBadgeStyle
     default:
       return 'badge-normal';
   }
+};
+
+// Inline style for the Overstock badge (no CSS file changes needed)
+const overBadgeStyle = {
+  background: '#ede9fe',
+  color: '#6d28d9',
+  border: '1px solid #c4b5fd'
+};
+
+const getStatusBadgeStyle = (status) => (status === 'over' ? overBadgeStyle : undefined);
+
+// Text shown inside the status badge
+const getStatusBadgeText = (status, full = false) => {
+  if (status === 'normal') return '✅ Normal';
+  if (status === 'low') return full ? '⚠️ Low Stock' : '⚠️ Low';
+  if (status === 'over') return full ? '📦 Overstock' : '📦 Over';
+  return full ? '❌ Out of Stock' : '❌ Out';
 };
 
 const formatPrice = (value) => `Rs ${(Number(value) || 0).toFixed(2)}`;
@@ -286,9 +306,10 @@ const Inventory = () => {
     return item.branch ? [item.branch] : [];
   };
 
-  const getStatusLabel = (status) => {
+    const getStatusLabel = (status) => {
     if (status === 'low') return 'Low Stock';
     if (status === 'out') return 'Out of Stock';
+    if (status === 'over') return 'Overstock';
     return 'Normal';
   };
 
@@ -374,13 +395,16 @@ const Inventory = () => {
       const uniquePrices = Array.from(new Set(item.unitPrices));
       const uniqueBaseUnits = Array.from(new Set(item.baseUnits.filter(Boolean)));
       const uniqueUnitSizes = Array.from(new Set(item.unitSizes.filter(Boolean)));
-      const minStock = Number(item.minStock) || 0;
+            const minStock = Number(item.minStock) || 0;
+      const maxStock = Number(item.maxStock) || 0;
       let status = 'normal';
 
       if (item.quantity === 0) {
         status = 'out';
       } else if (item.quantity < minStock) {
         status = 'low';
+      } else if (maxStock > 0 && item.quantity > maxStock) {
+        status = 'over';
       }
 
       const baseUnitDisplay = uniqueBaseUnits.length > 0 ? uniqueBaseUnits.join(', ') : (item.unit || '-');
@@ -1037,8 +1061,9 @@ const Inventory = () => {
                         <ModernDropdown
                           options={[
                             { value: 'normal', label: 'Normal' },
-                            { value: 'low', label: 'Low Stock' },
-                            { value: 'out', label: 'Out of Stock' }
+                                                        { value: 'low', label: 'Low Stock' },
+                            { value: 'out', label: 'Out of Stock' },
+                            { value: 'over', label: 'Overstock' }
                           ]}
                           value={statusFilter}
                           onChange={(val) => setStatusFilter(val)}
@@ -1112,8 +1137,8 @@ const Inventory = () => {
                                   {item.baseUnit || item.unit || '-'}
                                 </td>
                                 <td style={{ width: '12%', textAlign: 'center' }}>
-                                  <span className={`badge ${getStatusClass(item.status)}`}>
-                                    {item.status === 'normal' ? '✅ Normal' : item.status === 'low' ? '⚠️ Low' : '❌ Out'}
+                                                                    <span className={`badge ${getStatusClass(item.status)}`} style={getStatusBadgeStyle(item.status)}>
+                                    {getStatusBadgeText(item.status)}
                                   </span>
                                 </td>
                               </tr>
@@ -1433,8 +1458,8 @@ const Inventory = () => {
 
                     <div>
                       <span style={{ display: 'block', fontSize: '11px', color: '#64748b', textTransform: 'uppercase', fontWeight: '700', letterSpacing: '0.5px' }}>Status</span>
-                      <span className={`badge ${getStatusClass(selectedItem.status)}`} style={{ display: 'inline-block', marginTop: '3px' }}>
-                        {selectedItem.status === 'normal' ? '✅ Normal' : selectedItem.status === 'low' ? '⚠️ Low Stock' : '❌ Out of Stock'}
+                                                <span className={`badge ${getStatusClass(selectedItem.status)}`} style={{ display: 'inline-block', marginTop: '3px', ...getStatusBadgeStyle(selectedItem.status) }}>
+                        {getStatusBadgeText(selectedItem.status, true)}
                       </span>
                     </div>
 
