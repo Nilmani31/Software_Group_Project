@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const Item = require('../models/items');
 const Category = require('../models/categories');
 const ItemUnit = require('../models/itemUnits');
@@ -441,78 +442,30 @@ exports.updateItem = async (req, res) => {
       .populate('category', 'name');
     if (!item) return res.status(404).json({ error: 'Item not found' });
     
-    // AUTO-UPDATE STOCKS IF BRANCHSTOCKS PROVIDED OR QUANTITY CHANGED
-    if (Array.isArray(req.body.branchStocks) && req.body.branchStocks.length > 0) {
-      try {
-        const itemUnits = await ItemUnit.find({ itemId: item._id });
-        const defaultUnit = itemUnits[0] || await ItemUnit.findOne({ itemId: item._id });
-
-        for (const bs of req.body.branchStocks) {
-          const targetBranchId = bs.branchId || bs.branchObjectId || bs._id;
-          if (targetBranchId) {
-            const qty = Math.max(0, parseInt(bs.quantity) || 0);
-            await Stock.findOneAndUpdate(
-              { itemId: item._id, branchId: targetBranchId },
-              {
-                $set: {
-                  quantity: qty,
-                  status: qty === 0 ? 'out-of-stock' : (qty <= (item.minStock || 0) ? 'low' : 'in-stock'),
-                  ...(defaultUnit && { itemUnitId: defaultUnit._id })
-                }
-              },
-              { upsert: true, new: true, setDefaultsOnInsert: true }
-            );
-          }
-        }
-        console.log('✅ Branch stocks updated directly for item:', item.name);
-      } catch (bsError) {
-        console.warn('⚠️ Warning: Could not update branch stocks:', bsError.message);
-      }
-    } else if (req.body.quantity !== undefined || req.body.minStock !== undefined || req.body.maxStock !== undefined) {
-      try {
-        // Get all default itemUnits for this item
-        const itemUnits = await ItemUnit.find({ itemId: item._id });
-        
-        for (const unit of itemUnits) {
-          await Stock.updateMany(
-            { itemId: item._id, itemUnitId: unit._id },
-            {
-              ...(req.body.quantity !== undefined && { quantity: req.body.quantity }),
-              ...(req.body.minStock !== undefined && { minStock: req.body.minStock }),
-              ...(req.body.maxStock !== undefined && { maxStock: req.body.maxStock }),
-              status: req.body.quantity > 0 ? 'in-stock' : 'out-of-stock'
-            }
-          );
-        }
-        console.log('✅ Stock records updated for item:', item.name);
-      } catch (stockError) {
-        console.warn('⚠️  Warning: Could not update stocks:', stockError.message);
-      }
-    }
-
-    // Recalculate total item quantity and status across branches
-    const allStocks = await Stock.find({ itemId: item._id });
-    if (allStocks && allStocks.length > 0) {
-      const totalStockQty = allStocks.reduce((sum, s) => sum + (Number(s.quantity) || 0), 0);
-      item.quantity = totalStockQty;
-      item.status = totalStockQty === 0 ? 'out' : (totalStockQty <= (item.minStock || 0) ? 'low' : 'normal');
-      await item.save();
-    }
-    
-    // UPDATE OR CREATE ITEMUNIT
+    // 1. UPDATE OR CREATE ITEMUNIT (Price, Unit, UnitValue) FIRST
+    let defaultUnit = null;
     if (req.body.unitPrice !== undefined || req.body.unitAmount !== undefined || req.body.unit !== undefined || req.body.unitValue !== undefined) {
       try {
-        let itemUnit = await ItemUnit.findOne({ itemId: item._id });
+        const targetUnitId = req.body.itemUnitId || req.body.unitId;
+        let itemUnit = targetUnitId && mongoose.Types.ObjectId.isValid(targetUnitId)
+          ? await ItemUnit.findById(targetUnitId)
+          : null;
+        if (!itemUnit) {
+          itemUnit = await ItemUnit.findOne({ itemId: item._id });
+        }
+        
         const newUnitValue = req.body.unitAmount || req.body.unitValue || (itemUnit ? itemUnit.unitValue : 1);
         const newUnit = (req.body.unit || item.unit || 'kg').replace(/^\d+/, '');
+        const newPrice = req.body.unitPrice !== undefined ? Number(req.body.unitPrice) || 0 : (itemUnit ? itemUnit.unitPrice : 0);
         
         if (itemUnit) {
-          if (req.body.unitPrice !== undefined) itemUnit.unitPrice = req.body.unitPrice;
+          itemUnit.unitPrice = newPrice;
           itemUnit.unitValue = newUnitValue;
           itemUnit.unit = newUnit;
           itemUnit.name = `${item.name} - ${newUnitValue > 1 ? newUnitValue : ''}${newUnit}`;
           await itemUnit.save();
-          console.log('✅ ItemUnit updated');
+          defaultUnit = itemUnit;
+          console.log('✅ ItemUnit updated with price:', newPrice, 'unit:', newUnit);
         } else {
           itemUnit = new ItemUnit({
             name: `${item.name} - ${newUnitValue > 1 ? newUnitValue : ''}${newUnit}`,
@@ -520,15 +473,143 @@ exports.updateItem = async (req, res) => {
             unit: newUnit,
             unitValue: newUnitValue,
             unitsPerPack: 1,
-            unitPrice: req.body.unitPrice || 0,
+            unitPrice: newPrice,
             description: `${item.name} in ${newUnit}`
           });
           await itemUnit.save();
-          console.log('✅ ItemUnit created');
+          defaultUnit = itemUnit;
+          console.log('✅ ItemUnit created with price:', newPrice, 'unit:', newUnit);
         }
       } catch (unitError) {
-        console.warn('⚠️  Warning: Could not update/create ItemUnit:', unitError.message);
+        console.warn('⚠️ Warning: Could not update/create ItemUnit:', unitError.message);
       }
+    }
+
+    if (!defaultUnit) {
+      defaultUnit = await ItemUnit.findOne({ itemId: item._id });
+    }
+
+    // 2. AUTO-UPDATE STOCKS IF BRANCHSTOCKS PROVIDED OR QUANTITY CHANGED
+    if (Array.isArray(req.body.branchStocks) && req.body.branchStocks.length > 0) {
+      try {
+        for (const bs of req.body.branchStocks) {
+          if (Array.isArray(bs.units) && bs.units.length > 0) {
+            // Nested price tiers within branch
+            const rawBranchId = bs.branchId || bs.branchObjectId || bs._id;
+            let targetBranchId = null;
+
+            if (rawBranchId && mongoose.Types.ObjectId.isValid(rawBranchId)) {
+              targetBranchId = rawBranchId;
+            } else if (rawBranchId) {
+              const bDoc = await Branch.findOne({
+                $or: [{ branchName: rawBranchId }, { name: rawBranchId }, { branchId: rawBranchId }]
+              });
+              if (bDoc) targetBranchId = bDoc._id;
+            }
+
+            for (const u of bs.units) {
+              const qty = Math.max(0, parseInt(u.quantity) || 0);
+              const uUnitId = u.unitId || u.itemUnitId || (defaultUnit ? defaultUnit._id : undefined);
+
+              if (u.stockId && mongoose.Types.ObjectId.isValid(u.stockId)) {
+                await Stock.findByIdAndUpdate(u.stockId, {
+                  $set: {
+                    quantity: qty,
+                    status: qty === 0 ? 'out-of-stock' : (qty <= (item.minStock || 0) ? 'low' : 'in-stock')
+                  }
+                });
+              } else if (targetBranchId && uUnitId) {
+                await Stock.findOneAndUpdate(
+                  { itemId: item._id, branchId: targetBranchId, itemUnitId: uUnitId },
+                  {
+                    $set: {
+                      quantity: qty,
+                      status: qty === 0 ? 'out-of-stock' : (qty <= (item.minStock || 0) ? 'low' : 'in-stock')
+                    }
+                  },
+                  { upsert: true, new: true, setDefaultsOnInsert: true }
+                );
+              }
+            }
+          } else {
+            // Flat entry (may have stockId, branchId, itemUnitId)
+            const rawBranchId = bs.branchId || bs.branchObjectId || bs._id;
+            let targetBranchId = null;
+
+            if (rawBranchId && mongoose.Types.ObjectId.isValid(rawBranchId)) {
+              targetBranchId = rawBranchId;
+            } else if (rawBranchId) {
+              const bDoc = await Branch.findOne({
+                $or: [{ branchName: rawBranchId }, { name: rawBranchId }, { branchId: rawBranchId }]
+              });
+              if (bDoc) targetBranchId = bDoc._id;
+            }
+
+            const qty = Math.max(0, parseInt(bs.quantity) || 0);
+
+            if (bs.stockId && mongoose.Types.ObjectId.isValid(bs.stockId)) {
+              await Stock.findByIdAndUpdate(bs.stockId, {
+                $set: {
+                  quantity: qty,
+                  status: qty === 0 ? 'out-of-stock' : (qty <= (item.minStock || 0) ? 'low' : 'in-stock')
+                }
+              });
+            } else if (targetBranchId) {
+              const targetUnitId = bs.itemUnitId || bs.unitId || (defaultUnit ? defaultUnit._id : undefined);
+              const query = { itemId: item._id, branchId: targetBranchId };
+              if (targetUnitId) query.itemUnitId = targetUnitId;
+
+              await Stock.findOneAndUpdate(
+                query,
+                {
+                  $set: {
+                    quantity: qty,
+                    status: qty === 0 ? 'out-of-stock' : (qty <= (item.minStock || 0) ? 'low' : 'in-stock'),
+                    ...(targetUnitId && { itemUnitId: targetUnitId })
+                  }
+                },
+                { upsert: true, new: true, setDefaultsOnInsert: true }
+              );
+            }
+          }
+        }
+        console.log('✅ Branch stocks & price tiers updated directly for item:', item.name);
+      } catch (bsError) {
+        console.warn('⚠️ Warning: Could not update branch stocks:', bsError.message);
+      }
+    } else if (req.body.quantity !== undefined || req.body.minStock !== undefined || req.body.maxStock !== undefined) {
+      try {
+        const itemUnits = await ItemUnit.find({ itemId: item._id });
+        const targetUnits = itemUnits.length > 0 ? itemUnits : (defaultUnit ? [defaultUnit] : []);
+        
+        for (const unit of targetUnits) {
+          await Stock.updateMany(
+            { itemId: item._id, itemUnitId: unit._id },
+            {
+              ...(req.body.quantity !== undefined && { quantity: Number(req.body.quantity) || 0 }),
+              ...(req.body.minStock !== undefined && { minStock: Number(req.body.minStock) || 0 }),
+              ...(req.body.maxStock !== undefined && { maxStock: Number(req.body.maxStock) || 1000 }),
+              status: (Number(req.body.quantity) || 0) > 0 ? 'in-stock' : 'out-of-stock'
+            }
+          );
+        }
+        console.log('✅ Stock records updated for item:', item.name);
+      } catch (stockError) {
+        console.warn('⚠️ Warning: Could not update stocks:', stockError.message);
+      }
+    }
+
+    // 3. Recalculate total item quantity and status across branches
+    const allStocks = await Stock.find({ itemId: item._id });
+    if (allStocks && allStocks.length > 0) {
+      const totalStockQty = allStocks.reduce((sum, s) => sum + (Number(s.quantity) || 0), 0);
+      item.quantity = totalStockQty;
+      item.status = totalStockQty === 0 ? 'out' : (totalStockQty <= (item.minStock || 0) ? 'low' : 'normal');
+      await item.save();
+    } else if (req.body.quantity !== undefined) {
+      item.quantity = Math.max(0, parseInt(req.body.quantity) || 0);
+      item.status = item.quantity === 0 ? 'out' : (item.quantity <= (item.minStock || 0) ? 'low' : 'normal');
+      await item.save();
     }
     
     // Transform to ensure consistent format
@@ -540,14 +621,19 @@ exports.updateItem = async (req, res) => {
     if (itemObj.branch && typeof itemObj.branch === 'object') {
       itemObj.branch = itemObj.branch.branchName || itemObj.branch.branch_name || itemObj.branch.name || String(itemObj.branch._id);
     }
+    if (defaultUnit) {
+      itemObj.unitPrice = defaultUnit.unitPrice || 0;
+      itemObj.unit = defaultUnit.unit || itemObj.unit;
+      itemObj.unitValue = defaultUnit.unitValue || 1;
+    }
     
-  console.log('✅ Item updated:', { _id: itemObj._id, name: itemObj.name, hasImage: !!itemObj.image });
+    console.log('✅ Item updated:', { _id: itemObj._id, name: itemObj.name, unitPrice: itemObj.unitPrice, quantity: itemObj.quantity, hasImage: !!itemObj.image });
 
-if (req.body.image) {
-   autoEmbedItemImage(item, req.body.image, itemObj.categoryName || itemObj.category);
-}
+    if (req.body.image) {
+      autoEmbedItemImage(item, req.body.image, itemObj.categoryName || itemObj.category);
+    }
 
-res.json(itemObj);
+    res.json(itemObj);
   } catch (err) {
     console.error('❌ Error updating item:', err.message);
     res.status(400).json({ error: err.message });

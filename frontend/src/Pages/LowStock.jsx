@@ -6,7 +6,7 @@ import ModernDropdown from "../Components/ModernDropdown";
 import { getAuthHeaders } from "../utils/authHeaders";
 import { 
   Package, AlertTriangle, ClipboardList, X, Truck, 
-  Building2, ShoppingCart, Search, RotateCcw 
+  Building2, ShoppingCart, Search, RotateCcw, CheckCircle
 } from "lucide-react";
 
 const LowStock = () => {
@@ -14,8 +14,12 @@ const LowStock = () => {
   const [loading, setLoading] = useState(true);
   const [branches, setBranches] = useState([]);
   const [loadingBranches, setLoadingBranches] = useState(false);
-  const [suppliers, setSuppliers] = useState([]);
-  const [loadingSuppliers, setLoadingSuppliers] = useState(true);
+
+  // Direct supplier details for order (no DB table storage needed)
+  const [supplierName, setSupplierName] = useState("");
+  const [supplierPhone, setSupplierPhone] = useState("");
+  const [supplierPerson, setSupplierPerson] = useState("");
+  const [supplierQuantity, setSupplierQuantity] = useState("");
 
   // Filter and search states
   const [allBranches, setAllBranches] = useState([]);
@@ -34,8 +38,17 @@ const LowStock = () => {
   const [selectedItem, setSelectedItem] = useState(null);
   const [orderType, setOrderType] = useState("Branches");
   const [selectedBranches, setSelectedBranches] = useState([]);
-  const [selectedSuppliers, setSelectedSuppliers] = useState([]);
   const [orderQuantities, setOrderQuantities] = useState({});
+  const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
+  const [orderError, setOrderError] = useState("");
+  const [toast, setToast] = useState(null);
+
+  useEffect(() => {
+    if (toast) {
+      const timer = setTimeout(() => setToast(null), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [toast]);
 
   // Fetch low stock items from backend
   useEffect(() => {
@@ -95,29 +108,7 @@ const LowStock = () => {
       .catch(err => console.error('Error fetching categories for filter:', err));
   }, []);
 
-  // Fetch supplier list from backend
-  useEffect(() => {
-    fetch('http://localhost:5005/api/suppliers')
-      .then(res => res.json())
-      .then(result => {
-        if (result && result.success && Array.isArray(result.data)) {
-          setSuppliers(result.data.map(supplier => ({
-            id: supplier._id,
-            name: supplier.name,
-            contactPerson: supplier.contactPerson || '',
-            phone: supplier.phone || '',
-            email: supplier.email || ''
-          })));
-        } else if (Array.isArray(result)) {
-          setSuppliers(result);
-        }
-        setLoadingSuppliers(false);
-      })
-      .catch(err => {
-        console.error('Error fetching suppliers:', err);
-        setLoadingSuppliers(false);
-      });
-  }, []);
+
 
   // Flatten items into low stock branch entries
   const lowStockRows = useMemo(() => {
@@ -221,6 +212,11 @@ const LowStock = () => {
   const handleOrderClick = (item, destinationBranch = null) => {
     setSelectedItem(item);
     setTargetBranch(destinationBranch);
+    setOrderError("");
+    setSupplierName("");
+    setSupplierPhone("");
+    setSupplierPerson("");
+    setSupplierQuantity(item.shortage || 1);
     setIsModalOpen(true);
     setLoadingBranches(false);
     setBranches((item.availableBranches || item.branchStocks || [])
@@ -235,24 +231,22 @@ const LowStock = () => {
       }))
     );
     setSelectedBranches([]);
-    setSelectedSuppliers([]);
     setOrderQuantities({});
   };
 
   const handleBranchToggle = (branchId) => {
-    setSelectedBranches(prev =>
-      prev.includes(branchId)
-        ? prev.filter(id => id !== branchId)
-        : [...prev, branchId]
-    );
-  };
-
-  const handleSupplierToggle = (supplierId) => {
-    setSelectedSuppliers(prev =>
-      prev.includes(supplierId)
-        ? prev.filter(id => id !== supplierId)
-        : [...prev, supplierId]
-    );
+    setSelectedBranches(prev => {
+      const exists = prev.includes(branchId);
+      if (exists) {
+        return prev.filter(id => id !== branchId);
+      } else {
+        setOrderQuantities(q => ({
+          ...q,
+          [branchId]: q[branchId] || selectedItem?.shortage || 1
+        }));
+        return [...prev, branchId];
+      }
+    });
   };
 
   const handleQuantityChange = (id, quantity) => {
@@ -262,23 +256,133 @@ const LowStock = () => {
     }));
   };
 
-  const handleOrderSubmit = () => {
-    const orderData = {
-      item: selectedItem,
-      destinationBranch: targetBranch,
-      orderType,
-      selectedBranches: orderType === "Branches" ? selectedBranches : [],
-      selectedSuppliers: orderType === "Supplier" ? selectedSuppliers : [],
-      quantities: orderQuantities
-    };
-    console.log("Order submitted:", orderData);
-    setIsModalOpen(false);
+  const handleOrderSubmit = async () => {
+    setOrderError("");
+    if (!selectedItem) return;
+
+    if (orderType === "Branches" && selectedBranches.length === 0) {
+      setOrderError("Please select at least one branch to request a stock transfer.");
+      return;
+    }
+
+    setIsSubmittingOrder(true);
+
+    const destinationBranch = targetBranch && targetBranch !== 'All Branches / Central'
+      ? targetBranch
+      : (localStorage.getItem('branchName') || 'Colombo Main Branch');
+    const username = localStorage.getItem('username') || 'Admin User';
+
+    try {
+      const ordersToCreate = [];
+
+      if (orderType === "Supplier") {
+        const supName = supplierName.trim();
+        if (!supName) {
+          setOrderError("Please enter the supplier name.");
+          setIsSubmittingOrder(false);
+          return;
+        }
+        const qty = parseInt(supplierQuantity || selectedItem.shortage || 1, 10);
+        if (isNaN(qty) || qty <= 0) {
+          setOrderError("Please enter a valid reorder quantity.");
+          setIsSubmittingOrder(false);
+          return;
+        }
+
+        const totalStr = selectedItem.unitPrice ? `Rs ${(selectedItem.unitPrice * qty).toLocaleString()}` : '';
+
+        ordersToCreate.push({
+          orderType: 'Supplier',
+          supplier: supName,
+          branch: '',
+          orderDate: new Date().toISOString(),
+          expectedDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+          total: totalStr,
+          createdBy: username,
+          createdByBranch: destinationBranch,
+          items: [`${selectedItem.name} x ${qty} ${selectedItem.unit || ''}`.trim()],
+          orderDetails: {
+            supplierName: supName,
+            phone: supplierPhone.trim(),
+            contactPerson: supplierPerson.trim(),
+            branch: destinationBranch
+          }
+        });
+      } else {
+        for (const brId of selectedBranches) {
+          const br = branches.find(b => b.id === brId);
+          const qty = parseInt(orderQuantities[brId] || selectedItem.shortage || 1, 10);
+
+          ordersToCreate.push({
+            orderType: 'Branch',
+            supplier: '',
+            branch: br?.name || '',
+            orderDate: new Date().toISOString(),
+            expectedDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
+            total: '',
+            createdBy: username,
+            createdByBranch: destinationBranch,
+            items: [`${selectedItem.name} x ${qty} ${selectedItem.unit || ''}`.trim()],
+            orderDetails: {
+              branch: br?.name || ''
+            }
+          });
+        }
+      }
+
+      const responses = await Promise.all(
+        ordersToCreate.map(poPayload =>
+          fetch('http://localhost:5005/api/purchase-orders', {
+            method: 'POST',
+            headers: {
+              ...getAuthHeaders(),
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(poPayload)
+          }).then(async r => {
+            const data = await r.json();
+            if (!r.ok || !data.success) {
+              throw new Error(data.message || 'Failed to create PO');
+            }
+            return data;
+          })
+        )
+      );
+
+      const poNumbers = responses.map(r => r.data?.poNumber).filter(Boolean);
+      const poMsg = poNumbers.length > 0 ? ` (${poNumbers.join(', ')})` : '';
+
+      setToast({
+        type: 'success',
+        text: `Successfully created ${ordersToCreate.length} Purchase Order(s)${poMsg} for ${selectedItem.name}!`
+      });
+
+      setIsModalOpen(false);
+      setSelectedItem(null);
+      setSelectedBranches([]);
+      setOrderQuantities({});
+      setTargetBranch(null);
+      setSupplierName("");
+      setSupplierPhone("");
+      setSupplierPerson("");
+      setSupplierQuantity("");
+    } catch (err) {
+      console.error("Order Restock Error:", err);
+      setOrderError(err.message || "Failed to submit restock order. Please try again.");
+    } finally {
+      setIsSubmittingOrder(false);
+    }
   };
 
   const handleCloseModal = () => {
     setIsModalOpen(false);
     setSelectedItem(null);
     setTargetBranch(null);
+    setOrderError("");
+    setSupplierName("");
+    setSupplierPhone("");
+    setSupplierPerson("");
+    setSupplierQuantity("");
   };
 
   return (
@@ -289,6 +393,37 @@ const LowStock = () => {
         <div className="main-content">
           <div className="content-wrapper">
             <div className="low-stock-container">
+
+              {/* In-app Toast Banner */}
+              {toast && (
+                <div style={{
+                  padding: '12px 18px',
+                  marginBottom: '16px',
+                  borderRadius: '8px',
+                  background: toast.type === 'success' ? '#ecfdf5' : '#fef2f2',
+                  border: toast.type === 'success' ? '1px solid #a7f3d0' : '1px solid #fecaca',
+                  color: toast.type === 'success' ? '#065f46' : '#991b1b',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  fontWeight: 600,
+                  fontSize: '13.5px',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+                  animation: 'fadeIn 0.2s ease-in'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    {toast.type === 'success' ? <CheckCircle size={18} color="#059669" /> : <AlertTriangle size={18} color="#dc2626" />}
+                    <span>{toast.text}</span>
+                  </div>
+                  <button 
+                    type="button" 
+                    onClick={() => setToast(null)} 
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', padding: '2px' }}
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+              )}
 
               {/* Stats Cards */}
               <div className="stats-cards">
@@ -560,6 +695,25 @@ const LowStock = () => {
 
             <div className="modal-body-inventory">
               <div className="modal-form-inventory">
+                {orderError && (
+                  <div style={{
+                    background: '#fee2e2',
+                    color: '#b91c1c',
+                    border: '1px solid #fecaca',
+                    padding: '10px 14px',
+                    borderRadius: '8px',
+                    marginBottom: '14px',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px'
+                  }}>
+                    <AlertTriangle size={16} />
+                    <span>{orderError}</span>
+                  </div>
+                )}
+
                 {/* Item Details SKU Reference Card */}
                 <div className="sku-info-card">
                   <div className="sku-info-header">
@@ -611,7 +765,7 @@ const LowStock = () => {
                     {orderType === "Branches" ? (
                       <><Building2 size={14} style={{ marginRight: 6 }} /> Available Branch Inventory</>
                     ) : (
-                      <><Truck size={14} style={{ marginRight: 6 }} /> Registered Suppliers</>
+                      <><Truck size={14} style={{ marginRight: 6 }} /> Supplier Order Details</>
                     )}
                   </div>
 
@@ -680,67 +834,76 @@ const LowStock = () => {
                     </div>
                   )}
 
-                  {/* Supplier Selection */}
+                  {/* Supplier Form - Direct details input (no DB table storage needed) */}
                   {orderType === "Supplier" && (
-                    <div>
-                      {loadingSuppliers ? (
-                        <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-muted)' }}>Loading suppliers...</div>
-                      ) : suppliers.length === 0 ? (
-                        <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-muted)', border: '1px dashed var(--border-default)', borderRadius: '8px' }}>
-                          No active suppliers found in system.
+                    <div style={{
+                      background: 'var(--bg-subtle, #f8fafc)',
+                      border: '1px solid var(--border-default, #e2e8f0)',
+                      borderRadius: '8px',
+                      padding: '16px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '12px'
+                    }}>
+                      <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                        <div style={{ flex: '2 1 200px' }}>
+                          <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '5px' }}>
+                            Supplier / Vendor Name *
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="e.g. Monin Lanka / Ceylon Coffee Roasters / Dilmah"
+                            className="form-input-inventory"
+                            value={supplierName}
+                            onChange={(e) => setSupplierName(e.target.value)}
+                            style={{ width: '100%', height: '38px', fontSize: '13px' }}
+                            autoFocus
+                          />
                         </div>
-                      ) : (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '240px', overflowY: 'auto' }}>
-                          {suppliers.map((supplier) => (
-                            <div 
-                              key={supplier.id} 
-                              style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'space-between',
-                                padding: '10px 14px',
-                                borderRadius: '8px',
-                                border: selectedSuppliers.includes(supplier.id) ? '1.5px solid #3b82f6' : '1px solid var(--border-default)',
-                                background: selectedSuppliers.includes(supplier.id) ? '#eff6ff' : 'var(--bg-subtle, #ffffff)',
-                                transition: 'all 0.15s ease'
-                              }}
-                            >
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                <input
-                                  type="checkbox"
-                                  id={`supplier-${supplier.id}`}
-                                  checked={selectedSuppliers.includes(supplier.id)}
-                                  onChange={() => handleSupplierToggle(supplier.id)}
-                                  style={{ cursor: 'pointer' }}
-                                />
-                                <div>
-                                  <label htmlFor={`supplier-${supplier.id}`} style={{ fontWeight: 600, fontSize: '13px', cursor: 'pointer', color: 'var(--text-primary)' }}>
-                                    {supplier.name}
-                                  </label>
-                                  <div style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>
-                                    {supplier.contactPerson ? `${supplier.contactPerson} • ` : ''}
-                                    {supplier.phone || supplier.email || 'No contact details'}
-                                  </div>
-                                </div>
-                              </div>
-                              {selectedSuppliers.includes(supplier.id) && (
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                  <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Qty:</span>
-                                  <input
-                                    type="number"
-                                    min="1"
-                                    placeholder="Qty"
-                                    className="form-input-inventory"
-                                    style={{ width: '80px', height: '32px', textAlign: 'center', fontWeight: 600 }}
-                                    value={orderQuantities[supplier.id] || ''}
-                                    onChange={(e) => handleQuantityChange(supplier.id, e.target.value)}
-                                  />
-                                </div>
-                              )}
-                            </div>
-                          ))}
+                        <div style={{ flex: '1 1 120px' }}>
+                          <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '5px' }}>
+                            Reorder Qty ({selectedItem.unit}) *
+                          </label>
+                          <input
+                            type="number"
+                            min="1"
+                            placeholder={selectedItem.shortage || "1"}
+                            className="form-input-inventory"
+                            value={supplierQuantity}
+                            onChange={(e) => setSupplierQuantity(e.target.value)}
+                            style={{ width: '100%', height: '38px', fontSize: '13px', fontWeight: 600, textAlign: 'center' }}
+                          />
                         </div>
-                      )}
+                      </div>
+
+                      <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                        <div style={{ flex: '1 1 150px' }}>
+                          <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px' }}>
+                            Contact Person (Optional)
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="e.g. Mr. Kasun / Sales Rep"
+                            className="form-input-inventory"
+                            value={supplierPerson}
+                            onChange={(e) => setSupplierPerson(e.target.value)}
+                            style={{ width: '100%', height: '34px', fontSize: '12.5px' }}
+                          />
+                        </div>
+                        <div style={{ flex: '1 1 150px' }}>
+                          <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px' }}>
+                            Contact Phone / Email (Optional)
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="e.g. 077 123 4567"
+                            className="form-input-inventory"
+                            value={supplierPhone}
+                            onChange={(e) => setSupplierPhone(e.target.value)}
+                            style={{ width: '100%', height: '34px', fontSize: '12.5px' }}
+                          />
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -748,11 +911,23 @@ const LowStock = () => {
             </div>
 
             <div className="modal-footer-inventory">
-              <button type="button" className="modal-btn-inventory cancel" onClick={handleCloseModal}>
+              <button 
+                type="button" 
+                className="modal-btn-inventory cancel" 
+                onClick={handleCloseModal}
+                disabled={isSubmittingOrder}
+              >
                 Cancel
               </button>
-              <button type="button" className="modal-btn-inventory save" onClick={handleOrderSubmit}>
-                <ShoppingCart size={14} style={{ marginRight: 4 }} /> Submit Restock Order
+              <button 
+                type="button" 
+                className="modal-btn-inventory save" 
+                onClick={handleOrderSubmit}
+                disabled={isSubmittingOrder}
+                style={{ opacity: isSubmittingOrder ? 0.7 : 1, cursor: isSubmittingOrder ? 'not-allowed' : 'pointer' }}
+              >
+                <ShoppingCart size={14} style={{ marginRight: 4 }} />
+                {isSubmittingOrder ? 'Submitting Order...' : 'Submit Restock Order'}
               </button>
             </div>
           </div>

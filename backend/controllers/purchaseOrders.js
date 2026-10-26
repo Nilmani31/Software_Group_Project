@@ -47,25 +47,31 @@ exports.createPO = async (req, res) => {
       ? await resolveBranchName(req.user.branchId)
       : 'Colombo Main Branch';
     const finalCreatedByBranch = req.body.createdByBranch || userBranchName;
-    const { poNumber, status, orderType, supplier, branch, orderDate, expectedDate, total, createdBy, items, orderDetails } = req.body;
+    let { poNumber, status, orderType, supplier, branch, orderDate, expectedDate, total, createdBy, items, orderDetails } = req.body;
     const createdByBranch = finalCreatedByBranch;
 
-    // Better validation with specific field messages
-    const missingFields = [];
-    if (!poNumber) missingFields.push('poNumber');
-    if (!orderType) missingFields.push('orderType');
-    if (!createdBy) missingFields.push('createdBy');
-    if (!createdByBranch) missingFields.push('createdByBranch');
-    
-    if (missingFields.length > 0) {
-      return res.status(400).json({
-        success: false,
-        message: `Missing required fields: ${missingFields.join(', ')}`
-      });
+    // Normalize orderType
+    let finalOrderType = orderType;
+    if (finalOrderType === 'Branches') finalOrderType = 'Branch';
+    if (!finalOrderType) finalOrderType = 'Supplier';
+
+    // Normalize createdBy
+    const finalCreatedBy = createdBy || (req.user && (req.user.fullName || req.user.username)) || 'Admin User';
+
+    // Auto-generate poNumber if not provided
+    let finalPONumber = poNumber;
+    if (!finalPONumber) {
+      const year = new Date().getFullYear();
+      const count = await PurchaseOrder.countDocuments();
+      let seq = count + 1;
+      while (await PurchaseOrder.findOne({ poNumber: `PO-${year}-${String(seq).padStart(3, '0')}` })) {
+        seq++;
+      }
+      finalPONumber = `PO-${year}-${String(seq).padStart(3, '0')}`;
     }
 
     // Check if PO number already exists
-    const existingPO = await PurchaseOrder.findOne({ poNumber });
+    const existingPO = await PurchaseOrder.findOne({ poNumber: finalPONumber });
     if (existingPO) {
       return res.status(400).json({
         success: false,
@@ -74,16 +80,16 @@ exports.createPO = async (req, res) => {
     }
 
     const newPO = new PurchaseOrder({
-      poNumber,
+      poNumber: finalPONumber,
       status: status && ['Pending', 'Received', 'Cancelled'].includes(status) ? status : 'Pending',
-      orderType,
+      orderType: finalOrderType,
       supplier: supplier || '',
       branch: branch || '',
-      orderDate,
-      expectedDate,
+      orderDate: orderDate || new Date(),
+      expectedDate: expectedDate || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
       total: total || '',
-      createdBy,
-      createdByBranch,
+      createdBy: finalCreatedBy,
+      createdByBranch: createdByBranch || 'Colombo Main Branch',
       items: items || [],
       orderDetails: orderDetails || {}
     });

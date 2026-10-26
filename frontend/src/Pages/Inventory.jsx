@@ -135,11 +135,17 @@ const Inventory = () => {
   const [selectedItem, setSelectedItem] = useState(null);
   const [showEditItemModal, setShowEditItemModal] = useState(false);
   const [editFormData, setEditFormData] = useState({
+    _id: '',
+    itemUnitId: '',
     name: '',
     category: '',
     unit: 'kg',
+    unitValue: '1',
+    unitPrice: '',
+    quantity: '',
     minStock: '',
     maxStock: '',
+    sku: '',
     image: null
   });
   const [editImagePreview, setEditImagePreview] = useState(null);
@@ -147,6 +153,9 @@ const Inventory = () => {
   const [submitLoading, setSubmitLoading] = useState(false);
   const [stockData, setStockData] = useState([]);
   const [pendingAction, setPendingAction] = useState(null);
+  const [isEditingPriceTiers, setIsEditingPriceTiers] = useState(false);
+  const [editablePriceTiers, setEditablePriceTiers] = useState([]);
+  const [savingPriceTiers, setSavingPriceTiers] = useState(false);
 
   // Role check
   const roleId = localStorage.getItem('roleId') || '';
@@ -589,43 +598,197 @@ const Inventory = () => {
   const handleCloseItemDetailModal = () => {
     setShowItemDetailModal(false);
     setSelectedItem(null);
+    setIsEditingPriceTiers(false);
+    setEditablePriceTiers([]);
+  };
+
+  const handleStartEditPriceTiers = () => {
+    const cloned = (stockData || []).map(b => ({
+      ...b,
+      units: (b.units || []).map(u => ({ ...u }))
+    }));
+    setEditablePriceTiers(cloned);
+    setIsEditingPriceTiers(true);
+  };
+
+  const handlePriceTierQtyChange = (bIdx, uIdx, val) => {
+    setEditablePriceTiers(prev => {
+      const copy = JSON.parse(JSON.stringify(prev));
+      const parsed = Math.max(0, parseInt(val) || 0);
+      if (copy[bIdx] && copy[bIdx].units && copy[bIdx].units[uIdx]) {
+        copy[bIdx].units[uIdx].quantity = parsed;
+        const uPrice = Number(copy[bIdx].units[uIdx].unitPrice) || 0;
+        copy[bIdx].units[uIdx].totalValue = parsed * uPrice;
+
+        copy[bIdx].totalQuantity = copy[bIdx].units.reduce((sum, u) => sum + (Number(u.quantity) || 0), 0);
+        copy[bIdx].totalValue = copy[bIdx].units.reduce((sum, u) => sum + (Number(u.totalValue) || 0), 0);
+      }
+      return copy;
+    });
+  };
+
+  const handleSavePriceTiers = async () => {
+    if (!selectedItem) return;
+    setSavingPriceTiers(true);
+    try {
+      const targetId = selectedItem._id || selectedItem.id;
+      const updates = [];
+      editablePriceTiers.forEach(b => {
+        (b.units || []).forEach(u => {
+          updates.push({
+            stockId: u.stockId || u._id,
+            branchId: b.branchId,
+            itemUnitId: u.unitId,
+            quantity: parseInt(u.quantity) || 0
+          });
+        });
+      });
+
+      const response = await fetch('http://localhost:5005/api/stock/batch/update', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders()
+        },
+        body: JSON.stringify({
+          itemId: targetId,
+          updates
+        })
+      });
+
+      const res = await response.json();
+      if (res.success || response.ok) {
+        alert('Stock quantities updated successfully across price tiers!');
+        setIsEditingPriceTiers(false);
+        await fetchStockData(selectedItem);
+        await fetchItems();
+      } else {
+        alert('Error: ' + (res.error || 'Failed to update stock quantities'));
+      }
+    } catch (err) {
+      alert('Error saving price tier quantities: ' + err.message);
+    } finally {
+      setSavingPriceTiers(false);
+    }
   };
 
   const handleEditItem = () => {
     if (selectedItem) {
-      // Safely extract category name or id if it's an object
-      let categoryValue = selectedItem.category;
-      if (typeof categoryValue === 'object' && categoryValue !== null) {
-        categoryValue = categoryValue._id || categoryValue.name || categoryValue.categoryName || '';
+      // Safely extract category name so ModernDropdown matches the option
+      let categoryValue = '';
+      if (typeof selectedItem.category === 'object' && selectedItem.category !== null) {
+        categoryValue = selectedItem.category.name || selectedItem.category.categoryName || '';
+      } else if (selectedItem.categoryName) {
+        categoryValue = selectedItem.categoryName;
+      } else if (selectedItem.category) {
+        const matchEntry = Object.entries(categoryMap).find(([name, id]) => id === selectedItem.category || name === selectedItem.category);
+        categoryValue = matchEntry ? matchEntry[0] : selectedItem.category;
+      }
+
+      // Extract existing unit price
+      let existingPrice = '';
+      if (selectedItem.unitPrice !== undefined && selectedItem.unitPrice !== null && selectedItem.unitPrice !== '') {
+        existingPrice = selectedItem.unitPrice;
+      } else if (Array.isArray(selectedItem.unitPrices) && selectedItem.unitPrices.length > 0) {
+        existingPrice = selectedItem.unitPrices[0];
+      }
+
+      // Extract existing quantity
+      const existingQty = selectedItem.quantity !== undefined && selectedItem.quantity !== null
+        ? selectedItem.quantity
+        : (selectedItem.qty !== undefined ? selectedItem.qty : 0);
+
+      // Extract itemUnitId if available
+      let itemUnitId = selectedItem.itemUnitId || '';
+      if (!itemUnitId && selectedItem.uniqueId && selectedItem.uniqueId.includes('_')) {
+        itemUnitId = selectedItem.uniqueId.split('_')[1];
       }
 
       setEditFormData({
         _id: selectedItem._id || selectedItem.id,
+        itemUnitId,
         name: selectedItem.name || '',
         category: categoryValue,
-        unit: cleanUnit(selectedItem.unit) || 'kg',
+        unit: cleanUnit(selectedItem.baseUnit || selectedItem.unit) || 'kg',
         unitValue: selectedItem.unitValue || 1,
+        unitPrice: existingPrice !== '' ? String(existingPrice) : '',
         sku: selectedItem.sku || selectedItem.itemId || '',
-        quantity: selectedItem.quantity || 0,
-        minStock: selectedItem.minStock || 0,
-        maxStock: selectedItem.maxStock || 1000,
+        quantity: existingQty,
+        minStock: selectedItem.minStock !== undefined ? selectedItem.minStock : 0,
+        maxStock: selectedItem.maxStock !== undefined ? selectedItem.maxStock : 1000,
         image: selectedItem.image || null
       });
-      // Populate editableStockData from stockData or branches
-      setEditableStockData(
-        stockData && stockData.length > 0
-          ? stockData.map(s => ({
-              ...s,
-              quantity: Number(s.totalQuantity) || Number(s.quantity) || 0,
-              originalQty: Number(s.totalQuantity) || Number(s.quantity) || 0
-            }))
-          : branches.map(bName => ({
-              branchName: bName,
-              branchId: branchMap[bName],
-              quantity: 0,
-              originalQty: 0
-            }))
-      );
+
+      // Populate editableStockData from stockData, preserving price tier units
+      let initialStocks = [];
+      if (stockData && stockData.length > 0) {
+        initialStocks = stockData.map(s => {
+          const rawUnits = Array.isArray(s.units) && s.units.length > 0
+            ? s.units.map(u => ({
+                ...u,
+                stockId: u.stockId || u._id,
+                unitId: u.unitId,
+                unitPrice: Number(u.unitPrice) || 0,
+                unit: u.unit || cleanUnit(selectedItem.baseUnit || selectedItem.unit) || 'kg',
+                quantity: Number(u.quantity) || 0,
+                originalQty: Number(u.quantity) || 0,
+                totalValue: (Number(u.quantity) || 0) * (Number(u.unitPrice) || 0)
+              }))
+            : [{
+                unitPrice: Number(existingPrice) || 0,
+                unit: cleanUnit(selectedItem.baseUnit || selectedItem.unit) || 'kg',
+                quantity: Number(s.totalQuantity !== undefined ? s.totalQuantity : s.quantity) || 0,
+                originalQty: Number(s.totalQuantity !== undefined ? s.totalQuantity : s.quantity) || 0,
+                totalValue: (Number(s.totalQuantity !== undefined ? s.totalQuantity : s.quantity) || 0) * (Number(existingPrice) || 0)
+              }];
+
+          const bTotalQty = rawUnits.reduce((sum, u) => sum + (Number(u.quantity) || 0), 0);
+          const bTotalVal = rawUnits.reduce((sum, u) => sum + (Number(u.totalValue) || 0), 0);
+
+          return {
+            ...s,
+            branchName: s.branchName || (s.branch && (s.branch.branchName || s.branch.name)) || 'Unknown Branch',
+            branchId: s.branchId || s.branchObjectId || s._id,
+            totalQuantity: bTotalQty,
+            quantity: bTotalQty,
+            originalQty: bTotalQty,
+            totalValue: bTotalVal,
+            units: rawUnits
+          };
+        });
+      } else if (Array.isArray(selectedItem.branchStocks) && selectedItem.branchStocks.length > 0) {
+        initialStocks = selectedItem.branchStocks.map(s => ({
+          branchName: s.branchName || s.branch || 'Unknown Branch',
+          branchId: s.branchObjectId || s.branchId || branchMap[s.branchName || s.branch],
+          quantity: Number(s.quantity) || 0,
+          originalQty: Number(s.quantity) || 0,
+          totalQuantity: Number(s.quantity) || 0,
+          units: [{
+            unitPrice: Number(existingPrice) || 0,
+            unit: cleanUnit(selectedItem.baseUnit || selectedItem.unit) || 'kg',
+            quantity: Number(s.quantity) || 0,
+            originalQty: Number(s.quantity) || 0,
+            totalValue: (Number(s.quantity) || 0) * (Number(existingPrice) || 0)
+          }]
+        }));
+      } else if (branches && branches.length > 0) {
+        initialStocks = branches.map(bName => ({
+          branchName: bName,
+          branchId: branchMap[bName],
+          quantity: branches.length === 1 ? existingQty : 0,
+          originalQty: branches.length === 1 ? existingQty : 0,
+          totalQuantity: branches.length === 1 ? existingQty : 0,
+          units: [{
+            unitPrice: Number(existingPrice) || 0,
+            unit: cleanUnit(selectedItem.baseUnit || selectedItem.unit) || 'kg',
+            quantity: branches.length === 1 ? existingQty : 0,
+            originalQty: branches.length === 1 ? existingQty : 0,
+            totalValue: (branches.length === 1 ? existingQty : 0) * (Number(existingPrice) || 0)
+          }]
+        }));
+      }
+
+      setEditableStockData(initialStocks);
       setEditImagePreview(selectedItem.image || null);
       setShowItemDetailModal(false);
       setShowEditItemModal(true);
@@ -637,10 +800,14 @@ const Inventory = () => {
     setEditImagePreview(null);
     setEditableStockData([]);
     setEditFormData({
+      _id: '',
+      itemUnitId: '',
       name: '',
       category: '',
       unit: 'kg',
       unitValue: 1,
+      unitPrice: '',
+      quantity: '',
       minStock: '',
       maxStock: '',
       sku: '',
@@ -709,11 +876,40 @@ const Inventory = () => {
     }));
   };
 
-  const handleEditStockQuantityChange = (index, value) => {
+  const handleEditTierQuantityChange = (branchIdx, unitIdx, val) => {
     setEditableStockData(prev => {
-      const updated = [...prev];
-      updated[index] = { ...updated[index], quantity: Math.max(0, parseInt(value) || 0) };
-      return updated;
+      const copy = JSON.parse(JSON.stringify(prev));
+      const parsed = Math.max(0, parseInt(val) || 0);
+      if (copy[branchIdx] && copy[branchIdx].units && copy[branchIdx].units[unitIdx]) {
+        copy[branchIdx].units[unitIdx].quantity = parsed;
+        const uPrice = Number(copy[branchIdx].units[unitIdx].unitPrice) || 0;
+        copy[branchIdx].units[unitIdx].totalValue = parsed * uPrice;
+
+        copy[branchIdx].totalQuantity = copy[branchIdx].units.reduce((sum, u) => sum + (Number(u.quantity) || 0), 0);
+        copy[branchIdx].quantity = copy[branchIdx].totalQuantity;
+        copy[branchIdx].totalValue = copy[branchIdx].units.reduce((sum, u) => sum + (Number(u.totalValue) || 0), 0);
+      }
+      const newTotal = copy.reduce((sum, b) => sum + (Number(b.totalQuantity || b.quantity) || 0), 0);
+      setEditFormData(f => ({ ...f, quantity: newTotal }));
+      return copy;
+    });
+  };
+
+  const handleEditQuantityChange = (newVal) => {
+    const parsed = Math.max(0, parseInt(newVal) || 0);
+    setEditFormData(prev => ({ ...prev, quantity: parsed }));
+
+    setEditableStockData(prev => {
+      if (prev.length === 1) {
+        const copy = JSON.parse(JSON.stringify(prev));
+        copy[0].quantity = parsed;
+        copy[0].totalQuantity = parsed;
+        if (copy[0].units && copy[0].units.length === 1) {
+          copy[0].units[0].quantity = parsed;
+        }
+        return copy;
+      }
+      return prev;
     });
   };
 
@@ -733,11 +929,12 @@ const Inventory = () => {
     setSubmitLoading(true);
     try {
       const calculatedTotalQty = editableStockData && editableStockData.length > 0
-        ? editableStockData.reduce((total, stock) => total + (parseInt(stock.quantity) || 0), 0)
+        ? editableStockData.reduce((total, stock) => total + (parseInt(stock.totalQuantity !== undefined ? stock.totalQuantity : stock.quantity) || 0), 0)
         : (parseInt(editFormData.quantity) || 0);
 
       // First, update the item with branch stocks
-      const response = await fetch(`http://localhost:5005/api/items/${selectedItem._id}`, {
+      const targetId = selectedItem._id || selectedItem.id;
+      const response = await fetch(`http://localhost:5005/api/items/${targetId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -748,13 +945,21 @@ const Inventory = () => {
           category: categoryId,
           unit: cleanUnit(editFormData.unit),
           unitValue: parseFloat(editFormData.unitValue) || 1,
+          unitAmount: parseFloat(editFormData.unitValue) || 1,
+          unitPrice: parseFloat(editFormData.unitPrice) || 0,
           quantity: calculatedTotalQty,
           minStock: parseInt(editFormData.minStock) || 0,
           maxStock: parseInt(editFormData.maxStock) || 1000,
           image: editFormData.image,
+          itemUnitId: editFormData.itemUnitId || undefined,
           branchStocks: editableStockData.map(s => ({
             branchId: s.branchId || s.branchObjectId || s._id,
-            quantity: parseInt(s.quantity) || 0
+            quantity: parseInt(s.quantity || s.totalQuantity) || 0,
+            units: Array.isArray(s.units) ? s.units.map(u => ({
+              stockId: u.stockId || u._id,
+              unitId: u.unitId,
+              quantity: parseInt(u.quantity) || 0
+            })) : undefined
           }))
         })
       });
@@ -1281,14 +1486,68 @@ const Inventory = () => {
 
               {/* Stock by Branch & Price Tier Section */}
               <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '18px 22px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-                  <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '800', color: '#1e293b' }}>
-                    Stock by Branch & Price Tier
-                  </h3>
-                  <span style={{ fontSize: '12px', color: '#64748b' }}>
-                    Tracking multiple purchase prices per branch
-                  </span>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '800', color: '#1e293b' }}>
+                      Stock by Branch & Price Tier
+                    </h3>
+                    <span style={{ fontSize: '12px', color: '#64748b' }}>
+                      Tracking multiple purchase prices per branch
+                    </span>
+                  </div>
+                  {canEdit && (
+                    <div>
+                      {!isEditingPriceTiers ? (
+                        <button
+                          type="button"
+                          onClick={handleStartEditPriceTiers}
+                          className="modal-btn-inventory edit"
+                          style={{ height: '32px', padding: '0 12px', fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                        >
+                          <FaEdit /> Edit Quantities
+                        </button>
+                      ) : (
+                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                          <button
+                            type="button"
+                            onClick={() => setIsEditingPriceTiers(false)}
+                            className="modal-btn-inventory cancel"
+                            style={{ height: '32px', padding: '0 12px', fontSize: '12px' }}
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleSavePriceTiers}
+                            disabled={savingPriceTiers}
+                            className="modal-btn-inventory save"
+                            style={{ height: '32px', padding: '0 14px', fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                          >
+                            {savingPriceTiers ? 'Saving...' : '💾 Save Changes'}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
+
+                {isEditingPriceTiers && (
+                  <div style={{
+                    padding: '8px 14px',
+                    background: '#eff6ff',
+                    border: '1px solid #bfdbfe',
+                    borderRadius: '8px',
+                    marginBottom: '12px',
+                    fontSize: '12.5px',
+                    color: '#1d4ed8',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px'
+                  }}>
+                    <span>✏️</span>
+                    <span><strong>Edit Mode:</strong> Change the quantity for any price tier below and click <strong>Save Changes</strong> to update stock.</span>
+                  </div>
+                )}
 
                 <table className="item-detail-stock-table" style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid #e2e8f0', borderRadius: '8px', overflow: 'hidden' }}>
                   <thead>
@@ -1306,15 +1565,15 @@ const Inventory = () => {
                           <span style={{ display: 'inline-block', marginRight: '8px' }}>⏳</span> Loading stock and prices across branches...
                         </td>
                       </tr>
-                    ) : stockData && stockData.length > 0 ? (
-                      stockData.map((stock, bIdx) => {
+                    ) : (isEditingPriceTiers ? editablePriceTiers : stockData) && (isEditingPriceTiers ? editablePriceTiers : stockData).length > 0 ? (
+                      (isEditingPriceTiers ? editablePriceTiers : stockData).map((stock, bIdx) => {
                         let branchName = stock.branchName || (stock.branch && (stock.branch.branchName || stock.branch.name)) || 'Unknown Branch';
                         const units = Array.isArray(stock.units) && stock.units.length > 0
                           ? stock.units
                           : [{ unitPrice: selectedItem.unitPrice || 0, quantity: stock.quantity || stock.totalQuantity || 0 }];
 
                         return (
-                          <React.Fragment key={stock._id || bIdx}>
+                          <React.Fragment key={stock._id || stock.branchId || bIdx}>
                             {units.map((u, uIdx) => {
                               const tierPrice = Number(u.unitPrice) || 0;
                               const tierQty = Number(u.quantity) || 0;
@@ -1323,7 +1582,7 @@ const Inventory = () => {
 
                               return (
                                 <tr
-                                  key={`${stock._id || bIdx}_${uIdx}`}
+                                  key={`${stock._id || stock.branchId || bIdx}_${uIdx}`}
                                   style={{
                                     borderBottom: isLastUnit ? '1px solid #e2e8f0' : '1px dashed #f1f5f9',
                                     backgroundColor: bIdx % 2 === 0 ? '#ffffff' : '#fafafa'
@@ -1345,7 +1604,7 @@ const Inventory = () => {
                                         <span style={{ fontSize: '14px', color: '#0f172a' }}>{branchName}</span>
                                         {units.length > 1 && (
                                           <span style={{ fontSize: '11px', color: '#64748b', fontWeight: '500' }}>
-                                            Total: {stock.totalQuantity || stock.quantity || 0} {cleanUnit(selectedItem.unit)}
+                                            Total: {stock.totalQuantity !== undefined ? stock.totalQuantity : (stock.quantity || 0)} {cleanUnit(selectedItem.unit)}
                                           </span>
                                         )}
                                       </div>
@@ -1366,7 +1625,32 @@ const Inventory = () => {
                                     </span>
                                   </td>
                                   <td style={{ padding: '10px 16px', textAlign: 'center', fontWeight: '600', color: '#1e293b' }}>
-                                    {tierQty} {cleanUnit(selectedItem.unit)}
+                                    {isEditingPriceTiers ? (
+                                      <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                                        <input
+                                          type="number"
+                                          min="0"
+                                          value={u.quantity !== undefined ? u.quantity : 0}
+                                          onChange={(e) => handlePriceTierQtyChange(bIdx, uIdx, e.target.value)}
+                                          style={{
+                                            width: '80px',
+                                            height: '32px',
+                                            textAlign: 'center',
+                                            fontSize: '13px',
+                                            fontWeight: '700',
+                                            border: '2px solid #2563eb',
+                                            borderRadius: '6px',
+                                            backgroundColor: '#eff6ff',
+                                            color: '#1e293b'
+                                          }}
+                                        />
+                                        <span style={{ fontSize: '12px', color: '#64748b', fontWeight: '600' }}>
+                                          {cleanUnit(selectedItem.unit)}
+                                        </span>
+                                      </div>
+                                    ) : (
+                                      <span>{tierQty} {cleanUnit(selectedItem.unit)}</span>
+                                    )}
                                   </td>
                                   <td style={{ padding: '10px 16px', textAlign: 'right', fontWeight: '700', color: '#059669' }}>
                                     Rs. {tierValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -1388,15 +1672,20 @@ const Inventory = () => {
                       ))
                     )}
                   </tbody>
-                  {stockData && stockData.length > 0 && (
+                  {((isEditingPriceTiers ? editablePriceTiers : stockData) && (isEditingPriceTiers ? editablePriceTiers : stockData).length > 0) && (
                     <tfoot>
                       <tr style={{ background: '#f8fafc', fontWeight: 'bold', borderTop: '2px solid #e2e8f0' }}>
                         <td colSpan="2" style={{ padding: '14px 16px', color: '#334155' }}>Total Across All Branches</td>
                         <td style={{ padding: '14px 16px', textAlign: 'center', color: '#334155', fontSize: '15px' }}>
-                          {stockData.reduce((sum, b) => sum + (Number(b.totalQuantity) || Number(b.quantity) || 0), 0)} {cleanUnit(selectedItem.unit)}
+                          {(isEditingPriceTiers ? editablePriceTiers : stockData).reduce((sum, b) => {
+                            if (Array.isArray(b.units) && b.units.length > 0) {
+                              return sum + b.units.reduce((uSum, u) => uSum + (Number(u.quantity) || 0), 0);
+                            }
+                            return sum + (Number(b.totalQuantity) || Number(b.quantity) || 0);
+                          }, 0)} {cleanUnit(selectedItem.unit)}
                         </td>
                         <td style={{ padding: '14px 16px', textAlign: 'right', color: '#16a34a', fontSize: '15px' }}>
-                          Rs {stockData.reduce((sum, b) => {
+                          Rs {(isEditingPriceTiers ? editablePriceTiers : stockData).reduce((sum, b) => {
                             if (Array.isArray(b.units) && b.units.length > 0) {
                               return sum + b.units.reduce((uSum, u) => uSum + ((Number(u.quantity) || 0) * (Number(u.unitPrice) || 0)), 0);
                             }
@@ -1536,13 +1825,13 @@ const Inventory = () => {
                       </div>
                     </div>
 
-                    {/* Section 2: Unit Configuration */}
+                    {/* Section 2: Unit & Pricing */}
                     <div className="form-section-group">
                       <div className="form-section-title">
-                        <FaLayerGroup /> Unit Configuration
+                        <FaLayerGroup /> Units & Pricing
                       </div>
 
-                      <div className="form-grid-2">
+                      <div className="form-grid-3">
                         {/* Unit */}
                         <div className="form-group-inventory" style={{ margin: 0 }}>
                           <label className="form-label-inventory">Unit *</label>
@@ -1572,16 +1861,51 @@ const Inventory = () => {
                             required
                           />
                         </div>
+
+                        {/* Unit Price */}
+                        <div className="form-group-inventory" style={{ margin: 0 }}>
+                          <label className="form-label-inventory">Price (Rs)</label>
+                          <input
+                            type="number"
+                            name="unitPrice"
+                            placeholder="0.00"
+                            value={editFormData.unitPrice !== undefined ? editFormData.unitPrice : ''}
+                            onChange={handleEditInputChange}
+                            className="form-input-inventory"
+                            min="0"
+                            step="0.01"
+                          />
+                        </div>
                       </div>
                     </div>
 
-                    {/* Section 3: Stock Thresholds */}
+                    {/* Section 3: Stock Quantities & Thresholds */}
                     <div className="form-section-group">
                       <div className="form-section-title">
-                        Stock Thresholds
+                        Stock Quantities & Thresholds
                       </div>
 
-                      <div className="form-grid-2">
+                      <div className="form-grid-3">
+                        {/* Total Quantity */}
+                        <div className="form-group-inventory" style={{ margin: 0 }}>
+                          <label className="form-label-inventory">Total Quantity ({cleanUnit(editFormData.unit)})</label>
+                          <div className="stepper-input-wrapper">
+                            <input
+                              type="number"
+                              name="quantity"
+                              placeholder="0"
+                              value={editFormData.quantity !== undefined ? editFormData.quantity : ''}
+                              onChange={(e) => handleEditQuantityChange(e.target.value)}
+                              className="form-input-inventory"
+                              min="0"
+                            />
+                            <div className="stepper-btns">
+                              <button type="button" className="stepper-btn" onClick={() => handleEditQuantityChange(Number(editFormData.quantity || 0) + 1)}>▲</button>
+                              <button type="button" className="stepper-btn" onClick={() => handleEditQuantityChange(Math.max(0, Number(editFormData.quantity || 0) - 1))}>▼</button>
+                            </div>
+                          </div>
+                        </div>
+
                         {/* Minimum Stock */}
                         <div className="form-group-inventory" style={{ margin: 0 }}>
                           <label className="form-label-inventory">Minimum Stock Alert</label>
@@ -1632,10 +1956,10 @@ const Inventory = () => {
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
                       <div>
                         <h3 style={{ margin: 0, fontSize: '15px', fontWeight: '700', color: '#1e293b' }}>
-                          Branch Stock Quantities
+                          Stock by Branch & Price Tier
                         </h3>
                         <p style={{ margin: '3px 0 0 0', fontSize: '12px', color: '#64748b' }}>
-                          Update the inventory quantities stored at each branch
+                          Adjust inventory quantities stored at each branch per purchase price tier
                         </p>
                       </div>
                       <span style={{ fontSize: '12px', fontWeight: '600', color: '#475569', background: '#f1f5f9', padding: '4px 10px', borderRadius: '6px' }}>
@@ -1646,55 +1970,134 @@ const Inventory = () => {
                     <table className="edit-branch-stock-table">
                       <thead>
                         <tr>
-                          <th style={{ width: '45%' }}>Branch Name</th>
-                          <th style={{ width: '25%', textAlign: 'center' }}>Current Stock</th>
-                          <th style={{ width: '30%', textAlign: 'center' }}>New Quantity ({cleanUnit(editFormData.unit)})</th>
+                          <th style={{ width: '32%' }}>Branch Name</th>
+                          <th style={{ width: '22%' }}>Unit Price (LKR)</th>
+                          <th style={{ width: '16%', textAlign: 'center' }}>Current Stock</th>
+                          <th style={{ width: '15%', textAlign: 'center' }}>Quantity ({cleanUnit(editFormData.unit)})</th>
+                          <th style={{ width: '15%', textAlign: 'right' }}>Stock Value</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {editableStockData.map((stock, index) => {
+                        {editableStockData.map((stock, bIdx) => {
                           let branchName = stock.branchName || (stock.branch && (stock.branch.branchName || stock.branch.name)) || 'Unknown Branch';
-                          const originalQty = stock.originalQty !== undefined ? stock.originalQty : (stock.quantity || 0);
+                          const units = Array.isArray(stock.units) && stock.units.length > 0
+                            ? stock.units
+                            : [{
+                                unitPrice: Number(editFormData.unitPrice) || 0,
+                                quantity: Number(stock.quantity) || 0,
+                                originalQty: Number(stock.originalQty !== undefined ? stock.originalQty : stock.quantity) || 0
+                              }];
 
                           return (
-                            <tr key={stock._id || stock.branchId || index}>
-                              <td style={{ fontWeight: '600', color: '#1e293b' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                  <span style={{ fontSize: '16px' }}>🏢</span>
-                                  <span>{branchName}</span>
-                                </div>
-                              </td>
-                              <td style={{ textAlign: 'center', fontWeight: '600', color: '#64748b' }}>
-                                <span style={{ background: '#f1f5f9', padding: '3px 8px', borderRadius: '6px', fontSize: '12.5px' }}>
-                                  {originalQty} {cleanUnit(editFormData.unit)}
-                                </span>
-                              </td>
-                              <td style={{ textAlign: 'center' }}>
-                                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                                  <input
-                                    type="number"
-                                    min="0"
-                                    value={stock.quantity ?? 0}
-                                    onChange={(e) => handleEditStockQuantityChange(index, e.target.value)}
-                                    className="edit-stock-input"
-                                  />
-                                  <span style={{ fontSize: '12px', color: '#64748b', fontWeight: '600' }}>
-                                    {cleanUnit(editFormData.unit)}
-                                  </span>
-                                </div>
-                              </td>
-                            </tr>
+                            <React.Fragment key={stock._id || stock.branchId || bIdx}>
+                              {units.map((u, uIdx) => {
+                                const tierPrice = Number(u.unitPrice) || 0;
+                                const originalTierQty = u.originalQty !== undefined ? u.originalQty : (u.quantity || 0);
+                                const currentQty = u.quantity !== undefined ? u.quantity : 0;
+                                const tierValue = currentQty * tierPrice;
+                                const isLastUnit = uIdx === units.length - 1;
+
+                                return (
+                                  <tr
+                                    key={`${stock._id || stock.branchId || bIdx}_${uIdx}`}
+                                    style={{
+                                      borderBottom: isLastUnit ? '1px solid #e2e8f0' : '1px dashed #f1f5f9',
+                                      backgroundColor: bIdx % 2 === 0 ? '#ffffff' : '#fafafa'
+                                    }}
+                                  >
+                                    {uIdx === 0 && (
+                                      <td
+                                        rowSpan={units.length}
+                                        style={{
+                                          padding: '12px 14px',
+                                          fontWeight: '600',
+                                          color: '#1e293b',
+                                          verticalAlign: 'middle',
+                                          borderRight: '1px solid #e2e8f0',
+                                          backgroundColor: bIdx % 2 === 0 ? '#ffffff' : '#fafafa'
+                                        }}
+                                      >
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                            <span style={{ fontSize: '15px' }}>🏢</span>
+                                            <span style={{ fontWeight: '700', fontSize: '13.5px', color: '#0f172a' }}>{branchName}</span>
+                                          </div>
+                                          <span style={{ fontSize: '11px', color: '#64748b', fontWeight: '500' }}>
+                                            Total: {stock.totalQuantity !== undefined ? stock.totalQuantity : (stock.quantity || 0)} {cleanUnit(editFormData.unit)}
+                                          </span>
+                                        </div>
+                                      </td>
+                                    )}
+                                    <td style={{ padding: '10px 14px' }}>
+                                      <span style={{
+                                        background: uIdx === 0 ? '#eff6ff' : '#f5f3ff',
+                                        color: uIdx === 0 ? '#1d4ed8' : '#6d28d9',
+                                        border: uIdx === 0 ? '1px solid #bfdbfe' : '1px solid #ddd6fe',
+                                        padding: '3px 8px',
+                                        borderRadius: '6px',
+                                        fontSize: '11.5px',
+                                        fontWeight: '700',
+                                        display: 'inline-block'
+                                      }}>
+                                        Rs. {tierPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} / {cleanUnit(editFormData.unit)}
+                                      </span>
+                                    </td>
+                                    <td style={{ textAlign: 'center', fontWeight: '600', color: '#64748b', padding: '10px 14px' }}>
+                                      <span style={{ background: '#f1f5f9', padding: '3px 8px', borderRadius: '6px', fontSize: '12px' }}>
+                                        {originalTierQty} {cleanUnit(editFormData.unit)}
+                                      </span>
+                                    </td>
+                                    <td style={{ textAlign: 'center', padding: '10px 14px' }}>
+                                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', justifyContent: 'center' }}>
+                                        <input
+                                          type="number"
+                                          min="0"
+                                          value={currentQty}
+                                          onChange={(e) => handleEditTierQuantityChange(bIdx, uIdx, e.target.value)}
+                                          className="edit-stock-input"
+                                          style={{ width: '75px', textAlign: 'center', fontWeight: '700' }}
+                                        />
+                                        <span style={{ fontSize: '11.5px', color: '#64748b', fontWeight: '600' }}>
+                                          {cleanUnit(editFormData.unit)}
+                                        </span>
+                                      </div>
+                                    </td>
+                                    <td style={{ padding: '10px 14px', textAlign: 'right', fontWeight: '700', color: '#059669', fontSize: '13px' }}>
+                                      Rs. {tierValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </React.Fragment>
                           );
                         })}
                       </tbody>
                       <tfoot>
                         <tr style={{ background: '#f8fafc', fontWeight: '700', borderTop: '2px solid #e2e8f0' }}>
-                          <td style={{ padding: '12px 16px', color: '#334155' }}>Total Across Branches</td>
-                          <td style={{ padding: '12px 16px', textAlign: 'center', color: '#64748b', fontSize: '13px' }}>
-                            {editableStockData.reduce((sum, s) => sum + (Number(s.originalQty !== undefined ? s.originalQty : s.quantity) || 0), 0)} {cleanUnit(editFormData.unit)}
+                          <td colSpan={2} style={{ padding: '12px 14px', color: '#334155', fontSize: '13px' }}>Total Across Branches</td>
+                          <td style={{ padding: '12px 14px', textAlign: 'center', color: '#64748b', fontSize: '12.5px' }}>
+                            {editableStockData.reduce((sum, b) => {
+                              const bOriginal = (b.units && b.units.length > 0)
+                                ? b.units.reduce((uSum, u) => uSum + (Number(u.originalQty !== undefined ? u.originalQty : u.quantity) || 0), 0)
+                                : (Number(b.originalQty !== undefined ? b.originalQty : b.quantity) || 0);
+                              return sum + bOriginal;
+                            }, 0)} {cleanUnit(editFormData.unit)}
                           </td>
-                          <td style={{ padding: '12px 16px', textAlign: 'center', color: '#2563eb', fontSize: '14px', fontWeight: '800' }}>
-                            {editableStockData.reduce((sum, s) => sum + (Number(s.quantity) || 0), 0)} {cleanUnit(editFormData.unit)}
+                          <td style={{ padding: '12px 14px', textAlign: 'center', color: '#2563eb', fontSize: '14px', fontWeight: '800' }}>
+                            {editableStockData.reduce((sum, b) => {
+                              const bQty = (b.units && b.units.length > 0)
+                                ? b.units.reduce((uSum, u) => uSum + (Number(u.quantity) || 0), 0)
+                                : (Number(b.quantity || b.totalQuantity) || 0);
+                              return sum + bQty;
+                            }, 0)} {cleanUnit(editFormData.unit)}
+                          </td>
+                          <td style={{ padding: '12px 14px', textAlign: 'right', color: '#059669', fontSize: '14px', fontWeight: '800' }}>
+                            Rs. {editableStockData.reduce((sum, b) => {
+                              const bVal = (b.units && b.units.length > 0)
+                                ? b.units.reduce((uSum, u) => uSum + ((Number(u.quantity) || 0) * (Number(u.unitPrice) || 0)), 0)
+                                : ((Number(b.quantity || b.totalQuantity) || 0) * (Number(editFormData.unitPrice) || 0));
+                              return sum + bVal;
+                            }, 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           </td>
                         </tr>
                       </tfoot>
