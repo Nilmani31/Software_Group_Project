@@ -50,32 +50,6 @@ const IssueNote = () => {
   const [selectedBranchFilter, setSelectedBranchFilter] = useState("all");
   const [selectedStatusFilter, setSelectedStatusFilter] = useState("all");
 
-  // Fetch data from API on component mount
-  useEffect(() => {
-    const loadData = async () => {
-      await Promise.all([
-        fetchIssueNotes(),
-        fetchBranches(),
-        fetchItems(),
-        fetchUsers(),
-        fetchCategories()
-      ]);
-
-      // Get current user from localStorage (stored as individual fields in Login.jsx)
-      const user = {
-        _id: localStorage.getItem('userId') || 'temp-user-id',
-        name: localStorage.getItem('username') || 'Current User'
-      };
-      setCurrentUser(user);
-
-      setLoading(false);
-    };
-
-    loadData();
-  // The loader is declared below with useCallback to keep the effect stable.
-  // eslint-disable-next-line no-use-before-define
-  }, [fetchBranches]);
-
   // Fetch issue notes from API
   const fetchIssueNotes = async () => {
     try {
@@ -174,6 +148,29 @@ const IssueNote = () => {
       setBranches([]);
     }
   }, [userRole]);
+
+  // Fetch data from API on component mount
+  useEffect(() => {
+    const loadData = async () => {
+      await Promise.all([
+        fetchIssueNotes(),
+        fetchBranches(),
+        fetchItems(),
+        fetchUsers(),
+        fetchCategories()
+      ]);
+
+      const user = {
+        _id: localStorage.getItem('userId') || 'temp-user-id',
+        name: localStorage.getItem('username') || 'Current User'
+      };
+      setCurrentUser(user);
+
+      setLoading(false);
+    };
+
+    loadData();
+  }, [fetchBranches]);
 
   // Fetch items from API
   const fetchItems = async () => {
