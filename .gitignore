@@ -1,0 +1,91 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/frontend/node_modules/.cache
+/.pnp
+.pnp.js
+
+# testing
+/coverage
+
+# production
+/build
+
+# misc
+.DS_Store
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+node_modules/
+.env
+dist/
+build/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+.venv/
+env/
+ENV/
+*.egg-info/
+.eggs/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Qdrant
+qdrant_storage/
+*.qdrant
+qdrant/storage/
+qdrant/snapshots/
+
+# ML Service & Datasets
+Bottles_All-2/
+Liquor-data-4/
+data/
+clip/
+yolov5/
+yolov8/
+*.zip
+roboflow.yaml
+dataset.yaml
+
+# VS Code
+.vscode/
+*.code-workspace
+
+# IDE
+.idea/
+*.swp
+*.swo
+*~
+
+# Windows
+Thumbs.db
+*.lnk
+.venv-1/
+
+# Logs
+*.log
+
+# Temporary files
+ER_.png
+
+# Lock files (optional - uncomment if needed)
+# package-lock.json
+# yarn.lock
+node_modules/
+frontend/node_modules/
+backend/node_modules/
+.env
+**/.env

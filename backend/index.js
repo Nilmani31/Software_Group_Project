@@ -1,0 +1,149 @@
+const dns = require("dns");
+dns.setServers(["8.8.8.8","8.8.4.4"]);
+dns.setDefaultResultOrder("ipv4first");
+
+// Prevent uncaught stream errors or promise rejections from crashing the server
+process.on('unhandledRejection', (reason, promise) => {
+  console.warn('⚠️ Process caught unhandled rejection (prevented crash):', reason?.message || reason);
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('⚠️ Process caught uncaught exception (prevented crash):', err?.message || err);
+});
+
+const express = require('express');
+const mongoose = require('mongoose');
+const cors = require('cors');
+require('dotenv').config();
+
+// Import models to register schemas
+require('./models/users');
+require('./models/roles');
+require('./models/categories');
+require('./models/branches');
+require('./models/items');
+require('./models/itemUnits');
+require('./models/stock');
+require('./models/suppliers');
+require('./models/issueNotes');
+require('./models/issueNoteItems');
+require('./models/purchaseOrder');
+require('./models/goodsReceived');
+require('./models/units');
+
+const Userrouter = require('./routes/users');
+const rolesRouter = require('./routes/roles');
+const itemsRouter = require('./routes/items');
+const categoriesRouter = require('./routes/categories');
+const unitsRouter = require('./routes/units');
+const BranchRouter = require('./routes/branches');
+const suppliersRouter = require('./routes/suppliers');
+const stockRouter = require('./routes/stock');
+const issueNotesRouter = require('./routes/issueNotes');
+const purchaseOrdersRouter = require('./routes/purchaseOrders');
+const chatRoutes = require('./routes/chat');
+const goodsReceivedRouter = require('./routes/goodsReceived');
+const imageSearchRouter = require('./routes/imageSearch');
+const dashboardRouter = require('./routes/dashboard');
+const authenticate = require('./middleware/authenticate');
+
+
+
+const app = express();
+const PORT = process.env.PORT || 5005;
+
+// Middleware
+app.use(cors({
+  origin: '*',
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-user-role', 'x-user-branch', 'x-allowed-branches', 'x-user-branch-name', 'x-user-id', 'x-user-permissions']
+}));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+
+// MongoDB Connection
+const connectDB = async () => {
+  try {
+    if (!process.env.MONGODB_URI) {
+      throw new Error('MONGODB_URI is not set. Add it to backend/.env.');
+    }
+
+    const conn = await mongoose.connect(process.env.MONGODB_URI, {
+      serverSelectionTimeoutMS: 10000,
+    });
+
+    console.log(`✅ MongoDB Connected: ${conn.connection.host}`);
+    console.log(`📊 Database Name: ${conn.connection.name}`);
+  } catch (error) {
+    console.error('❌ MongoDB connection error:', error.message);
+    throw error;
+  }
+};
+
+// MongoDB connection event listeners
+mongoose.connection.on('connected', () => {
+  console.log('🚀 Mongoose connected to MongoDB');
+});
+
+mongoose.connection.on('error', (err) => {
+  console.error('❌ Mongoose connection error:', err);
+});
+
+mongoose.connection.on('disconnected', () => {
+  console.log('⚠️ Mongoose disconnected from MongoDB');
+});
+
+
+
+
+
+// Health check endpoint
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: 'OK',
+    database: mongoose.connection.readyState === 1 ? 'Connected' : 'Disconnected',
+    uptime: process.uptime(),
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Routes - Register BEFORE app.listen()
+app.use('/api/users', Userrouter);
+app.use('/api/roles', authenticate, rolesRouter);
+app.use('/api/items', authenticate, itemsRouter);
+app.use('/api/categories', authenticate, categoriesRouter);
+app.use('/api/units', authenticate, unitsRouter);
+app.use('/api/branches', authenticate, BranchRouter);
+app.use('/api/suppliers', authenticate, suppliersRouter);
+app.use('/api/stock', authenticate, stockRouter);
+app.use('/api/purchase-orders', authenticate, purchaseOrdersRouter);
+app.use('/api/issue-notes', authenticate, issueNotesRouter);
+app.use('/api/goods-received', authenticate, goodsReceivedRouter);
+app.use('/api/chat', authenticate, chatRoutes);
+app.use('/api/image-search', authenticate, imageSearchRouter);
+app.use('/api/dashboard', authenticate, dashboardRouter);
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error('Error:', err.stack);
+  res.status(500).json({
+    error: 'Something went wrong!',
+    message: err.message
+  });
+});
+
+const startServer = async () => {
+  try {
+    await connectDB();
+
+    app.listen(PORT, () => {
+      console.log(`Server is running on port ${PORT}`);
+      console.log('Frontend URL: http://localhost:3000');
+      console.log(`Backend URL: http://localhost:${PORT}`);
+    });
+  } catch (err) {
+    console.error('Failed to start backend because MongoDB is not connected.');
+    process.exit(1);
+  }
+};
+
+startServer();
